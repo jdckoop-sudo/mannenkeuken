@@ -6,7 +6,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 - **Live site:** https://jdckoop-sudo.github.io/mannenkeuken/
 - **Hosting:** GitHub Pages (branch `main`, map `/`)
 - **Data:** Google Sheet (roster + beroepen) en Supabase (trade market, tips, events)
-- **Login:** Discord, via Supabase
+- **Login:** "Choose your player" + gedeelde guildcode (anonieme Supabase-login; `members` koppelt browser ↔ speler, `join_guild()` checkt de code). Geen Discord-login meer.
 
 ## Pagina's
 
@@ -28,7 +28,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 ```
 css/style.css        simpele wireframe-styling (later vervangen door het echte ontwerp)
 js/config.js         publieke instellingen (Supabase URL + anon key, Discord server-id, sheet-id)
-js/supabase.js       verbinding, Discord-login, check of je in de Discord-server zit
+js/supabase.js       verbinding, inloggen met speler + guildcode, `mine()` (is dit van mijn speler?)
 js/layout.js         menu bovenaan (nieuwe pagina? voeg hem hier toe)
 js/sheet.js          leest de Google Sheet
 supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supabase)
@@ -55,5 +55,5 @@ supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supaba
 - Google Sheet gedeeld als *Iedereen met de link kan bekijken* (nodig voor Roster/Professions). ✔
 - Supabase-project `mannenkeuken` (regio Europa), `supabase/schema.sql` uitgevoerd. ✔
 - Supabase → Authentication → URL Configuration: Site URL + redirect = de live site. ✔
-- Discord-app in het Discord Developer Portal, gekoppeld als Discord-provider in Supabase.
+- Supabase Auth: *anonymous sign-ins* aan. Guildcode alleen als hash in `private.settings` (wijzigen: zie `supabase/schema.sql`). De oude Discord-app/provider wordt niet meer gebruikt.
   Callback-URL: `https://uvnmgyhnqlibnvpivhdf.supabase.co/auth/v1/callback`

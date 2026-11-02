@@ -125,7 +125,7 @@ const user = await renderHeader();
 const canEdit = !!(supabase && user && await isGuildMember());
 const goldMsg = document.getElementById('gold-msg');
 if (!canEdit) {
-  const why = !supabase ? 'Not connected yet.' : !user ? 'Log in with Discord to update the bank.' : 'Only members of the Mannenkeuken Discord can update the bank.';
+  const why = !supabase ? 'Not connected yet.' : !user ? 'Choose your player (top right) to update the bank.' : 'Choose your player with the guild code to update the bank.';
   goldMsg.textContent = why;
   document.querySelectorAll('.form-msg').forEach((m) => { m.textContent = why; });
   document.querySelectorAll('.item-form button, #gold-form button, #goal-form button, #bought').forEach((b) => { b.disabled = true; });

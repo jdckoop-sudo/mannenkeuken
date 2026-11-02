@@ -58,10 +58,11 @@ if (!target) {
       ${c.profs.length ? `<span class="muted" style="font-size:14px">${c.profs.map((x) => `${esc(x.name)} ${esc(x.skill ?? '–')}`).join(' · ')}</span>` : ''}
     </a>`).join('') || '<p class="muted">No characters yet.</p>';
 
-  // Activity (Supabase): by this player's login(s) and Discord name
+  // Activity (Supabase): by this player's logins (browsers) and name
   if (supabase) {
-    const ids = [...new Set(chars.map((c) => c.userId).filter(Boolean))];
-    const dn = p?.discord_name ?? '\u0000';
+    const { data: logins } = await supabase.from('members').select('user_id').eq('player_name', name);
+    const ids = [...new Set([...chars.map((c) => c.userId), ...(logins ?? []).map((m) => m.user_id)].filter(Boolean))];
+    const names = [name, p?.discord_name].filter(Boolean); // deposits/addons are stored by name
     const count = async (q) => (await q).count ?? 0;
     const head = { count: 'exact', head: true };
     // Everything before the WoW: Forever launch was testing, so only count from LAUNCH.
@@ -69,9 +70,9 @@ if (!target) {
     const [signups, listings, deposits, tips, addons] = await Promise.all([
       ids.length ? count(since(supabase.from('signups').select('*', head).in('user_id', ids).eq('answer', 'yes'))) : 0,
       ids.length ? count(since(supabase.from('listings').select('*', head).in('user_id', ids))) : 0,
-      count(since(supabase.from('bank_items').select('*', head).eq('deposited_by', dn))),
+      count(since(supabase.from('bank_items').select('*', head).in('deposited_by', names))),
       ids.length ? count(since(supabase.from('tips').select('*', head).in('user_id', ids))) : 0,
-      count(since(supabase.from('addons').select('*', head).eq('author_name', dn))),
+      count(since(supabase.from('addons').select('*', head).in('author_name', names))),
     ]);
     document.getElementById('activity').innerHTML = [['Event sign-ups', signups], ['Trade listings', listings], ['Bank deposits', deposits], ['Tips shared', tips], ['Addons added', addons]]
       .map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');

@@ -1,5 +1,6 @@
 // Reserving items (guild bank and trade market): who reserves, for which of their characters, how many.
 import { esc } from './sheet.js?v=__V__';
+import { mine } from './supabase.js?v=__V__';
 import { loadCharacters, playerForUser, characterUrl } from './players.js?v=__V__';
 
 // The logged-in member's characters (main first), for the "reserve for" dropdown.
@@ -8,7 +9,7 @@ export async function myCharacters(user) {
   const { characters, players } = await loadCharacters();
   const me = playerForUser(user, players);
   return characters
-    .filter((c) => c.hasName && c.status !== 'Gestopt' && (c.userId === user.id || (me && c.player === me)))
+    .filter((c) => c.hasName && c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)))
     .sort((a, b) => (a.kind === 'Main' ? -1 : 1) - (b.kind === 'Main' ? -1 : 1))
     .map((c) => c.name);
 }
@@ -19,7 +20,7 @@ export function reservationsHtml(list, user) {
   return `<div style="display:flex;flex-direction:column;gap:2px;margin-top:4px">${list.map((r) => `
     <span style="font-size:13px"><span class="badge">Reserved</span> ${esc(r.quantity)}× for <a href="${characterUrl(r.character)}">${esc(r.character)}</a>
       <span class="muted">– by ${esc(r.reserved_by)}</span>
-      ${user && r.user_id === user.id ? ` · <button class="link-btn" type="button" data-unreserve="${r.id}" data-name="${esc(r.character)}">Cancel</button>` : ''}</span>`).join('')}</div>`;
+      ${mine(user, r.user_id) ? ` · <button class="link-btn" type="button" data-unreserve="${r.id}" data-name="${esc(r.character)}">Cancel</button>` : ''}</span>`).join('')}</div>`;
 }
 
 // Small inline form: character + quantity + Reserve button. `max` = how many are still free.

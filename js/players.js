@@ -22,6 +22,7 @@ export async function loadPlayers() {
 // Which sheet player is this Discord login? (by display name or username)
 export function playerForUser(user, players) {
   if (!user) return null;
+  if (user.player) return user.player; // chosen in "Choose your player"
   const names = [displayName(user), user.user_metadata?.full_name, user.user_metadata?.name, user.user_metadata?.custom_claims?.global_name].map(norm).filter(Boolean);
   return players.find((p) => p.discord_name && names.includes(norm(p.discord_name)))?.player_name ?? null;
 }

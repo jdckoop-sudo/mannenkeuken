@@ -58,7 +58,7 @@
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
-import { supabase, getProfile } from './js/supabase.js?v=__V__';
+import { supabase, getProfile, mine } from './js/supabase.js?v=__V__';
 import { upcomingReleases, releaseWhen } from './js/releases.js?v=__V__';
 import { goldBar } from './js/gold.js?v=__V__';
 import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
@@ -109,9 +109,9 @@ document.getElementById('overview').innerHTML = all.length ? groups.map(([title,
 // My character: profile (main + alts) matched with the sheet for level and professions
 async function drawMe() {
   const box = document.getElementById('me');
-  if (!supabase || !user) { box.innerHTML = '<p class="muted">Log in with Discord to see your character here.</p>'; return; }
+  if (!supabase || !user) { box.innerHTML = '<p class="muted">Choose your player (top right) to see your character here.</p>'; return; }
   const profile = await getProfile(user);
-  const { data: alts } = await supabase.from('alts').select('*').eq('user_id', user.id).order('created_at');
+  const { data: alts } = await supabase.from('alts').select('*').in('user_id', [...user.ids]).order('created_at');
   if (!profile?.character_name) {
     box.innerHTML = '<p class="muted">You have not set your main character yet.</p><a class="btn" href="profile.html" style="align-self:flex-start">Set up my profile</a>';
     return;
@@ -143,10 +143,10 @@ async function drawForMe() {
   if (!supabase || !user) return;
   const { characters, players } = await loadCharacters();
   const me = playerForUser(user, players);
-  const mine = characters.filter((c) => c.status !== 'Gestopt' && (c.userId === user.id || (me && c.player === me)));
+  const mine = characters.filter((c) => c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)));
   const crafts = mine.flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill ?? 0 })));
   const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });
-  const open = (data ?? []).filter((l) => l.user_id !== user.id);
+  const open = (data ?? []).filter((l) => !mine(user, l.user_id));
   const tagged = me ? open.filter((l) => (l.pinged ?? []).includes(me)) : [];
   const craftable = open.filter((l) => l.kind === 'request' && l.profession).map((l) => {
     const mineWith = crafts.filter((c) => c.name === l.profession).sort((a, b) => b.skill - a.skill)[0];

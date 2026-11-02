@@ -12,7 +12,7 @@
 <main>
   <div>
     <h1>Trade Market</h1>
-    <p class="muted">Offer or request items within the guild – no prices, we share. Log in with Discord to post or to reserve an offer for one of your characters.</p>
+    <p class="muted">Offer or request items within the guild – no prices, we share. Choose your player (top right) to post or to reserve an offer for one of your characters.</p>
   </div>
   <div class="row">
     <form id="new" class="box" style="flex: 1 1 300px">
@@ -58,7 +58,7 @@
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
-import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
+import { supabase, displayName, isGuildMember, mine } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from './js/reserve.js?v=__V__';
@@ -89,8 +89,8 @@ const search = attachItemSearch(document.getElementById('item-input'), (it) => {
 loadItems().then((items) => { itemsById = new Map(items.map((i) => [i.id, i])); draw(); });
 
 if (!supabase) { msg.textContent = 'Market not connected yet.'; form.querySelector('button').disabled = true; }
-else if (!user) { msg.textContent = 'Log in with Discord to post.'; form.querySelector('button').disabled = true; }
-else if (!(await isGuildMember())) { msg.textContent = 'Only members of the Mannenkeuken Discord can post.'; form.querySelector('button').disabled = true; }
+else if (!user) { msg.textContent = 'Choose your player (top right) to post.'; form.querySelector('button').disabled = true; }
+else if (!(await isGuildMember())) { msg.textContent = 'Choose your player with the guild code to post.'; form.querySelector('button').disabled = true; }
 
 async function load() {
   if (!supabase) { document.getElementById('rows').innerHTML = '<tr><td colspan="7">Not connected yet.</td></tr>'; return; }
@@ -114,21 +114,21 @@ function draw() {
     && (!prof || l.profession === prof)
     && (!tagged || (me && (l.pinged ?? []).includes(me)))
     && (!craft || canCraft(l).length)
-    && (!onlyMine || l.user_id === user?.id)
-    && (!myRes || reservations.some((r) => r.listing_id === l.id && r.user_id === user?.id)));
+    && (!onlyMine || mine(user, l.user_id))
+    && (!myRes || reservations.some((r) => r.listing_id === l.id && mine(user, r.user_id))));
   document.getElementById('rows').innerHTML = list.map((l) => {
-    const mine = l.user_id === user?.id;
+    const isMine = mine(user, l.user_id);
     const res = reservations.filter((r) => r.listing_id === l.id);
     const free = l.quantity - reservedCount(res);
-    const reserveUi = l.kind === 'offer' ? reservationsHtml(res, user) + (user && !mine ? reserveFormHtml(l.id, myChars, free) : '') : '';
+    const reserveUi = l.kind === 'offer' ? reservationsHtml(res, user) + (user && !isMine ? reserveFormHtml(l.id, myChars, free) : '') : '';
     const crafters = canCraft(l);
     const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${crafters.length ? ` <span style="font-size:13px;color:#1a7f00">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
       + ((l.pinged ?? []).length ? `<br><span class="muted" style="font-size:13px">Tagged: ${l.pinged.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</span>` : '');
-    return `<tr class="${mine ? 'mine' : ''}">
+    return `<tr class="${isMine ? 'mine' : ''}">
       <td>${l.item_id ? `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)}` : ''}">${esc(l.item)}</a>` : esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}${extra}${reserveUi}</td>
       <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}${res.length ? `<br><span class="muted" style="font-size:13px">${free} free</span>` : ''}</td>
-      <td>${mine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
-      <td>${mine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
+      <td>${isMine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
+      <td>${isMine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
   refreshTooltips();
 }
@@ -225,7 +225,7 @@ myCharacters(user).then((c) => { myChars = c; draw(); });
 loadCharacters().then(({ characters, players }) => {
   playerNames = players.map((p) => p.player_name).sort();
   me = playerForUser(user, players);
-  myCrafts = characters.filter((c) => user && c.status !== 'Gestopt' && (c.userId === user.id || (me && c.player === me)))
+  myCrafts = characters.filter((c) => user && c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)))
     .flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill })));
   drawPingList();
   if (new URLSearchParams(location.search).get('tagged') === '1') document.getElementById('f-tagged').checked = true;

@@ -8,7 +8,8 @@ This repo is the Mannenkeuken guild dashboard. Read README.md first.
 - Every page: `<link rel="stylesheet" href="css/style.css">` and a module script that calls `renderHeader()` from `js/layout.js`. New page → add it to the `pages` list in `js/layout.js`.
 - Escape all user/sheet text with `esc()` from `js/sheet.js` before putting it in HTML.
 - Database changes: edit `supabase/schema.sql` (idempotent: `if not exists`, drop/create policies) and tell the user to run it in the Supabase SQL Editor. Keep Row Level Security on every table: read for all, write only own rows (`user_id = auth.uid()`).
-- Never commit secrets (service_role key, Discord Client Secret). The anon key in `js/config.js` is fine.
+- Never commit secrets (service_role key, Discord Client Secret, the guild code). The anon key in `js/config.js` is fine.
+- Login: "Choose your player" + guild code (anonymous Supabase session linked to a player in `members` by `join_guild()`). A player can have several browsers: use `mine(user, row.user_id)` from `js/supabase.js` for "is this mine?" and `user.ids` / `user.player`, never `row.user_id === user.id`. RLS: personal rows via `same_player(user_id)`, shared things via `is_member()`.
 - Work on a branch (`jelle/...` or `tinus/...`) and open a pull request. Never push to `main` directly.
 - Keep the look simple (wireframe style) until the final design is agreed.
 - Every local CSS link and JS import carries `?v=__V__` (e.g. `import { esc } from './js/sheet.js?v=__V__'`, inside js/: `'./supabase.js?v=__V__'`). The deploy workflow replaces `__V__` with the commit id so browsers never mix old and new files. Keep it on new imports too.
@@ -16,5 +17,5 @@ This repo is the Mannenkeuken guild dashboard. Read README.md first.
 - Every delete / "mark as done" action asks `confirm('Are you sure …?')` first.
 - Items link to Wowhead Forever (`wowheadUrl(id)` in `js/itemsearch.js`); pages showing items load Wowhead's `tooltips.js` for hover tooltips and call `refreshTooltips()` after rendering.
 - Characters come from two places: the guild sheet (leading for level and professions) and the site (`profiles` = main, `alts`). `js/players.js` merges them (`loadCharacters()`); use it instead of reading one source. `players` maps sheet player name ↔ Discord name (kept up to date by the guild sync).
-- Shared things (bank items, bank gold, addons, players) may be edited by any logged-in member; personal things (profiles, alts, listings, reservations, sign-ups) only by their owner.
+- Shared things (bank items, bank gold, addons, players) may be edited by any member (guild code); personal things (profiles, alts, listings, reservations, sign-ups) only by their owner.
 - Reservations (bank + market) always store who reserved (`reserved_by`) and for which character.

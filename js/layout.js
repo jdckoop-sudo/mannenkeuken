@@ -1,4 +1,4 @@
-import { getUser, displayName, avatarUrl, login, logout } from './supabase.js?v=__V__';
+import { supabase, getUser, displayName, avatarUrl, joinGuild, logout } from './supabase.js?v=__V__';
 
 const pages = [
   ['index.html', 'Home'],
@@ -27,15 +27,61 @@ export async function renderHeader() {
   const auth = header.querySelector('#auth');
   const user = await getUser();
   if (user) {
-    auth.innerHTML = `<span class="user"><img class="avatar" alt="" hidden><span class="user-name"></span></span><button class="btn" type="button">Log out</button>`;
+    auth.innerHTML = `<span class="user"><img class="avatar" alt="" hidden><span class="user-name"></span></span><button class="btn" type="button">Switch player</button>`;
     auth.querySelector('.user-name').textContent = displayName(user);
     const img = auth.querySelector('.avatar');
     const src = avatarUrl(user);
     if (src) { img.src = src; img.hidden = false; }
-    auth.querySelector('button').addEventListener('click', logout);
+    auth.querySelector('button').addEventListener('click', () => {
+      if (confirm('Are you sure you want to switch player? You can choose again with the guild code.')) logout();
+    });
   } else {
-    auth.innerHTML = `<span id="auth-msg" class="muted"></span><button class="btn" type="button">Log in with Discord</button>`;
-    auth.querySelector('button').addEventListener('click', login);
+    auth.innerHTML = `<button class="btn" type="button">Choose your player</button>`;
+    auth.querySelector('button').addEventListener('click', openPicker);
   }
   return user;
+}
+
+// "Choose your player": pick your name from the guild list and enter the guild code (once per browser).
+export function openPicker() {
+  let dlg = document.getElementById('player-picker');
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'player-picker';
+    dlg.className = 'box';
+    dlg.style.cssText = 'max-width:380px;width:calc(100% - 32px)';
+    dlg.innerHTML = `
+      <form method="dialog" style="display:flex;flex-direction:column;gap:12px">
+        <h2 style="margin:0">Choose your player</h2>
+        <label>Who are you?<select name="player" required><option value="">Loading…</option></select></label>
+        <label>Guild code<input name="code" type="password" required autocomplete="off" placeholder="Ask in the Mannenkeuken Discord"></label>
+        <p class="muted picker-msg" style="margin:0;font-size:14px">You only need to do this once in this browser.</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn" type="button" value="cancel">Cancel</button>
+          <button class="btn btn-primary" type="submit" value="ok">Enter</button>
+        </div>
+      </form>`;
+    document.body.append(dlg);
+    const form = dlg.querySelector('form');
+    const msg = dlg.querySelector('.picker-msg');
+    form.querySelector('[value="cancel"]').addEventListener('click', () => dlg.close());
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const d = new FormData(form);
+      msg.textContent = 'Checking…';
+      try {
+        await joinGuild(d.get('player'), d.get('code'));
+        window.location.reload();
+      } catch (err) {
+        msg.textContent = err.message || 'Could not log in.';
+      }
+    });
+    if (supabase) {
+      supabase.from('players').select('player_name').order('player_name').then(({ data }) => {
+        form.player.innerHTML = '<option value="">Choose…</option>'
+          + (data ?? []).map((p) => `<option>${p.player_name.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))}</option>`).join('');
+      });
+    }
+  }
+  dlg.showModal();
 }
