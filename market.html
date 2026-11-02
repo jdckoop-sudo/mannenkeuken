@@ -16,7 +16,7 @@
   </div>
   <div class="row">
     <form id="new" class="box" style="flex: 1 1 300px">
-      <h2>New listing</h2>
+      <h2 id="form-title">New listing</h2>
       <p id="form-msg" class="muted"></p>
       <fieldset><legend>Type</legend>
         <label><input type="radio" name="kind" value="offer" checked> Offer</label>
@@ -26,7 +26,7 @@
       <div><input id="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"><p id="item-hint" class="muted" style="font-size:13px;margin:6px 0 0"></p></div>
       <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
       <label>Note<textarea name="note" rows="3" maxlength="300"></textarea></label>
-      <button class="btn btn-primary" type="submit">Post listing</button>
+      <div class="row"><button class="btn btn-primary" id="submit-btn" type="submit">Post listing</button><button class="btn" id="cancel-edit" type="button" hidden>Cancel</button></div>
     </form>
     <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
       <label>Show<select id="filter"><option value="">All</option><option value="offer">Offers</option><option value="request">Requests</option><option value="mine">My listings</option></select></label>
@@ -50,6 +50,7 @@ const form = document.getElementById('new');
 const msg = document.getElementById('form-msg');
 let listings = [];
 let pickedItem = null;
+let editingId = null;
 let itemsById = new Map();
 const hint = document.getElementById('item-hint');
 const search = attachItemSearch(document.getElementById('item-input'), (it) => {
@@ -81,28 +82,61 @@ function draw() {
       <td>${l.item_id ? `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)}` : ''}">${esc(l.item)}</a>` : esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}</td>
       <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}</td>
       <td>${mine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
-      <td>${mine ? `<button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button>` : ''}</td></tr>`;
+      <td>${mine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
   refreshTooltips();
 }
 
 document.getElementById('filter').addEventListener('input', draw);
+function startEdit(l) {
+  editingId = l.id;
+  form.kind.value = l.kind;
+  document.getElementById('item-input').value = l.item;
+  form.quantity.value = l.quantity;
+  form.note.value = l.note ?? '';
+  pickedItem = l.item_id ? itemsById.get(l.item_id) ?? null : null;
+  hint.textContent = '';
+  document.getElementById('form-title').textContent = 'Edit listing';
+  document.getElementById('submit-btn').textContent = 'Save changes';
+  document.getElementById('cancel-edit').hidden = false;
+  msg.textContent = '';
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function stopEdit() {
+  editingId = null;
+  form.reset(); pickedItem = null; hint.textContent = ''; search.reset();
+  document.getElementById('form-title').textContent = 'New listing';
+  document.getElementById('submit-btn').textContent = 'Post listing';
+  document.getElementById('cancel-edit').hidden = true;
+}
+document.getElementById('cancel-edit').addEventListener('click', stopEdit);
 document.getElementById('rows').addEventListener('click', async (e) => {
-  const id = e.target.dataset.done;
-  if (!id) return;
-  if (!confirm(`Are you sure you want to mark "${e.target.dataset.name}" as done? It will disappear from the market.`)) return;
-  await supabase.from('listings').update({ status: 'done' }).eq('id', id);
-  load();
+  const { edit, done, del, name } = e.target.dataset;
+  if (edit) { startEdit(listings.find((l) => l.id === edit)); return; }
+  if (done) {
+    if (!confirm(`Are you sure you want to mark "${name}" as done? It will disappear from the market.`)) return;
+    await supabase.from('listings').update({ status: 'done' }).eq('id', done);
+    if (editingId === done) stopEdit();
+    load();
+  } else if (del) {
+    if (!confirm(`Are you sure you want to delete "${name}"? This can't be undone.`)) return;
+    await supabase.from('listings').delete().eq('id', del);
+    if (editingId === del) stopEdit();
+    load();
+  }
 });
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const d = new FormData(form);
-  const { error } = await supabase.from('listings').insert({
-    kind: d.get('kind'), item: d.get('item'), item_id: pickedItem?.id ?? null, quantity: Number(d.get('quantity')) || 1,
-    note: d.get('note'), author_name: displayName(user),
-  });
-  msg.textContent = error ? `Could not post: ${error.message}` : 'Posted!';
-  if (!error) { form.reset(); pickedItem = null; hint.textContent = ''; search.reset(); load(); }
+  const fields = {
+    kind: d.get('kind'), item: d.get('item'), item_id: pickedItem && pickedItem.name === d.get('item') ? pickedItem.id : null,
+    quantity: Number(d.get('quantity')) || 1, note: d.get('note'),
+  };
+  const { error } = editingId
+    ? await supabase.from('listings').update(fields).eq('id', editingId)
+    : await supabase.from('listings').insert({ ...fields, author_name: displayName(user) });
+  msg.textContent = error ? `Could not save: ${error.message}` : editingId ? 'Saved!' : 'Posted!';
+  if (!error) { stopEdit(); load(); }
 });
 load();
 </script>
