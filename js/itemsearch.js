@@ -14,6 +14,12 @@ export function loadItems() {
   return itemsPromise;
 }
 
+export const wowheadUrl = (id) => `https://www.wowhead.com/forever/item=${id}`;
+// Wowhead's tooltip script (loaded on the page) turns links to wowhead.com into hover tooltips with icon + stats.
+export function refreshTooltips() {
+  try { window.$WowheadPower?.refreshLinks?.(); window.WH?.Tooltips?.refreshLinks?.(); } catch { /* script not loaded yet */ }
+}
+
 export const qualityColor = (q) => COLOR[q] ?? COLOR[1];
 export const qualityName = (q) => QUALITY[q] ?? '';
 

@@ -149,7 +149,7 @@ function drawEvents() {
           <span class="muted">${fmtFull(new Date(e.starts_at))}${e.min_level ? ` · Min. level ${esc(e.min_level)}` : ''} · Organised by ${esc(e.author_name)}</span>
           ${e.note ? `<span>${esc(e.note)}</span>` : ''}
         </div>
-        ${e.user_id === user?.id ? `<button class="link-btn" type="button" data-del="${e.id}">Cancel event</button>` : ''}
+        ${e.user_id === user?.id ? `<button class="link-btn" type="button" data-del="${e.id}" data-name="${esc(e.title)}">Cancel event</button>` : ''}
       </div>
       ${signupForm}
       <div class="grid">${cols}</div>
@@ -178,6 +178,7 @@ document.getElementById('events').addEventListener('submit', async (ev) => {
 document.getElementById('events').addEventListener('click', async (ev) => {
   const id = ev.target.dataset?.del;
   if (!id) return;
+  if (!confirm(`Are you sure you want to cancel "${ev.target.dataset.name}"? All sign-ups will be removed.`)) return;
   await supabase.from('events').delete().eq('id', id);
   load();
 });
