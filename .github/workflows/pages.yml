@@ -4,6 +4,9 @@ name: Deploy site
 on:
   push:
     branches: [main]
+  workflow_run:   # a commit made by "Update items" does not trigger push, so deploy after it
+    workflows: ["Update items"]
+    types: [completed]
   workflow_dispatch:
 permissions:
   contents: read

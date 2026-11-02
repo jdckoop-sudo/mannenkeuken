@@ -20,7 +20,8 @@
         <label><input type="radio" name="kind" value="offer" checked> Offer</label>
         <label><input type="radio" name="kind" value="request"> Request</label>
       </fieldset>
-      <label>Item<input name="item" required maxlength="80"></label>
+      <label for="item-input">Item</label>
+      <div><input id="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"><p id="item-hint" class="muted" style="font-size:13px;margin:6px 0 0"></p></div>
       <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
       <label>Note<textarea name="note" rows="3" maxlength="300"></textarea></label>
       <button class="btn btn-primary" type="submit">Post listing</button>
@@ -40,11 +41,20 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
+import { attachItemSearch, loadItems, qualityColor, qualityName } from './js/itemsearch.js?v=__V__';
 
 const user = await renderHeader();
 const form = document.getElementById('new');
 const msg = document.getElementById('form-msg');
 let listings = [];
+let pickedItem = null;
+let itemsById = new Map();
+const hint = document.getElementById('item-hint');
+const search = attachItemSearch(document.getElementById('item-input'), (it) => {
+  pickedItem = it;
+  hint.textContent = it ? `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''}` : 'Not in the list? You can still post it as typed (hidden items appear once someone finds them).';
+});
+loadItems().then((items) => { itemsById = new Map(items.map((i) => [i.id, i])); draw(); });
 
 if (!supabase) { msg.textContent = 'Market not connected yet.'; form.querySelector('button').disabled = true; }
 else if (!user) { msg.textContent = 'Log in with Discord to post.'; form.querySelector('button').disabled = true; }
@@ -63,7 +73,7 @@ function draw() {
   document.getElementById('rows').innerHTML = list.map((l) => {
     const mine = l.user_id === user?.id;
     return `<tr class="${mine ? 'mine' : ''}">
-      <td>${esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}</td>
+      <td><span style="${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)};font-weight:600` : ''}">${esc(l.item)}</span>${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}</td>
       <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}</td>
       <td>${mine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
       <td>${mine ? `<button class="link-btn" data-done="${l.id}">Mark as done</button>` : ''}</td></tr>`;
@@ -81,11 +91,11 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const d = new FormData(form);
   const { error } = await supabase.from('listings').insert({
-    kind: d.get('kind'), item: d.get('item'), quantity: Number(d.get('quantity')) || 1,
+    kind: d.get('kind'), item: d.get('item'), item_id: pickedItem?.id ?? null, quantity: Number(d.get('quantity')) || 1,
     note: d.get('note'), author_name: displayName(user),
   });
   msg.textContent = error ? `Could not post: ${error.message}` : 'Posted!';
-  if (!error) { form.reset(); load(); }
+  if (!error) { form.reset(); pickedItem = null; hint.textContent = ''; search.reset(); load(); }
 });
 load();
 </script>
