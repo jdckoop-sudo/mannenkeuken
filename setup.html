@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Addons &amp; Settings – Mannenkeuken</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Addons &amp; Settings</h1>
+    <p class="muted">Recommended addons, handy macros and game settings. Members can add their own tips.</p>
+  </div>
+  <div class="row">
+    <form id="new" class="box" style="flex: 1 1 300px">
+      <h2>Share a tip</h2>
+      <p id="form-msg" class="muted"></p>
+      <label>Category<select name="category"><option value="addon">Addon</option><option value="macro">Macro</option><option value="setting">Game setting</option></select></label>
+      <label>Title<input name="title" required maxlength="80" placeholder="e.g. [addon name]"></label>
+      <label>Class (optional)<input name="class" maxlength="40" placeholder="e.g. Warrior"></label>
+      <label>Link (optional)<input name="link" type="url" placeholder="https://"></label>
+      <label>Content – description, macro text or setting<textarea name="content" rows="6" maxlength="2000"></textarea></label>
+      <button class="btn btn-primary" type="submit">Share</button>
+    </form>
+    <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <section class="box"><h2>Addons</h2><div id="addon"></div></section>
+      <section class="box"><h2>Macros</h2><div id="macro"></div></section>
+      <section class="box"><h2>Game settings</h2><div id="setting"></div></section>
+    </div>
+  </div>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js';
+import { supabase, displayName, isGuildMember } from './js/supabase.js';
+import { esc } from './js/sheet.js';
+
+const user = await renderHeader();
+const form = document.getElementById('new');
+const msg = document.getElementById('form-msg');
+if (!supabase) { msg.textContent = 'Not connected yet.'; form.querySelector('button').disabled = true; }
+else if (!user) { msg.textContent = 'Log in with Discord to share.'; form.querySelector('button').disabled = true; }
+else if (!(await isGuildMember())) { msg.textContent = 'Only members of the Mannenkeuken Discord can share.'; form.querySelector('button').disabled = true; }
+
+async function load() {
+  const data = supabase ? (await supabase.from('tips').select('*').order('created_at', { ascending: false })).data ?? [] : [];
+  for (const cat of ['addon', 'macro', 'setting']) {
+    const items = data.filter((t) => t.category === cat);
+    document.getElementById(cat).innerHTML = items.map((t) => `
+      <article style="border-top:1px solid #d1d5db;padding-top:12px;margin-top:12px">
+        <strong>${esc(t.title)}</strong>${t.class ? ` <span class="muted">· ${esc(t.class)}</span>` : ''}
+        ${t.link && /^https?:\/\//.test(t.link) ? ` · <a href="${esc(t.link)}" target="_blank" rel="noopener">link</a>` : ''}
+        ${t.content ? `<pre style="white-space:pre-wrap;font:inherit;margin:8px 0 0">${esc(t.content)}</pre>` : ''}
+        <p class="muted" style="font-size:13px">by ${esc(t.author_name)}${t.user_id === user?.id ? ` · <button class="link-btn" data-del="${t.id}">Remove</button>` : ''}</p>
+      </article>`).join('') || '<p class="muted">Nothing yet.</p>';
+  }
+}
+document.querySelector('main').addEventListener('click', async (e) => {
+  const id = e.target.dataset.del;
+  if (!id) return;
+  await supabase.from('tips').delete().eq('id', id);
+  load();
+});
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const d = new FormData(form);
+  const { error } = await supabase.from('tips').insert({
+    category: d.get('category'), title: d.get('title'), class: d.get('class'),
+    link: d.get('link'), content: d.get('content'), author_name: displayName(user),
+  });
+  msg.textContent = error ? `Could not share: ${error.message}` : 'Shared!';
+  if (!error) { form.reset(); load(); }
+});
+load();
+</script>
+</body>
+</html>

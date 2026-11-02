@@ -1,0 +1,44 @@
+/* Simple wireframe style – replace later with the final design */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1f2937; background: #fff; }
+a { color: #1f2937; }
+a:hover { color: #000; }
+
+.site-header { border-bottom: 2px solid #9ca3af; padding: 16px 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; text-decoration: none; }
+.brand-logo { width: 40px; height: 40px; border: 2px dashed #6b7280; border-radius: 8px; }
+.site-nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.site-nav a { padding: 12px 14px; border-radius: 6px; text-decoration: none; }
+.site-nav a.active { background: #e5e7eb; font-weight: 700; }
+.auth { display: flex; gap: 12px; align-items: center; }
+
+main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: flex; flex-direction: column; gap: 24px; }
+h1 { margin: 0; font-size: 32px; }
+h2 { margin: 0; font-size: 20px; }
+.muted { color: #4b5563; margin: 0; }
+
+.box { border: 2px solid #9ca3af; border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.stat strong { font-size: 32px; }
+
+.btn { padding: 12px 16px; border: 2px solid #1f2937; border-radius: 6px; background: #fff; color: #1f2937; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+.btn-primary { background: #1f2937; color: #fff; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.link-btn { background: none; border: none; padding: 0; font: inherit; color: #1f2937; text-decoration: underline; cursor: pointer; }
+
+label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+input, select, textarea { padding: 10px; border: 2px solid #9ca3af; border-radius: 6px; font: inherit; }
+fieldset { border: none; padding: 0; margin: 0; display: flex; gap: 16px; }
+fieldset label { flex-direction: row; align-items: center; }
+
+.table-wrap { border: 2px solid #9ca3af; border-radius: 10px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th { background: #e5e7eb; text-align: left; }
+th, td { padding: 12px; }
+tbody tr { border-top: 1px solid #d1d5db; }
+.mine { background: #f3f4f6; }
+
+.bar { height: 8px; background: #e5e7eb; border-radius: 4px; }
+.bar > div { height: 8px; background: #6b7280; border-radius: 4px; }
+.notice { border: 2px dashed #9ca3af; border-radius: 10px; padding: 16px; }

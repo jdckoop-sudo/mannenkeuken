@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mannenkeuken – Guild Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main>
+  <section class="box">
+    <span class="muted">Horde · Guild-found · WoW: Forever</span>
+    <h1>Mannenkeuken</h1>
+    <p class="muted">[Short guild intro / message of the day]</p>
+  </section>
+
+  <section class="grid" aria-label="Key numbers">
+    <div class="box stat"><span class="muted">Members (Main)</span><strong id="stat-members">–</strong></div>
+    <div class="box stat"><span class="muted">Tank / Healer / DPS</span><strong id="stat-roles">–</strong></div>
+    <div class="box stat"><span class="muted">Average level</span><strong id="stat-level">–</strong></div>
+    <div class="box stat"><span class="muted">Open trade listings</span><strong id="stat-market">–</strong></div>
+  </section>
+
+  <div class="grid">
+    <section class="box"><h2>Upcoming events</h2><p class="muted">[Coming soon – see Raids &amp; Events]</p></section>
+    <section class="box"><h2>Latest trade listings</h2><div id="latest"><p class="muted">Loading…</p></div><a href="market.html">Go to market</a></section>
+  </div>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js';
+import { loadMembers, esc } from './js/sheet.js';
+import { supabase } from './js/supabase.js';
+
+renderHeader();
+
+loadMembers().then((all) => {
+  const mains = all.filter((m) => m.status === 'Main');
+  const count = (r) => mains.filter((m) => m.role === r).length;
+  const levels = mains.map((m) => Number(m.level)).filter((n) => n > 0);
+  document.getElementById('stat-members').textContent = mains.length;
+  document.getElementById('stat-roles').textContent = `${count('Tank')} / ${count('Healer')} / ${count('DPS')}`;
+  document.getElementById('stat-level').textContent = levels.length ? Math.round(levels.reduce((a, b) => a + b, 0) / levels.length) : '–';
+}).catch(() => {});
+
+if (supabase) {
+  const { data, count } = await supabase.from('listings').select('*', { count: 'exact' }).eq('status', 'open').order('created_at', { ascending: false }).limit(5);
+  document.getElementById('stat-market').textContent = count ?? 0;
+  document.getElementById('latest').innerHTML = (data ?? []).map((l) =>
+    `<p>${esc(l.item)} ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span></p>`
+  ).join('') || '<p class="muted">No listings yet.</p>';
+} else {
+  document.getElementById('latest').innerHTML = '<p class="muted">Market not connected yet.</p>';
+}
+</script>
+</body>
+</html>

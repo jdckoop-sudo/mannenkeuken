@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trade Market – Mannenkeuken</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Trade Market</h1>
+    <p class="muted">Offer or request items within the guild. Log in with Discord to post.</p>
+  </div>
+  <div class="row">
+    <form id="new" class="box" style="flex: 1 1 300px">
+      <h2>New listing</h2>
+      <p id="form-msg" class="muted"></p>
+      <fieldset><legend>Type</legend>
+        <label><input type="radio" name="kind" value="offer" checked> Offer</label>
+        <label><input type="radio" name="kind" value="request"> Request</label>
+      </fieldset>
+      <label>Item<input name="item" required maxlength="80"></label>
+      <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
+      <label>Price / trade for<input name="price" maxlength="80"></label>
+      <label>Note<textarea name="note" rows="3" maxlength="300"></textarea></label>
+      <button class="btn btn-primary" type="submit">Post listing</button>
+    </form>
+    <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <label>Show<select id="filter"><option value="">All</option><option value="offer">Offers</option><option value="request">Requests</option><option value="mine">My listings</option></select></label>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th>Type</th><th>Qty</th><th>Price</th><th>Posted by</th><th>Date</th><th><span class="muted">Actions</span></th></tr></thead>
+          <tbody id="rows"><tr><td colspan="7">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js';
+import { supabase, displayName, isGuildMember } from './js/supabase.js';
+import { esc } from './js/sheet.js';
+
+const user = await renderHeader();
+const form = document.getElementById('new');
+const msg = document.getElementById('form-msg');
+let listings = [];
+
+if (!supabase) { msg.textContent = 'Market not connected yet.'; form.querySelector('button').disabled = true; }
+else if (!user) { msg.textContent = 'Log in with Discord to post.'; form.querySelector('button').disabled = true; }
+else if (!(await isGuildMember())) { msg.textContent = 'Only members of the Mannenkeuken Discord can post.'; form.querySelector('button').disabled = true; }
+
+async function load() {
+  if (!supabase) { document.getElementById('rows').innerHTML = '<tr><td colspan="7">Not connected yet.</td></tr>'; return; }
+  const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });
+  listings = data ?? [];
+  draw();
+}
+
+function draw() {
+  const f = document.getElementById('filter').value;
+  const list = listings.filter((l) => !f || (f === 'mine' ? l.user_id === user?.id : l.kind === f));
+  document.getElementById('rows').innerHTML = list.map((l) => {
+    const mine = l.user_id === user?.id;
+    return `<tr class="${mine ? 'mine' : ''}">
+      <td>${esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}</td>
+      <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}</td><td>${esc(l.price)}</td>
+      <td>${mine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
+      <td>${mine ? `<button class="link-btn" data-done="${l.id}">Mark as done</button>` : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
+}
+
+document.getElementById('filter').addEventListener('input', draw);
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const id = e.target.dataset.done;
+  if (!id) return;
+  await supabase.from('listings').update({ status: 'done' }).eq('id', id);
+  load();
+});
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const d = new FormData(form);
+  const { error } = await supabase.from('listings').insert({
+    kind: d.get('kind'), item: d.get('item'), quantity: Number(d.get('quantity')) || 1,
+    price: d.get('price'), note: d.get('note'), author_name: displayName(user),
+  });
+  msg.textContent = error ? `Could not post: ${error.message}` : 'Posted!';
+  if (!error) { form.reset(); load(); }
+});
+load();
+</script>
+</body>
+</html>

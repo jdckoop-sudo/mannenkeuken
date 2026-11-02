@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Professions – Mannenkeuken</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Professions</h1>
+    <p class="muted">Who can craft what – guild-found, so we make everything ourselves (Mains and Alts)</p>
+  </div>
+  <div class="grid" id="cards"><p class="muted">Loading…</p></div>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js';
+import { loadMembers, esc } from './js/sheet.js';
+renderHeader();
+
+const MAX = 300;
+loadMembers().then((members) => {
+  const byProf = {};
+  for (const m of members.filter((x) => x.status !== 'Gestopt')) {
+    for (const [p, s] of [[m.prof1, m.skill1], [m.prof2, m.skill2]]) {
+      if (!p) continue;
+      (byProf[p] ??= []).push({ name: m.character || m.player, player: m.player, skill: Number(s) || 0 });
+    }
+  }
+  const names = Object.keys(byProf).sort();
+  document.getElementById('cards').innerHTML = names.map((p) => `
+    <section class="box">
+      <h2>${esc(p)}</h2>
+      ${byProf[p].sort((a, b) => b.skill - a.skill).map((c) => `
+        <div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${esc(c.name)} <span class="muted">(${esc(c.player)})</span></span><span class="muted">${c.skill} / ${MAX}</span></div>
+        <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, (c.skill / MAX) * 100)}%"></div></div></div>`).join('')}
+    </section>`).join('') || '<p class="muted">No professions in the sheet yet.</p>';
+}).catch(() => {
+  document.getElementById('cards').innerHTML = '<p class="muted">Could not read the sheet.</p>';
+});
+</script>
+</body>
+</html>
