@@ -10,7 +10,7 @@
 <main>
   <div>
     <h1>Trade Market</h1>
-    <p class="muted">Offer or request items within the guild. Log in with Discord to post.</p>
+    <p class="muted">Offer or request items within the guild – no prices, we share. Log in with Discord to post.</p>
   </div>
   <div class="row">
     <form id="new" class="box" style="flex: 1 1 300px">
@@ -22,7 +22,6 @@
       </fieldset>
       <label>Item<input name="item" required maxlength="80"></label>
       <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
-      <label>Price / trade for<input name="price" maxlength="80"></label>
       <label>Note<textarea name="note" rows="3" maxlength="300"></textarea></label>
       <button class="btn btn-primary" type="submit">Post listing</button>
     </form>
@@ -30,7 +29,7 @@
       <label>Show<select id="filter"><option value="">All</option><option value="offer">Offers</option><option value="request">Requests</option><option value="mine">My listings</option></select></label>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Item</th><th>Type</th><th>Qty</th><th>Price</th><th>Posted by</th><th>Date</th><th><span class="muted">Actions</span></th></tr></thead>
+          <thead><tr><th>Item</th><th>Type</th><th>Qty</th><th>Posted by</th><th>Date</th><th><span class="muted">Actions</span></th></tr></thead>
           <tbody id="rows"><tr><td colspan="7">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -65,7 +64,7 @@ function draw() {
     const mine = l.user_id === user?.id;
     return `<tr class="${mine ? 'mine' : ''}">
       <td>${esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}</td>
-      <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}</td><td>${esc(l.price)}</td>
+      <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}</td>
       <td>${mine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
       <td>${mine ? `<button class="link-btn" data-done="${l.id}">Mark as done</button>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
@@ -83,7 +82,7 @@ form.addEventListener('submit', async (e) => {
   const d = new FormData(form);
   const { error } = await supabase.from('listings').insert({
     kind: d.get('kind'), item: d.get('item'), quantity: Number(d.get('quantity')) || 1,
-    price: d.get('price'), note: d.get('note'), author_name: displayName(user),
+    note: d.get('note'), author_name: displayName(user),
   });
   msg.textContent = error ? `Could not post: ${error.message}` : 'Posted!';
   if (!error) { form.reset(); load(); }
