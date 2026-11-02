@@ -360,3 +360,20 @@ drop policy if exists "update logged in" on public.bank;
 create policy "update logged in" on public.bank for update to authenticated using (public.is_member()) with check (public.is_member());
 drop policy if exists "write logged in" on public.players;
 create policy "write logged in" on public.players for all to authenticated using (public.is_member()) with check (public.is_member());
+
+-- 2026-11-03: gold donations per player (Top donors on the Guild Bank page, counted from LAUNCH).
+-- Shared: any member may add/remove; the page also changes the bank balance.
+create table if not exists public.gold_donations (
+  id uuid primary key default gen_random_uuid(),
+  player_name text not null references public.players(player_name) on update cascade,
+  copper bigint not null check (copper > 0),
+  note text check (char_length(note) <= 200),
+  added_by text,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.gold_donations enable row level security;
+drop policy if exists "read all" on public.gold_donations;
+drop policy if exists "write members" on public.gold_donations;
+create policy "read all" on public.gold_donations for select using (true);
+create policy "write members" on public.gold_donations for all to authenticated using (public.is_member()) with check (public.is_member());

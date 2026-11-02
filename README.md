@@ -17,7 +17,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 | Professions | `professions.html` | Google Sheet | klaar |
 | Trade Market | `market.html` | Supabase `listings` | klaar |
 | Raids & Events | `events.html` | Supabase `events` (rollen óf `players_needed` = gewoon spelers; `pinged` = getagde spelers, zien het op Home; `quest_id` = gekozen quest, `dungeon` = gekozen dungeon/raid), `signups`; questzoeker uit `data/quests.json`, dungeonzoeker uit `js/dungeons.js` (met de hand bijhouden) | klaar |
-| Guild Bank | `bank.html` | Supabase `bank_items` (`location` opie/guild, `status` sent/in_stock), `bank` (goud) – Opie Bank-voorraad (bijgehouden door Jelle, leden melden wat ze opsturen) + guildbank (open na aankoop). Activiteit (sign-ups, trades, deposits, tips, addons) op spelerpagina's telt vanaf de launch (`LAUNCH` in `js/releases.js`) | klaar |
+| Guild Bank | `bank.html` | Supabase `bank_items` (`location` opie/guild, `status` sent/in_stock), `bank` (goud) – Opie Bank-voorraad (bijgehouden door Jelle, leden melden wat ze opsturen), goud-donaties per speler in `gold_donations` (Top donors vanaf de launch) + guildbank (open na aankoop). Activiteit (sign-ups, trades, deposits, tips, addons) op spelerpagina's telt vanaf de launch (`LAUNCH` in `js/releases.js`) | klaar |
 | Player / Character | `player.html?name=…`, `character.html?name=…` | Sheet + Supabase `profiles`, `alts`, `players` | klaar |
 | Achievements | `achievements.html` | Sheet + Supabase | klaar |
 | My profile | `profile.html` | Supabase `profiles`, `alts` (main automatisch uit de sheet) | klaar |

@@ -35,6 +35,7 @@
         <label style="width:90px">Gold<input name="g" type="number" min="0" value="0"></label>
         <label style="width:80px">Silver<input name="s" type="number" min="0" max="99" value="0"></label>
         <label style="width:80px">Copper<input name="c" type="number" min="0" max="99" value="0"></label>
+        <label style="width:150px">From (donor)<select name="donor"><option value="">–</option></select></label>
         <button class="btn" type="submit" value="set">Set balance</button>
         <button class="btn" type="submit" value="add">+ Add</button>
       </form>
@@ -47,6 +48,16 @@
         </form>
       </details>
       <p id="gold-msg" class="muted" style="font-size:13px"></p>
+    </section>
+
+    <section class="box" style="flex: 1 1 280px">
+      <h2>Top donors</h2>
+      <p class="muted" style="margin:0;font-size:13px">Gold given to the guild per player, since the WoW: Forever launch. Choose the donor at <em>+ Add</em>.</p>
+      <ol id="donors" style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:4px"><li class="muted">Loading…</li></ol>
+      <details>
+        <summary style="cursor:pointer">Latest donations</summary>
+        <ul id="donations" style="margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px"></ul>
+      </details>
     </section>
   </div>
 
@@ -119,6 +130,7 @@ import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { toCopper, formatGold, goldBar } from './js/gold.js?v=__V__';
+import { LAUNCH } from './js/releases.js?v=__V__';
 import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from './js/reserve.js?v=__V__';
 
 const user = await renderHeader();
@@ -157,11 +169,49 @@ document.getElementById('gold-form').addEventListener('submit', async (e) => {
   const amount = toCopper(d.get('g'), d.get('s'), d.get('c'));
   const mode = e.submitter?.value;
   const copper = mode === 'add' ? bank.copper + amount : amount;
+  const donor = d.get('donor');
   if (mode === 'set' && !confirm(`Are you sure you want to set the bank balance to ${formatGold(copper)}?`)) return;
+  if (mode === 'add' && donor && amount <= 0) { goldMsg.textContent = 'Enter an amount first.'; return; }
   const { error } = await supabase.from('bank').update({ copper, updated_by: displayName(user), updated_at: new Date().toISOString() }).eq('id', 1);
-  goldMsg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
-  if (!error) { e.target.reset(); loadGold(); }
+  // "+ Add" with a donor: also record who gave it (for Top donors)
+  const { error: dErr } = !error && mode === 'add' && donor
+    ? await supabase.from('gold_donations').insert({ player_name: donor, copper: amount, added_by: displayName(user) })
+    : { error: null };
+  goldMsg.textContent = error ? `Could not save: ${error.message}` : dErr ? `Gold saved, but the donation was not recorded: ${dErr.message}` : donor && mode === 'add' ? `Saved – thanks ${donor}!` : 'Saved!';
+  if (!error) { e.target.reset(); loadGold(); loadDonations(); }
 });
+// Donations per player + Top donors (since launch)
+let donations = [];
+async function loadDonations() {
+  if (!supabase) return;
+  const [{ data }, { data: players }] = await Promise.all([
+    supabase.from('gold_donations').select('*').order('created_at', { ascending: false }),
+    supabase.from('players').select('player_name').order('player_name'),
+  ]);
+  donations = data ?? [];
+  const sel = document.querySelector('#gold-form [name="donor"]');
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">–</option>' + (players ?? []).map((p) => `<option>${esc(p.player_name)}</option>`).join('');
+  sel.value = keep;
+  const totals = {};
+  for (const x of donations.filter((x) => x.created_at >= LAUNCH)) totals[x.player_name] = (totals[x.player_name] ?? 0) + Number(x.copper);
+  const top = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  document.getElementById('donors').innerHTML = top.map(([p, c], i) => `<li${i === 0 ? ' style="font-weight:700"' : ''}>${esc(p)} <span class="muted">– ${esc(formatGold(c))}</span></li>`).join('')
+    || '<li class="muted" style="list-style:none;margin-left:-22px">No donations since the launch yet.</li>';
+  document.getElementById('donations').innerHTML = donations.slice(0, 20).map((x) => `<li>${esc(x.player_name)}: ${esc(formatGold(Number(x.copper)))} <span class="muted">· ${new Date(x.created_at).toLocaleDateString('en-GB')}${x.created_at < LAUNCH ? ' (test, before launch)' : ''}</span>${canEdit ? ` · <button class="link-btn" type="button" data-undo="${x.id}">Remove</button>` : ''}</li>`).join('')
+    || '<li class="muted">None yet.</li>';
+}
+document.getElementById('donations').addEventListener('click', async (e) => {
+  const id = e.target.dataset?.undo;
+  if (!id) return;
+  const x = donations.find((y) => y.id === id);
+  if (!x || !confirm(`Are you sure you want to remove ${formatGold(Number(x.copper))} from ${x.player_name}? The same amount is taken off the bank balance.`)) return;
+  const { error } = await supabase.from('gold_donations').delete().eq('id', id);
+  if (!error) await supabase.from('bank').update({ copper: Math.max(0, bank.copper - Number(x.copper)), updated_by: displayName(user), updated_at: new Date().toISOString() }).eq('id', 1);
+  goldMsg.textContent = error ? `Could not remove: ${error.message}` : 'Donation removed.';
+  loadGold(); loadDonations();
+});
+
 document.getElementById('goal-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const goal = toCopper(new FormData(e.target).get('goal'));
@@ -314,6 +364,7 @@ document.querySelectorAll('.item-form').forEach((f) => f.addEventListener('submi
 
 if (canEdit) myCharacters(user).then((c) => { myChars = c; draw(); });
 loadGold();
+loadDonations();
 load();
 </script>
 </body>
