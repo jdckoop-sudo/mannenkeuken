@@ -72,7 +72,7 @@ if (!target) {
       count(supabase.from('addons').select('*', head).eq('author_name', dn)),
     ]);
     document.getElementById('activity').innerHTML = [['Event sign-ups', signups], ['Trade listings', listings], ['Bank deposits', deposits], ['Tips shared', tips], ['Addons added', addons]]
-      .map(([k, v]) => `<div><span>${k}${k === 'Bank deposits' ? ' <span class="muted" style="font-size:12px">(since launch)</span>' : ''}</span><strong>${v}</strong></div>`).join('');
+      .map(([k, v]) => `<div><span>${k}${k === 'Bank deposits' ? ' <span class="muted" style="font-size:12px">(since WoW: Forever launch)</span>' : ''}</span><strong>${v}</strong></div>`).join('');
   } else document.getElementById('activity').innerHTML = '<span class="muted">Not connected yet.</span>';
 }
 </script>
