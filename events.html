@@ -84,7 +84,7 @@ import { esc } from './js/sheet.js?v=__V__';
 import { releases, upcomingReleases, releaseWhen, releaseSource } from './js/releases.js?v=__V__';
 import { loadPlayers, playerForUser, playerUrl } from './js/players.js?v=__V__';
 import { attachItemSearch, refreshTooltips } from './js/itemsearch.js?v=__V__';
-import { loadQuests, questUrl as questLink } from './js/quests.js?v=__V__';
+import { loadQuestSuggestions, questUrl as questLink } from './js/quests.js?v=__V__';
 
 const KIND = { dungeon: 'Dungeon', raid: 'Raid', quest: 'Quest help', guild: 'Guild night', other: 'Other' };
 const questSearchUrl = (q) => `https://www.wowhead.com/forever/search?q=${encodeURIComponent(q)}`;
@@ -290,7 +290,7 @@ const questBox = attachItemSearch(document.getElementById('quest-input'), (q) =>
   if (q.minLevel || q.level) form.min_level.value = q.minLevel ?? q.level;
   questHint.innerHTML = `Level ${esc(q.level ?? '?')}${q.zone ? ` · ${esc(q.zone)}` : ''} · <a href="${questLink(q.id)}" target="_blank" rel="noopener">${esc(q.name)}</a> <span style="font-size:12px">(hover for details)</span>`;
   refreshTooltips();
-}, { load: loadQuests, meta: (q) => [q.level ? `Lvl ${q.level}` : '', q.zone].filter(Boolean).join(' · '), color: () => '#1f2937' });
+}, { load: loadQuestSuggestions, meta: (q) => [q.level ? `Lvl ${q.level}` : '', q.zone].filter(Boolean).join(' · '), color: () => '#1f2937' });
 form.title.addEventListener('input', () => { form.title.dataset.auto = ''; });
 
 // Specific roles or just a number of players

@@ -3,7 +3,7 @@
 // Runs in GitHub Actions (see .github/workflows/items.yml). Node 20+, no dependencies.
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 
-const UA = { 'User-Agent': 'mannenkeuken-guild-site (weekly item list update)' };
+const UA = { 'User-Agent': 'mannenkeuken-guild-site (daily item list update)' };
 const OUT = 'data/items.json';
 
 async function get(url, type = 'text') {

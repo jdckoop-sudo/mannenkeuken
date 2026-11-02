@@ -11,7 +11,7 @@ const local = process.argv[2];
 
 async function get(path) {
   if (local) return readFileSync(`${local}/${path}`, 'utf8');
-  const res = await fetch(REPO + path, { headers: { 'User-Agent': 'mannenkeuken-guild-site (weekly quest list update)' } });
+  const res = await fetch(REPO + path, { headers: { 'User-Agent': 'mannenkeuken-guild-site (daily quest list update)' } });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${path}`);
   return res.text();
 }
