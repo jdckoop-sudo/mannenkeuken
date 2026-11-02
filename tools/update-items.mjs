@@ -55,10 +55,12 @@ const col = (name) => head.findIndex((h) => h.toLowerCase() === name.toLowerCase
 const iId = col('ID'); const iName = col('Display_lang'); const iQ = col('OverallQualityID'); const iLvl = col('ItemLevel');
 if ([iId, iName].includes(-1)) throw new Error(`Unexpected columns: ${head.join(',')}`);
 
+// Developer/test entries that are in the client data but not real items
+const JUNK = /\[(DNT|PH|NYI|DND)\]|\btest\b|placeholder|deprecated|\bunused\b|^monster\s*-|^zz|\bOLD\b|\bDEBUG\b|^QA\b|^\d+\s/i;
 const seen = new Map();
 for (const r of rows) {
   const name = (r[iName] || '').trim();
-  if (!name || /^(test|deprecated|unused|old|monster -|qa)\b/i.test(name) || /\[ph\]|\bOLD\b|zzOLD|DEBUG/i.test(name)) continue;
+  if (!name || JUNK.test(name)) continue;
   const item = [Number(r[iId]), name, Number(r[iQ] ?? 1) || 0, Number(r[iLvl] ?? 0) || 0];
   const key = name.toLowerCase();
   const prev = seen.get(key);
