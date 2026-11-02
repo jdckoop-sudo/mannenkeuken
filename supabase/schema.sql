@@ -185,6 +185,8 @@ alter table public.events add column if not exists quest text;
 -- 2026-11-02: 'any players' instead of specific roles (players_needed set = roles not used), and tagged players.
 alter table public.events add column if not exists players_needed int;
 alter table public.events add column if not exists pinged text[] not null default '{}';
+-- Quest picked from data/quests.json (Wowhead Forever id); quest keeps the name (also for typed quests).
+alter table public.events add column if not exists quest_id int;
 
 -- 2026-11-02: players (sheet name <-> Discord name), profile link, bank reservations, guild bank purchase.
 -- Who is who: the player's name in the guild sheet (column A) and their Discord display name.

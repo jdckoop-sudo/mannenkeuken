@@ -1,0 +1,29 @@
+# Weekly: rebuild the WoW: Forever quest list (Questie for Forever) and commit it if it changed.
+name: Update quests
+on:
+  schedule:
+    - cron: '37 5 * * 1'   # Mondays 05:37 UTC
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build quest list
+        run: node tools/update-quests.mjs
+      - name: Commit if changed
+        run: |
+          node -e "const a=require('./data/quests.json');delete a.updated;require('fs').writeFileSync('/tmp/new.json',JSON.stringify(a))"
+          git show HEAD:data/quests.json > /tmp/old-full.json 2>/dev/null || echo '{}' > /tmp/old-full.json
+          node -e "const a=require('/tmp/old-full.json');delete a.updated;require('fs').writeFileSync('/tmp/old.json',JSON.stringify(a))"
+          if cmp -s /tmp/new.json /tmp/old.json; then echo "No changes"; git checkout -- data/quests.json; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/quests.json
+          git commit -m "Update WoW: Forever quest list"
+          git push

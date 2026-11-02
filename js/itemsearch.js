@@ -25,7 +25,11 @@ export const qualityName = (q) => QUALITY[q] ?? '';
 
 // Turns <input> into a combobox. onPick(item|null) is called when an item is chosen or the text no longer matches it.
 let searchCount = 0;
-export function attachItemSearch(input, onPick) {
+// opts (optional, for other lists such as quests): { load, meta(it), color(it) }
+export function attachItemSearch(input, onPick, opts = {}) {
+  const load = opts.load ?? loadItems;
+  const metaOf = opts.meta ?? ((it) => (it.ilvl ? `ilvl ${it.ilvl}` : ''));
+  const colorOf = opts.color ?? ((it) => qualityColor(it.quality));
   searchCount += 1;
   const list = document.createElement('ul');
   list.id = `${input.name || 'item'}-suggestions-${searchCount}`;
@@ -57,9 +61,9 @@ export function attachItemSearch(input, onPick) {
       li.style.cssText = `padding:10px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:12px;${i === active ? 'background:#e5e7eb;' : ''}`;
       const name = document.createElement('span');
       name.textContent = it.name;
-      name.style.cssText = `color:${qualityColor(it.quality)};font-weight:600`;
+      name.style.cssText = `color:${colorOf(it)};font-weight:600`;
       const meta = document.createElement('span');
-      meta.textContent = it.ilvl ? `ilvl ${it.ilvl}` : '';
+      meta.textContent = metaOf(it);
       meta.style.cssText = 'color:#4b5563;font-size:13px;white-space:nowrap';
       li.append(name, meta);
       li.addEventListener('mousedown', (e) => { e.preventDefault(); choose(it); });
@@ -72,7 +76,7 @@ export function attachItemSearch(input, onPick) {
   function choose(it) {
     picked = it;
     input.value = it.name;
-    input.style.color = qualityColor(it.quality);
+    input.style.color = colorOf(it);
     close();
     onPick(it);
   }
@@ -81,7 +85,7 @@ export function attachItemSearch(input, onPick) {
     const q = input.value.trim().toLowerCase();
     if (picked && input.value !== picked.name) { picked = null; input.style.color = ''; onPick(null); }
     if (q.length < 2) { matches = []; close(); return; }
-    const items = await loadItems();
+    const items = await load();
     const starts = []; const contains = [];
     for (const it of items) {
       if (it.lower.startsWith(q)) starts.push(it);
@@ -100,7 +104,7 @@ export function attachItemSearch(input, onPick) {
     else if (e.key === 'Escape') close();
   });
   input.addEventListener('blur', () => setTimeout(close, 100));
-  input.addEventListener('focus', () => loadItems());
+  input.addEventListener('focus', () => load());
 
   return { reset() { picked = null; input.style.color = ''; close(); } };
 }
