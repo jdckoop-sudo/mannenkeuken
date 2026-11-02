@@ -15,6 +15,11 @@ export function displayName(user) {
   return m.custom_claims?.global_name || m.full_name || m.name || 'Member';
 }
 
+export function avatarUrl(user) {
+  const m = user?.user_metadata ?? {};
+  return m.avatar_url || m.picture || '';
+}
+
 export async function login() {
   if (!supabase) { alertNotConfigured(); return; }
   await supabase.auth.signInWithOAuth({
