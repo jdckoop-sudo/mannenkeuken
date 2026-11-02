@@ -48,7 +48,11 @@
     </section>
   </div>
 
-  <div class="row">
+  <section class="notice" id="items-locked">
+    <strong>Item storage opens once we have the guild bank.</strong> Until then we only save gold for it. After the purchase you can add items here and reserve them for your characters.
+  </section>
+
+  <div class="row" id="items-section" hidden>
     <form id="new" class="box" style="flex: 1 1 300px">
       <h2>Add to the bank</h2>
       <p id="form-msg" class="muted"></p>
@@ -101,6 +105,9 @@ async function loadGold() {
   document.getElementById('gold-intro').innerHTML = bought ? 'We own a shared guild bank. Current guild gold:' : `A shared guild bank costs <strong>${esc(formatGold(bank.goal_copper).replace(/ 0s 0c$/, ''))}</strong>. This is how far we are:`;
   document.getElementById('how-gold').innerHTML = bought ? '<strong>Gold</strong> is kept in the guild bank. Whoever changes the gold in-game, also updates it here.' : document.getElementById('how-gold').innerHTML;
   document.getElementById('bought').hidden = bought;
+  // Items (add, list, reserve) only after the guild bank has been bought
+  document.getElementById('items-section').hidden = !bought;
+  document.getElementById('items-locked').hidden = bought;
   document.getElementById('goal-details').hidden = bought;
   document.getElementById('gold').innerHTML = (bought ? `<strong style="font-size:32px">${esc(formatGold(bank.copper))}</strong>` : goldBar(bank.copper, bank.goal_copper))
     + (bank.updated_by ? `<p class="muted" style="font-size:13px;margin:0">Last updated by ${esc(bank.updated_by)} · ${new Date(bank.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</p>` : '');
