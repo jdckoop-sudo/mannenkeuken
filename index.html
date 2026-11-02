@@ -22,7 +22,7 @@
   </section>
 
   <div class="grid">
-    <section class="box"><h2>Upcoming events</h2><p class="muted">[Coming soon – see Raids &amp; Events]</p></section>
+    <section class="box"><h2>Upcoming events</h2><div id="upcoming"><p class="muted">Loading…</p></div><a href="events.html">View all</a></section>
     <section class="box"><h2>Latest trade listings</h2><div id="latest"><p class="muted">Loading…</p></div><a href="market.html">Go to market</a></section>
   </div>
 </main>
@@ -48,8 +48,14 @@ if (supabase) {
   document.getElementById('latest').innerHTML = (data ?? []).map((l) =>
     `<p>${esc(l.item)} ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span></p>`
   ).join('') || '<p class="muted">No listings yet.</p>';
+  const { data: ev } = await supabase.from('events').select('id,title,starts_at').gte('starts_at', new Date().toISOString()).order('starts_at').limit(3);
+  document.getElementById('upcoming').innerHTML = (ev ?? []).map((e) => {
+    const d = new Date(e.starts_at);
+    return `<p><a href="events.html#ev-${e.id}">${esc(e.title)}</a> <span class="muted">${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></p>`;
+  }).join('') || '<p class="muted">No upcoming events.</p>';
 } else {
   document.getElementById('latest').innerHTML = '<p class="muted">Market not connected yet.</p>';
+  document.getElementById('upcoming').innerHTML = '<p class="muted">Not connected yet.</p>';
 }
 </script>
 </body>
