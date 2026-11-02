@@ -1,3 +1,5 @@
+// WoW: Forever launch moment. Activity (like bank deposits) counts from here; before that we were testing.
+export const LAUNCH = '2026-11-04T23:00:00Z';
 // WoW: Forever release schedule (Blizzard's 2026–2027 roadmap, announced at BlizzCon, Sept 2026).
 // Blizzard has no public calendar feed, so this list is kept by hand: update it when Blizzard announces dates.
 // `date` = exact moment (ISO, UTC) when known; otherwise `when` = rough period (shown as text, not in the week view).

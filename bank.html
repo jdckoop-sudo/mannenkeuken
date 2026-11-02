@@ -19,7 +19,8 @@
     <section class="box" style="flex: 1 1 340px">
       <h2>How it works</h2>
       <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
-        <li><strong>Got spare items or gold?</strong> Mail them in-game to <strong>Opie Bank</strong> (or put them in the guild bank), then add them to the list below so everyone can see what's in stock.</li>
+        <li><strong>Got spare items or gold?</strong> Mail them in-game to <strong>Opie Bank</strong>. <strong>Jelle</strong> keeps the Opie Bank inventory up to date; you can see it below.</li>
+        <li><strong>Sent something?</strong> Add it under <em>Send to Opie Bank</em> so Jelle knows it is coming. Once he has it, it moves into the inventory.</li>
         <li><strong>Picked it up?</strong> Lower the count here (or remove the line). Reservations on an item disappear with it.</li>
         <li id="how-gold"><strong>Gold:</strong> we are saving <strong>100 gold</strong> to buy a shared guild bank. Whoever updates the gold in-game, also updates it here.</li>
       </ul>
@@ -48,28 +49,64 @@
     </section>
   </div>
 
+  <h2 style="margin-bottom:0">Guild bank</h2>
   <section class="notice" id="items-locked">
-    <strong>Item storage opens once we have the guild bank.</strong> Until then we only save gold for it. After the purchase you can add items here and reserve them for your characters.
+    <strong>Item storage in the guild bank opens once we have bought it.</strong> Until then we save gold for it, and items go to Opie Bank (below). After the purchase you can add guild bank items here and reserve them for your characters.
   </section>
 
   <div class="row" id="items-section" hidden>
-    <form id="new" class="box" style="flex: 1 1 300px">
-      <h2>Add to the bank</h2>
-      <p id="form-msg" class="muted"></p>
-      <label for="item-input">Item</label>
-      <div><input id="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"><p id="item-hint" class="muted" style="font-size:13px;margin:6px 0 0"></p></div>
+    <form id="new-guild" class="box item-form" data-location="guild" style="flex: 1 1 300px">
+      <h3 style="margin:0">Add to the guild bank</h3>
+      <p class="muted form-msg"></p>
+      <label>Item<input class="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"></label>
+      <p class="muted item-hint" style="font-size:13px;margin:-6px 0 0"></p>
       <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
-      <label>Category<input name="category" list="bank-cats" maxlength="40" placeholder="e.g. Cloth, Herbs, Gear"><datalist id="bank-cats"></datalist></label>
-      <label>Note (optional)<input name="note" maxlength="200" placeholder="e.g. reserved for Justin"></label>
-      <button class="btn btn-primary" type="submit">Add</button>
+      <label>Category<input name="category" list="bank-cats" maxlength="40" placeholder="e.g. Cloth, Herbs, Gear"></label>
+      <label>Note (optional)<input name="note" maxlength="200"></label>
+      <button class="btn btn-primary" type="submit" value="in_stock">Add</button>
     </form>
-
     <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
-      <label style="max-width:320px">Search<input id="q" type="search" placeholder="Item or category"></label>
+      <label style="max-width:320px">Search<input class="q" data-for="guild" type="search" placeholder="Item or category"></label>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Deposited by</th><th>Updated</th><th><span class="muted">Actions</span></th></tr></thead>
-          <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody>
+          <tbody id="rows-guild"><tr><td colspan="6">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <h2 style="margin-bottom:4px">Opie Bank (bank character)</h2>
+    <p class="muted" style="margin:0"><strong>Jelle</strong> keeps this inventory up to date. Everything that is on Opie Bank is shown below.</p>
+  </div>
+  <datalist id="bank-cats"></datalist>
+  <div class="row">
+    <form id="new-opie" class="box item-form" data-location="opie" style="flex: 1 1 300px">
+      <h3 style="margin:0">Send to Opie Bank</h3>
+      <p class="muted" style="margin:0;font-size:13px">Mailed something to Opie Bank in-game? Add it here so Jelle knows it is coming.</p>
+      <p class="muted form-msg"></p>
+      <label>Item<input class="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"></label>
+      <p class="muted item-hint" style="font-size:13px;margin:-6px 0 0"></p>
+      <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
+      <label>Category<input name="category" list="bank-cats" maxlength="40" placeholder="e.g. Cloth, Herbs, Gear"></label>
+      <label>Note (optional)<input name="note" maxlength="200"></label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button class="btn btn-primary" type="submit" value="sent">I sent this to Opie Bank</button>
+        <button class="btn" type="submit" value="in_stock">Already in the inventory</button>
+      </div>
+    </form>
+    <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+      <div id="sent-box" hidden>
+        <h3 style="margin:0 0 6px">On its way to Opie Bank</h3>
+        <ul id="sent-list" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px"></ul>
+      </div>
+      <h3 style="margin:0">Inventory</h3>
+      <label style="max-width:320px">Search<input class="q" data-for="opie" type="search" placeholder="Item or category"></label>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Deposited by</th><th>Updated</th><th><span class="muted">Actions</span></th></tr></thead>
+          <tbody id="rows-opie"><tr><td colspan="6">Loading…</td></tr></tbody>
         </table>
       </div>
     </section>
@@ -85,12 +122,12 @@ import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from '
 
 const user = await renderHeader();
 const canEdit = !!(supabase && user && await isGuildMember());
-const msg = document.getElementById('form-msg');
 const goldMsg = document.getElementById('gold-msg');
 if (!canEdit) {
   const why = !supabase ? 'Not connected yet.' : !user ? 'Log in with Discord to update the bank.' : 'Only members of the Mannenkeuken Discord can update the bank.';
-  msg.textContent = why; goldMsg.textContent = why;
-  document.querySelectorAll('#new button, #gold-form button, #goal-form button, #bought').forEach((b) => { b.disabled = true; });
+  goldMsg.textContent = why;
+  document.querySelectorAll('.form-msg').forEach((m) => { m.textContent = why; });
+  document.querySelectorAll('.item-form button, #gold-form button, #goal-form button, #bought').forEach((b) => { b.disabled = true; });
 }
 
 // Gold
@@ -103,9 +140,9 @@ async function loadGold() {
   // Before the purchase: progress towards the guild bank. After: just the guild's gold.
   document.getElementById('gold-title').textContent = bought ? 'Guild gold' : 'Saving for the guild bank';
   document.getElementById('gold-intro').innerHTML = bought ? 'We own a shared guild bank. Current guild gold:' : `A shared guild bank costs <strong>${esc(formatGold(bank.goal_copper).replace(/ 0s 0c$/, ''))}</strong>. This is how far we are:`;
-  document.getElementById('how-gold').innerHTML = bought ? '<strong>Gold</strong> is kept in the guild bank. Whoever changes the gold in-game, also updates it here.' : document.getElementById('how-gold').innerHTML;
+  if (bought) document.getElementById('how-gold').innerHTML = '<strong>Gold</strong> is kept in the guild bank. Whoever changes the gold in-game, also updates it here.';
   document.getElementById('bought').hidden = bought;
-  // Items (add, list, reserve) only after the guild bank has been bought
+  // Guild bank items (add, list, reserve) only after the guild bank has been bought
   document.getElementById('items-section').hidden = !bought;
   document.getElementById('items-locked').hidden = bought;
   document.getElementById('goal-details').hidden = bought;
@@ -139,52 +176,70 @@ document.getElementById('bought').addEventListener('click', async () => {
   if (!error) loadGold();
 });
 
-// Items
+// Items: two places (location 'opie' = bank character Opie Bank, 'guild' = guild bank).
+// status 'sent' = mailed to Opie Bank but not yet in the inventory.
 let items = [];
 let reservations = [];
 let myChars = [];
 let itemsById = new Map();
-let pickedItem = null;
-const hint = document.getElementById('item-hint');
-const search = attachItemSearch(document.getElementById('item-input'), (it) => {
-  pickedItem = it;
-  if (it) {
-    hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
-    refreshTooltips();
-  } else hint.textContent = '';
+const now = () => new Date().toISOString();
+const sameItem = (a, b) => (a.item_id && b.item_id ? a.item_id === b.item_id : a.item.toLowerCase() === b.item.toLowerCase());
+
+// Item search on each form
+document.querySelectorAll('.item-form').forEach((f) => {
+  const hint = f.querySelector('.item-hint');
+  f.search = attachItemSearch(f.querySelector('.item-input'), (it) => {
+    f.picked = it;
+    if (it) {
+      hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
+      refreshTooltips();
+    } else hint.textContent = '';
+  });
 });
 loadItems().then((list) => { itemsById = new Map(list.map((i) => [i.id, i])); draw(); });
 
 async function load() {
-  if (!supabase) { document.getElementById('rows').innerHTML = '<tr><td colspan="6">Not connected yet.</td></tr>'; return; }
+  if (!supabase) { document.querySelectorAll('#rows-opie, #rows-guild').forEach((t) => { t.innerHTML = '<tr><td colspan="6">Not connected yet.</td></tr>'; }); return; }
   const { data } = await supabase.from('bank_items').select('*').order('category', { nullsFirst: false }).order('item');
-  items = data ?? [];
+  items = (data ?? []).map((i) => ({ ...i, location: i.location ?? 'opie', status: i.status ?? 'in_stock' }));
   const ids = items.map((i) => i.id);
   reservations = ids.length ? (await supabase.from('bank_reservations').select('*').in('bank_item_id', ids).order('created_at')).data ?? [] : [];
   document.getElementById('bank-cats').innerHTML = [...new Set(items.map((i) => i.category).filter(Boolean))].map((c) => `<option value="${esc(c)}"></option>`).join('');
   draw();
 }
-function draw() {
-  const q = document.getElementById('q').value.toLowerCase();
-  const list = items.filter((i) => !q || `${i.item} ${i.category ?? ''}`.toLowerCase().includes(q));
-  document.getElementById('rows').innerHTML = list.map((i) => {
-    const known = i.item_id && itemsById.get(i.item_id);
-    const name = i.item_id
-      ? `<a href="${wowheadUrl(i.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${known ? `color:${qualityColor(known.quality)}` : ''}">${esc(i.item)}</a>`
-      : esc(i.item);
+function itemName(i) {
+  const known = i.item_id && itemsById.get(i.item_id);
+  return i.item_id
+    ? `<a href="${wowheadUrl(i.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${known ? `color:${qualityColor(known.quality)}` : ''}">${esc(i.item)}</a>`
+    : esc(i.item);
+}
+function drawTable(location) {
+  const q = (document.querySelector(`.q[data-for="${location}"]`)?.value ?? '').toLowerCase();
+  const list = items.filter((i) => i.location === location && i.status === 'in_stock' && (!q || `${i.item} ${i.category ?? ''}`.toLowerCase().includes(q)));
+  document.getElementById(`rows-${location}`).innerHTML = list.map((i) => {
     const res = reservations.filter((r) => r.bank_item_id === i.id);
     const free = i.quantity - reservedCount(res);
     return `<tr>
-      <td>${name}${i.note ? `<br><span class="muted">${esc(i.note)}</span>` : ''}${reservationsHtml(res, user)}${canEdit ? reserveFormHtml(i.id, myChars, free) : ''}${res.length ? `<span class="muted" style="font-size:13px">${Math.max(0, free)} of ${esc(i.quantity)} free</span>` : ''}</td>
+      <td>${itemName(i)}${i.note ? `<br><span class="muted">${esc(i.note)}</span>` : ''}${reservationsHtml(res, user)}${canEdit ? reserveFormHtml(i.id, myChars, free) : ''}${res.length ? `<span class="muted" style="font-size:13px">${Math.max(0, free)} of ${esc(i.quantity)} free</span>` : ''}</td>
       <td>${canEdit ? `<span style="display:inline-flex;gap:6px;align-items:center"><button class="btn" style="padding:2px 10px" type="button" data-dec="${i.id}" aria-label="One less">−</button><strong>${esc(i.quantity)}</strong><button class="btn" style="padding:2px 10px" type="button" data-inc="${i.id}" aria-label="One more">+</button></span>` : esc(i.quantity)}</td>
       <td>${esc(i.category ?? '')}</td><td>${esc(i.deposited_by ?? '')}</td>
       <td>${new Date(i.updated_at).toLocaleDateString('en-GB')}</td>
       <td>${canEdit ? `<button class="link-btn" type="button" data-del="${i.id}" data-name="${esc(i.item)}">Remove</button>` : ''}</td></tr>`;
-  }).join('') || '<tr><td colspan="6">The bank is empty.</td></tr>';
+  }).join('') || `<tr><td colspan="6">${location === 'opie' ? 'Opie Bank is empty.' : 'The guild bank is empty.'}</td></tr>`;
+}
+function draw() {
+  drawTable('opie');
+  drawTable('guild');
+  const sent = items.filter((i) => i.status === 'sent');
+  document.getElementById('sent-box').hidden = !sent.length;
+  document.getElementById('sent-list').innerHTML = sent.map((i) => `<li>${esc(i.quantity)}× ${itemName(i)} <span class="muted">from ${esc(i.deposited_by ?? '?')} · ${new Date(i.updated_at).toLocaleDateString('en-GB')}</span>${i.note ? ` <span class="muted">– ${esc(i.note)}</span>` : ''}
+    ${canEdit ? ` <button class="link-btn" type="button" data-received="${i.id}" data-name="${esc(i.item)}">Received</button> · <button class="link-btn" type="button" data-del="${i.id}" data-name="${esc(i.item)}">Remove</button>` : ''}</li>`).join('');
   refreshTooltips();
 }
-document.getElementById('q').addEventListener('input', draw);
-document.getElementById('rows').addEventListener('submit', async (e) => {
+document.querySelectorAll('.q').forEach((q) => q.addEventListener('input', draw));
+
+// Reserve
+document.querySelectorAll('#rows-opie, #rows-guild').forEach((t) => t.addEventListener('submit', async (e) => {
   const f = e.target.closest('form[data-reserve]');
   if (!f) return;
   e.preventDefault();
@@ -194,47 +249,67 @@ document.getElementById('rows').addEventListener('submit', async (e) => {
   });
   if (error) { alert(`Could not reserve: ${error.message}`); return; }
   load();
-});
-document.getElementById('rows').addEventListener('click', async (e) => {
+}));
+
+// Buttons: cancel reservation, +/−, remove, received
+document.querySelector('main').addEventListener('click', async (e) => {
   const t = e.target.closest('button');
-  if (!t) return;
+  if (!t || !canEdit) return;
   if (t.dataset.unreserve) {
     if (!confirm(`Are you sure you want to cancel the reservation for ${t.dataset.name}?`)) return;
     await supabase.from('bank_reservations').delete().eq('id', t.dataset.unreserve);
     load(); return;
   }
-  const id = t.dataset.inc || t.dataset.dec || t.dataset.del;
+  const id = t.dataset.inc || t.dataset.dec || t.dataset.del || t.dataset.received;
+  if (!id) return;
   const row = items.find((i) => i.id === id);
   if (!row) return;
-  if (t.dataset.del) {
-    if (!confirm(`Are you sure you want to remove "${t.dataset.name}" from the bank?`)) return;
+  if (t.dataset.received) {
+    if (!confirm(`Are you sure Opie Bank has received ${row.quantity}× "${row.item}"? It then moves into the inventory.`)) return;
+    const existing = items.find((i) => i.id !== row.id && i.location === 'opie' && i.status === 'in_stock' && sameItem(i, row));
+    if (existing) {
+      await supabase.from('bank_items').update({ quantity: existing.quantity + row.quantity, updated_at: now() }).eq('id', existing.id);
+      await supabase.from('bank_items').delete().eq('id', row.id);
+    } else {
+      await supabase.from('bank_items').update({ status: 'in_stock', updated_at: now() }).eq('id', row.id);
+    }
+  } else if (t.dataset.del) {
+    if (!confirm(`Are you sure you want to remove "${t.dataset.name}"?`)) return;
     await supabase.from('bank_items').delete().eq('id', id);
   } else {
     const quantity = row.quantity + (t.dataset.inc ? 1 : -1);
     if (quantity <= 0) {
-      if (!confirm(`That was the last one. Are you sure you want to remove "${row.item}" from the bank?`)) return;
+      if (!confirm(`That was the last one. Are you sure you want to remove "${row.item}"?`)) return;
       await supabase.from('bank_items').delete().eq('id', id);
     } else {
-      await supabase.from('bank_items').update({ quantity, updated_at: new Date().toISOString() }).eq('id', id);
+      await supabase.from('bank_items').update({ quantity, updated_at: now() }).eq('id', id);
     }
   }
   load();
 });
-document.getElementById('new').addEventListener('submit', async (e) => {
+
+// Add (guild bank, Opie Bank inventory, or "sent to Opie Bank")
+document.querySelectorAll('.item-form').forEach((f) => f.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const f = e.target;
   const d = new FormData(f);
+  const msg = f.querySelector('.form-msg');
+  const location = f.dataset.location;
+  const status = e.submitter?.value === 'sent' ? 'sent' : 'in_stock';
   const qty = Number(d.get('quantity')) || 1;
-  const existing = items.find((i) => (pickedItem ? i.item_id === pickedItem.id : i.item.toLowerCase() === String(d.get('item')).toLowerCase()));
+  const entry = { item: f.picked?.name ?? String(d.get('item')), item_id: f.picked?.id ?? null };
+  // Same item already in the inventory: raise the count. Items on their way always get their own line.
+  const existing = status === 'in_stock' && items.find((i) => i.location === location && i.status === 'in_stock' && sameItem(i, entry));
   const { error } = existing
-    ? await supabase.from('bank_items').update({ quantity: existing.quantity + qty, updated_at: new Date().toISOString() }).eq('id', existing.id)
+    ? await supabase.from('bank_items').update({ quantity: existing.quantity + qty, updated_at: now() }).eq('id', existing.id)
     : await supabase.from('bank_items').insert({
-      item: d.get('item'), item_id: pickedItem?.id ?? null, quantity: qty,
+      ...entry, quantity: qty, location, status,
       category: d.get('category') || null, note: d.get('note') || null, deposited_by: displayName(user),
     });
-  msg.textContent = error ? `Could not add: ${error.message}` : existing ? `Added ${qty} to the existing "${existing.item}".` : 'Added!';
-  if (!error) { f.reset(); pickedItem = null; hint.textContent = ''; search.reset(); load(); }
-});
+  msg.textContent = error ? `Could not add: ${error.message}`
+    : existing ? `Added ${qty} to the existing "${existing.item}".`
+    : status === 'sent' ? 'Thanks! Jelle will add it to the inventory once it has arrived.' : 'Added!';
+  if (!error) { f.reset(); f.picked = null; f.querySelector('.item-hint').textContent = ''; f.search.reset(); load(); }
+}));
 
 if (canEdit) myCharacters(user).then((c) => { myChars = c; draw(); });
 loadGold();

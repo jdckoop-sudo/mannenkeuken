@@ -24,9 +24,11 @@ export const qualityColor = (q) => COLOR[q] ?? COLOR[1];
 export const qualityName = (q) => QUALITY[q] ?? '';
 
 // Turns <input> into a combobox. onPick(item|null) is called when an item is chosen or the text no longer matches it.
+let searchCount = 0;
 export function attachItemSearch(input, onPick) {
+  searchCount += 1;
   const list = document.createElement('ul');
-  list.id = `${input.name || 'item'}-suggestions`;
+  list.id = `${input.name || 'item'}-suggestions-${searchCount}`;
   list.setAttribute('role', 'listbox');
   list.hidden = true;
   list.style.cssText = 'list-style:none;margin:4px 0 0;padding:4px;border:2px solid #9ca3af;border-radius:6px;background:#fff;max-height:320px;overflow:auto;position:absolute;left:0;right:0;z-index:10';
