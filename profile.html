@@ -16,16 +16,9 @@
     <h2>Main character</h2>
     <p id="form-msg" class="muted"></p>
     <label>Character name<input name="character_name" maxlength="40" placeholder="e.g. Grommash"></label>
-    <label>Class
-      <select name="class">
-        <option value="">–</option>
-        <option>Druid</option><option>Hunter</option><option>Mage</option><option>Paladin</option><option>Priest</option>
-        <option>Rogue</option><option>Shaman</option><option>Warlock</option><option>Warrior</option>
-      </select>
-    </label>
-    <label>Role
-      <select name="role"><option value="">–</option><option>Tank</option><option>Healer</option><option>DPS</option></select>
-    </label>
+    <label>Race<select name="race"></select></label>
+    <label>Class<select name="class"></select></label>
+    <label>Role<select name="role"></select></label>
     <div class="row">
       <button class="btn btn-primary" type="submit">Save profile</button>
       <button class="btn" id="clear" type="button">Clear</button>
@@ -35,10 +28,35 @@
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, getProfile } from './js/supabase.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
+import { RACES, classesForRace, rolesForClass } from './js/wowdata.js?v=__V__';
 
 const user = await renderHeader();
 const form = document.getElementById('profile');
 const msg = document.getElementById('form-msg');
+
+// Race -> class -> role: each dropdown only offers what the previous choice allows.
+const options = (list, placeholder) => [`<option value="">${placeholder}</option>`, ...list.map((x) => `<option>${esc(x)}</option>`)].join('');
+form.race.innerHTML = '<option value="">–</option>' + Object.entries(RACES).map(([faction, races]) =>
+  `<optgroup label="${faction}">${Object.keys(races).map((r) => `<option>${esc(r)}</option>`).join('')}</optgroup>`).join('');
+function fillClasses() {
+  const classes = classesForRace(form.race.value);
+  const keep = classes.includes(form.class.value) ? form.class.value : '';
+  form.class.innerHTML = options(classes, form.race.value ? '–' : 'Pick a race first');
+  form.class.value = keep;
+  form.class.disabled = !form.race.value;
+  fillRoles();
+}
+function fillRoles() {
+  const roles = rolesForClass(form.class.value);
+  const keep = roles.includes(form.role.value) ? form.role.value : '';
+  form.role.innerHTML = options(roles, form.class.value ? '–' : 'Pick a class first');
+  form.role.value = keep;
+  form.role.disabled = !form.class.value;
+}
+form.race.addEventListener('change', fillClasses);
+form.class.addEventListener('change', fillRoles);
+fillClasses();
 
 if (!supabase) { msg.textContent = 'Not connected yet.'; form.querySelectorAll('button').forEach((b) => { b.disabled = true; }); }
 else if (!user) { msg.textContent = 'Log in with Discord to edit your profile.'; form.querySelectorAll('button').forEach((b) => { b.disabled = true; }); }
@@ -46,7 +64,10 @@ else {
   const p = await getProfile(user);
   if (p) {
     form.character_name.value = p.character_name ?? '';
+    form.race.value = p.race ?? '';
+    fillClasses();
     form.class.value = p.class ?? '';
+    fillRoles();
     form.role.value = p.role ?? '';
   }
 }
@@ -57,6 +78,7 @@ form.addEventListener('submit', async (e) => {
   const { error } = await supabase.from('profiles').upsert({
     user_id: user.id,
     character_name: d.get('character_name').trim() || null,
+    race: d.get('race') || null,
     class: d.get('class') || null,
     role: d.get('role') || null,
     updated_at: new Date().toISOString(),
@@ -67,7 +89,7 @@ form.addEventListener('submit', async (e) => {
 document.getElementById('clear').addEventListener('click', async () => {
   if (!confirm('Are you sure you want to clear your saved character?')) return;
   const { error } = await supabase.from('profiles').delete().eq('user_id', user.id);
-  if (!error) form.reset();
+  if (!error) { form.reset(); fillClasses(); }
   msg.textContent = error ? `Could not clear: ${error.message}` : 'Cleared.';
 });
 </script>

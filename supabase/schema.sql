@@ -102,6 +102,8 @@ create table if not exists public.profiles (
   role text check (role in ('Tank', 'Healer', 'DPS')),
   updated_at timestamptz not null default now()
 );
+-- 2026-11-02: race of the main character (Skyborne is stored with its faction, e.g. "Skyborne (Horde)")
+alter table public.profiles add column if not exists race text check (char_length(race) <= 40);
 alter table public.profiles enable row level security;
 drop policy if exists "read all" on public.profiles;
 drop policy if exists "insert own" on public.profiles;
