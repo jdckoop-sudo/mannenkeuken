@@ -153,6 +153,16 @@ drop policy if exists "read all" on public.bank_items;
 drop policy if exists "write logged in" on public.bank_items;
 create policy "read all" on public.bank_items for select using (true);
 create policy "write logged in" on public.bank_items for all to authenticated using (true) with check (true);
+-- Where the item is: 'opie' = bank character Opie Bank (kept up to date by Jelle), 'guild' = the shared guild bank.
+-- status 'sent' = a member mailed it to Opie Bank, not yet in the inventory; 'in_stock' = in the inventory.
+alter table public.bank_items add column if not exists location text not null default 'opie';
+alter table public.bank_items add column if not exists status text not null default 'in_stock';
+-- When it was added; deposits only count on player pages from launch day (test entries before that don't).
+alter table public.bank_items add column if not exists created_at timestamptz not null default now();
+alter table public.bank_items drop constraint if exists bank_items_location_check;
+alter table public.bank_items add constraint bank_items_location_check check (location in ('opie', 'guild'));
+alter table public.bank_items drop constraint if exists bank_items_status_check;
+alter table public.bank_items add constraint bank_items_status_check check (status in ('in_stock', 'sent'));
 
 -- Guild bank gold (one row, id = 1). Amounts in copper.
 create table if not exists public.bank (
