@@ -113,3 +113,24 @@ create policy "read all" on public.profiles for select using (true);
 create policy "insert own" on public.profiles for insert to authenticated with check (user_id = auth.uid());
 create policy "update own" on public.profiles for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "delete own" on public.profiles for delete to authenticated using (user_id = auth.uid());
+
+-- 2026-11-02: alts (secondary characters), at most 2 per member.
+create table if not exists public.alts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  character_name text check (char_length(character_name) <= 40),
+  race text check (char_length(race) <= 40),
+  class text check (char_length(class) <= 40),
+  role text check (role in ('Tank', 'Healer', 'DPS')),
+  created_at timestamptz not null default now()
+);
+alter table public.alts enable row level security;
+drop policy if exists "read all" on public.alts;
+drop policy if exists "insert own" on public.alts;
+drop policy if exists "update own" on public.alts;
+drop policy if exists "delete own" on public.alts;
+create policy "read all" on public.alts for select using (true);
+create policy "insert own" on public.alts for insert to authenticated
+  with check (user_id = auth.uid() and (select count(*) from public.alts a where a.user_id = auth.uid()) < 2);
+create policy "update own" on public.alts for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "delete own" on public.alts for delete to authenticated using (user_id = auth.uid());
