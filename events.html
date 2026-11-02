@@ -21,7 +21,12 @@
     <p id="form-msg" class="muted"></p>
     <div class="grid">
       <label>Title<input name="title" required maxlength="80" placeholder="e.g. [dungeon name]"></label>
-      <label>Date &amp; time<input name="starts_at" type="datetime-local" required></label>
+      <label>Date<input name="date" type="date" required></label>
+      <fieldset style="flex-direction: column; gap: 6px"><legend style="font-size: 14px; margin-bottom: 6px">Time (24h)</legend>
+        <div style="display: flex; gap: 6px; align-items: center">
+          <select name="hour" aria-label="Hour"></select><span aria-hidden="true">:</span><select name="minute" aria-label="Minutes"></select>
+        </div>
+      </fieldset>
       <label>Min. level<input name="min_level" type="number" min="1" max="60"></label>
     </div>
     <div class="grid">
@@ -177,18 +182,29 @@ document.getElementById('events').addEventListener('click', async (ev) => {
   load();
 });
 
+// 24-hour time pickers (the browser's own picker shows AM/PM in some languages)
+const pad = (x) => String(x).padStart(2, '0');
+form.hour.innerHTML = Array.from({ length: 24 }, (_, h) => `<option>${pad(h)}</option>`).join('');
+form.minute.innerHTML = ['00', '15', '30', '45'].map((m) => `<option>${m}</option>`).join('');
+function fillTime() { form.hour.value = '19'; form.minute.value = '00'; }
+fillTime();
+function startsAt(d) {
+  const [y, mo, day] = d.get('date').split('-').map(Number);
+  return new Date(y, mo - 1, day, Number(d.get('hour')), Number(d.get('minute')));
+}
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const d = new FormData(form);
   const num = (k) => (d.get(k) === '' ? null : Number(d.get(k)));
   const { error } = await supabase.from('events').insert({
-    title: d.get('title'), starts_at: new Date(d.get('starts_at')).toISOString(),
+    title: d.get('title'), starts_at: startsAt(d).toISOString(),
     min_level: num('min_level'), tanks_needed: num('tanks_needed') ?? 0,
     healers_needed: num('healers_needed') ?? 0, dps_needed: num('dps_needed') ?? 0,
     note: d.get('note'), author_name: displayName(user),
   });
   document.getElementById('form-msg').textContent = error ? `Could not create: ${error.message}` : 'Event created!';
-  if (!error) { form.reset(); form.hidden = true; weekStart = startOfWeek(new Date(d.get('starts_at'))); load(); }
+  if (!error) { form.reset(); fillTime(); form.hidden = true; weekStart = startOfWeek(startsAt(d)); load(); }
 });
 
 load();
