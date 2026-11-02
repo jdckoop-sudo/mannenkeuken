@@ -1,4 +1,4 @@
-import { getUser, displayName, login, logout } from './supabase.js?v=__V__';
+import { getUser, displayName, avatarUrl, login, logout } from './supabase.js?v=__V__';
 
 const pages = [
   ['index.html', 'Home'],
@@ -25,8 +25,11 @@ export async function renderHeader() {
   const auth = header.querySelector('#auth');
   const user = await getUser();
   if (user) {
-    auth.innerHTML = `<span></span><button class="btn" type="button">Log out</button>`;
-    auth.querySelector('span').textContent = displayName(user);
+    auth.innerHTML = `<span class="user"><img class="avatar" alt="" hidden><span class="user-name"></span></span><button class="btn" type="button">Log out</button>`;
+    auth.querySelector('.user-name').textContent = displayName(user);
+    const img = auth.querySelector('.avatar');
+    const src = avatarUrl(user);
+    if (src) { img.src = src; img.hidden = false; }
     auth.querySelector('button').addEventListener('click', logout);
   } else {
     auth.innerHTML = `<span id="auth-msg" class="muted"></span><button class="btn" type="button">Log in with Discord</button>`;

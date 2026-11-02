@@ -15,6 +15,11 @@ export function displayName(user) {
   return m.custom_claims?.global_name || m.full_name || m.name || 'Member';
 }
 
+export function avatarUrl(user) {
+  const m = user?.user_metadata ?? {};
+  return m.avatar_url || m.picture || '';
+}
+
 // The member's saved profile (main character), or null if none / table not created yet.
 export async function getProfile(user) {
   if (!supabase || !user) return null;

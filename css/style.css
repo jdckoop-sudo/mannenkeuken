@@ -12,6 +12,9 @@ a:hover { color: #000; }
 .site-nav a { padding: 12px 14px; border-radius: 6px; text-decoration: none; }
 .site-nav a.active { background: #e5e7eb; font-weight: 700; }
 .auth { display: flex; gap: 12px; align-items: center; }
+.user { display: flex; gap: 8px; align-items: center; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.avatar[hidden] { display: none; }
 
 main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; display: flex; flex-direction: column; gap: 24px; }
 h1 { margin: 0; font-size: 32px; }
