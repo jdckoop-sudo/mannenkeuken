@@ -57,11 +57,12 @@
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
-import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
+import { supabase, displayName, isGuildMember, getProfile } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 
 const user = await renderHeader();
 const canPost = !!(supabase && user && await isGuildMember());
+const profile = canPost ? await getProfile(user) : null;
 const form = document.getElementById('new');
 const toggle = document.getElementById('toggle-new');
 const ROLES = ['Tank', 'Healer', 'DPS'];
@@ -137,7 +138,7 @@ function drawEvents() {
     const no = s.filter((x) => x.answer === 'no');
     const signupForm = canPost ? `
       <form data-signup="${e.id}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-        <label>Your role<select name="role">${ROLES.map((r) => `<option ${mine?.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+        <label>Your role<select name="role">${ROLES.map((r) => `<option ${(mine?.role ?? profile?.role) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
         <button class="btn ${mine?.answer === 'yes' ? 'btn-primary' : ''}" type="submit" value="yes">Sign up</button>
         <button class="btn ${mine?.answer === 'maybe' ? 'btn-primary' : ''}" type="submit" value="maybe">Maybe</button>
         <button class="btn ${mine?.answer === 'no' ? 'btn-primary' : ''}" type="submit" value="no">Can't come</button>
@@ -168,7 +169,7 @@ document.getElementById('events').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const answer = ev.submitter?.value ?? 'yes';
   const { error } = await supabase.from('signups').upsert({
-    event_id: f.dataset.signup, user_id: user.id, author_name: displayName(user),
+    event_id: f.dataset.signup, user_id: user.id, author_name: profile?.character_name || displayName(user),
     role: new FormData(f).get('role'), answer,
   }, { onConflict: 'event_id,user_id' });
   if (error) f.insertAdjacentHTML('beforeend', `<span class="muted">Could not save: ${esc(error.message)}</span>`);
