@@ -53,6 +53,7 @@ const addBtn = document.getElementById('add-alt');
 const canEdit = !!(supabase && user);
 let me = null;            // my player name in the guild sheet
 let altMsgExtra = '';
+let locked = null;        // main from the guild sheet: name, race and class can't be changed here
 // The sheet says "Skyborne"; the form needs the faction ("Skyborne (Horde)" – we are a Horde guild).
 function formRace(race) {
   if (!race) return null;
@@ -80,7 +81,23 @@ if (!canEdit) {
   } else if (me && profile && !profile.player_name) {
     await supabase.from('profiles').update({ player_name: me }).eq('user_id', user.id);
   }
+  // Main in the sheet: name, race and class always follow the sheet (it is leading); only the role can be changed.
+  if (sheetMain) {
+    locked = { character_name: sheetMain.name, race: formRace(sheetMain.race), class: sheetMain.class || null };
+    const differs = !profile || profile.character_name !== locked.character_name || profile.race !== locked.race || profile.class !== locked.class;
+    if (differs) {
+      const { data } = await supabase.from('profiles').upsert({ user_id: user.id, ...locked, role: profile?.role ?? sheetMain.role ?? null, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
+      if (data) profile = data;
+    }
+  }
   main.set(profile);
+  if (locked) {
+    form.character_name.readOnly = true;
+    form.race.disabled = true;
+    form.class.disabled = true;
+    document.getElementById('clear').hidden = true;
+    form.querySelector('h2').insertAdjacentHTML('afterend', '<p class="muted" style="font-size:14px;margin:0">Name, race and class come from the guild sheet and can\'t be changed here. You can change your role.</p>');
+  }
 
   // 2. Alts in the sheet that are not on the dashboard yet: add them (max MAX_ALTS).
   let { data: alts } = await supabase.from('alts').select('*').eq('user_id', user.id).order('created_at');
@@ -102,7 +119,7 @@ if (!canEdit) {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const { error } = await supabase.from('profiles').upsert({
-    user_id: user.id, ...main.values(), ...(me ? { player_name: me } : {}), updated_at: new Date().toISOString(),
+    user_id: user.id, ...main.values(), ...(locked ?? {}), ...(me ? { player_name: me } : {}), updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
   msg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
 });
