@@ -187,6 +187,8 @@ alter table public.events add column if not exists players_needed int;
 alter table public.events add column if not exists pinged text[] not null default '{}';
 -- Quest picked from data/quests.json (Wowhead Forever id); quest keeps the name (also for typed quests).
 alter table public.events add column if not exists quest_id int;
+-- Dungeon/raid picked from js/dungeons.js (name; links to Wowhead).
+alter table public.events add column if not exists dungeon text check (char_length(dungeon) <= 80);
 
 -- 2026-11-02: players (sheet name <-> Discord name), profile link, bank reservations, guild bank purchase.
 -- Who is who: the player's name in the guild sheet (column A) and their Discord display name.

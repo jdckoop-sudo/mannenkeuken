@@ -23,7 +23,7 @@
     <p id="form-msg" class="muted"></p>
     <div class="grid">
       <label>Type<select name="kind"><option value="dungeon">Dungeon</option><option value="raid">Raid</option><option value="quest">Quest help</option><option value="guild">Guild night</option><option value="other">Other</option></select></label>
-      <label>Title<input name="title" required maxlength="80" placeholder="e.g. [dungeon name]"></label>
+      <div style="display:flex;flex-direction:column;gap:6px"><label for="title-input">Title</label><input id="title-input" name="title" required maxlength="80" placeholder="Start typing a dungeon, e.g. wailing"><p id="title-hint" class="muted" style="font-size:13px;margin:0"></p></div>
       <div id="quest-field" hidden style="display:flex;flex-direction:column;gap:6px"><label for="quest-input">Quest</label><input id="quest-input" name="quest" maxlength="80" placeholder="Start typing, e.g. wailing"><p id="quest-hint" class="muted" style="font-size:13px;margin:0"></p></div>
       <label>Date<input name="date" type="date" required></label>
       <fieldset style="flex-direction: column; gap: 6px"><legend style="font-size: 14px; margin-bottom: 6px">Time (24h)</legend>
@@ -85,6 +85,7 @@ import { releases, upcomingReleases, releaseWhen, releaseSource } from './js/rel
 import { loadPlayers, playerForUser, playerUrl } from './js/players.js?v=__V__';
 import { attachItemSearch, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { loadQuestSuggestions, questUrl as questLink } from './js/quests.js?v=__V__';
+import { loadDungeonSuggestions, findDungeon, dungeonUrl, dungeonInfo } from './js/dungeons.js?v=__V__';
 
 const KIND = { dungeon: 'Dungeon', raid: 'Raid', quest: 'Quest help', guild: 'Guild night', other: 'Other' };
 const questSearchUrl = (q) => `https://www.wowhead.com/forever/search?q=${encodeURIComponent(q)}`;
@@ -200,6 +201,7 @@ function drawEvents() {
         <div style="display:flex;flex-direction:column;gap:6px">
           <span class="badge">${esc(KIND[e.kind] ?? 'Event')}</span>
           <h2 style="font-size:24px">${esc(e.title)}</h2>
+          ${e.dungeon ? `<span>${esc(findDungeon(e.dungeon) ? dungeonInfo(findDungeon(e.dungeon)) : 'Dungeon')}: <a href="${dungeonUrl(findDungeon(e.dungeon) ?? { name: e.dungeon })}" target="_blank" rel="noopener" style="font-weight:600">${esc(e.dungeon)}</a></span>` : ''}
           ${e.quest ? (e.quest_id
             ? `<span>Quest: <a href="${questLink(e.quest_id)}" target="_blank" rel="noopener" style="font-weight:600">${esc(e.quest)}</a></span>`
             : `<span>Quest: <strong>${esc(e.quest)}</strong> · <a href="${questSearchUrl(e.quest)}" target="_blank" rel="noopener">Look it up on Wowhead</a></span>`) : ''}
@@ -261,6 +263,7 @@ form.addEventListener('submit', async (e) => {
     title: d.get('title'), starts_at: startsAt(d).toISOString(),
     kind: d.get('kind'), quest: d.get('kind') === 'quest' ? (d.get('quest') || null) : null,
     quest_id: d.get('kind') === 'quest' && pickedQuest?.name === d.get('quest') ? pickedQuest.id : null,
+    dungeon: ['dungeon', 'raid'].includes(d.get('kind')) ? (findDungeon(d.get('title'))?.name ?? null) : null,
     min_level: num('min_level'),
     ...(d.get('need') === 'players'
       ? { players_needed: num('players_needed') ?? 1, tanks_needed: 0, healers_needed: 0, dps_needed: 0 }
@@ -269,14 +272,16 @@ form.addEventListener('submit', async (e) => {
     note: d.get('note'), author_name: displayName(user),
   });
   document.getElementById('form-msg').textContent = error ? `Could not create: ${error.message}` : 'Event created!';
-  if (!error) { form.reset(); pickedQuest = null; questBox.reset(); questHint.textContent = ''; fillTime(); showNeed(); form.hidden = true; weekStart = startOfWeek(startsAt(d)); load(); }
+  if (!error) { form.reset(); pickedQuest = null; questBox.reset(); questHint.textContent = ''; titleBox.reset(); titleHint.textContent = ''; fillTime(); showNeed(); form.hidden = true; weekStart = startOfWeek(startsAt(d)); load(); }
 });
 
 // Type: quest help shows the quest field and needs fewer people by default
 form.kind.addEventListener('change', () => {
   const quest = form.kind.value === 'quest';
   document.getElementById('quest-field').hidden = !quest;
-  form.title.placeholder = quest ? 'e.g. Help with [quest name]' : 'e.g. [dungeon name]';
+  const k = form.kind.value;
+  form.title.placeholder = quest ? 'e.g. Help with [quest name]' : k === 'dungeon' ? 'Start typing a dungeon, e.g. wailing' : k === 'raid' ? 'Start typing a raid, e.g. onyxia' : 'e.g. Guild night in Orgrimmar';
+  titleHint.textContent = '';
   if (quest) { form.tanks_needed.value = 0; form.healers_needed.value = 0; form.dps_needed.value = 2; form.need.value = 'players'; showNeed(); }
 });
 
@@ -293,6 +298,13 @@ const questBox = attachItemSearch(document.getElementById('quest-input'), (q) =>
 }, { load: loadQuestSuggestions, meta: (q) => [q.level ? `Lvl ${q.level}` : '', q.zone].filter(Boolean).join(' · '), color: () => '#1f2937' });
 form.title.addEventListener('input', () => { form.title.dataset.auto = ''; });
 
+// Title: for dungeon and raid events, pick the place while typing (fills min. level, links to Wowhead)
+const titleHint = document.getElementById('title-hint');
+const titleBox = attachItemSearch(document.getElementById('title-input'), (dg) => {
+  if (!dg) { titleHint.textContent = ''; return; }
+  if (dg.levels) form.min_level.value = dg.levels[0];
+  titleHint.innerHTML = `${esc(dungeonInfo(dg))} · <a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(dg.name)} on Wowhead</a>`;
+}, { load: () => loadDungeonSuggestions(form.kind.value), meta: (dg) => dungeonInfo(dg), color: () => '#1f2937' });
 // Specific roles or just a number of players
 function showNeed() {
   const players = form.need.value === 'players';
