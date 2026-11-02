@@ -5,61 +5,175 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Addons &amp; Settings – Mannenkeuken</title>
 <link rel="stylesheet" href="css/style.css">
+<style>
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tabs button[aria-selected="true"] { background: #1f2937; color: #fff; }
+  pre.code { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; padding: 12px; margin: 0; white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: 14px; }
+  .tip { border-top: 1px solid #d1d5db; padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .badge { display: inline-block; padding: 2px 8px; border: 1px solid #6b7280; border-radius: 999px; font-size: 12px; }
+  .badge.must { background: #1f2937; color: #fff; border-color: #1f2937; }
+  ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+</style>
 </head>
 <body>
 <main>
   <div>
     <h1>Addons &amp; Settings</h1>
-    <p class="muted">Recommended addons, handy macros and game settings. Members can add their own tips.</p>
+    <p class="muted">Recommended addons, handy macros and game settings for WoW: Forever. Members can add their own tips.</p>
   </div>
+
+  <div class="tabs" role="tablist">
+    <button class="btn" role="tab" type="button" data-tab="addons" aria-selected="true">Addons</button>
+    <button class="btn" role="tab" type="button" data-tab="macros" aria-selected="false">Macros</button>
+    <button class="btn" role="tab" type="button" data-tab="settings" aria-selected="false">Game settings</button>
+  </div>
+
   <div class="row">
+    <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <section id="tab-addons" role="tabpanel" style="display: flex; flex-direction: column; gap: 16px">
+        <div class="notice">
+          New to addons? Install the CurseForge app, choose the <strong>"Forever"</strong> version of World of Warcraft and start with everything marked <strong>Must-have</strong> (plus what fits your role/class).
+          In-game: Esc → AddOns to turn them on/off, <code>/reload</code> after changes. Old Classic addons often don't work – always take the Forever version.
+        </div>
+        <label style="max-width: 260px">Priority<select id="prio"><option value="">All</option></select></label>
+        <div id="addons" style="display: flex; flex-direction: column; gap: 16px"><p class="muted">Loading from the sheet…</p></div>
+        <p class="muted" style="font-size: 13px">This list is read live from the "Addons" tab of the guild sheet – edit it there.</p>
+      </section>
+
+      <section id="tab-macros" role="tabpanel" hidden style="display: flex; flex-direction: column; gap: 16px">
+        <div class="box" id="macro-intro"></div>
+        <div class="box"><h2>Guild macros</h2><div id="macros" style="display: flex; flex-direction: column; gap: 16px"></div></div>
+        <div class="box"><h2>Where to find more</h2><ul id="macro-links"></ul></div>
+        <div class="box"><h2>Shared by members</h2><div id="tips-macro"></div></div>
+      </section>
+
+      <section id="tab-settings" role="tabpanel" hidden style="display: flex; flex-direction: column; gap: 16px">
+        <p class="muted" id="settings-intro"></p>
+        <div class="grid" id="settings"></div>
+        <div class="box"><h2>Shared by members</h2><div id="tips-setting"></div></div>
+      </section>
+    </div>
+
     <form id="new" class="box" style="flex: 1 1 300px">
       <h2>Share a tip</h2>
       <p id="form-msg" class="muted"></p>
-      <label>Category<select name="category"><option value="addon">Addon</option><option value="macro">Macro</option><option value="setting">Game setting</option></select></label>
-      <label>Title<input name="title" required maxlength="80" placeholder="e.g. [addon name]"></label>
+      <label>Category<select name="category"><option value="macro">Macro</option><option value="setting">Game setting</option><option value="addon">Addon</option></select></label>
+      <label>Title<input name="title" required maxlength="80"></label>
       <label>Class (optional)<input name="class" maxlength="40" placeholder="e.g. Warrior"></label>
       <label>Link (optional)<input name="link" type="url" placeholder="https://"></label>
       <label>Content – description, macro text or setting<textarea name="content" rows="6" maxlength="2000"></textarea></label>
       <button class="btn btn-primary" type="submit">Share</button>
     </form>
-    <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
-      <section class="box"><h2>Addons</h2><div id="addon"></div></section>
-      <section class="box"><h2>Macros</h2><div id="macro"></div></section>
-      <section class="box"><h2>Game settings</h2><div id="setting"></div></section>
-    </div>
   </div>
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js';
 import { supabase, displayName, isGuildMember } from './js/supabase.js';
-import { esc } from './js/sheet.js';
+import { loadAddons, esc } from './js/sheet.js';
+import * as G from './js/guides.js';
 
 const user = await renderHeader();
+
+// Tabs
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+function show(name) {
+  tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+  for (const t of ['addons', 'macros', 'settings']) document.getElementById(`tab-${t}`).hidden = t !== name;
+  const sel = document.querySelector('#new select[name="category"]');
+  sel.value = name === 'settings' ? 'setting' : name === 'macros' ? 'macro' : 'addon';
+  history.replaceState(null, '', `#${name}`);
+}
+tabs.forEach((t) => t.addEventListener('click', () => show(t.dataset.tab)));
+show(['addons', 'macros', 'settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'addons');
+
+// Addons (live from the sheet)
+let addons = [];
+const link = (a) => (a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${esc(/^(curseforge|github)$/i.test(a.linkLabel) ? a.linkLabel : 'Link')}</a>` : `<span class="muted">${esc(a.linkLabel)}</span>`);
+function drawAddons() {
+  const p = document.getElementById('prio').value;
+  const list = addons.filter((a) => !p || a.priority === p);
+  const cats = [...new Set(list.map((a) => a.category))];
+  document.getElementById('addons').innerHTML = cats.map((c) => `
+    <div class="box">
+      <h2>${esc(c)}</h2>
+      ${list.filter((a) => a.category === c).map((a) => `
+        <div class="tip">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <strong>${esc(a.name)}</strong>
+            ${a.priority ? `<span class="badge ${/must/i.test(a.priority) ? 'must' : ''}">${esc(a.priority)}</span>` : ''}
+            ${a.who ? `<span class="muted" style="font-size:13px">${esc(a.who)}</span>` : ''}
+            <span style="margin-left:auto">${link(a)}</span>
+          </div>
+          ${a.what ? `<span>${esc(a.what)}</span>` : ''}
+          ${a.note ? `<span class="muted" style="font-size:14px">Note: ${esc(a.note)}</span>` : ''}
+        </div>`).join('')}
+    </div>`).join('') || '<p class="muted">No addons.</p>';
+}
+document.getElementById('prio').addEventListener('input', drawAddons);
+loadAddons().then((a) => {
+  addons = a;
+  const prios = [...new Set(a.map((x) => x.priority).filter(Boolean))];
+  document.getElementById('prio').insertAdjacentHTML('beforeend', prios.map((p) => `<option>${esc(p)}</option>`).join(''));
+  drawAddons();
+}).catch(() => { document.getElementById('addons').innerHTML = '<p class="muted">Could not read the Addons tab of the sheet.</p>'; });
+
+// Macros (from js/guides.js)
+document.getElementById('macro-intro').innerHTML = `
+  <h2>What is a macro?</h2>
+  ${G.macroIntro.map((t) => `<p style="margin:0">${esc(t)}</p>`).join('')}
+  <strong>Why use them?</strong><ul>${G.macroWhy.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+  <strong>Good to know</strong><ul>${G.macroGood.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`;
+document.getElementById('macros').innerHTML = G.macros.map((m, i) => `
+  <div class="tip">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><strong>${esc(m.title)}</strong><span class="muted" style="font-size:13px">by ${esc(m.by)}</span>
+      <button class="link-btn" type="button" data-copy="${i}" style="margin-left:auto">Copy</button></div>
+    ${m.note ? `<span class="muted">${esc(m.note)}</span>` : ''}
+    <pre class="code">${esc(m.code)}</pre>
+  </div>`).join('');
+document.getElementById('macro-links').innerHTML = G.macroLinks.map(([t, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a></li>`).join('');
+document.getElementById('macros').addEventListener('click', async (e) => {
+  const i = e.target.dataset.copy;
+  if (i === undefined) return;
+  try { await navigator.clipboard.writeText(G.macros[i].code); e.target.textContent = 'Copied!'; } catch { e.target.textContent = 'Select & copy manually'; }
+  setTimeout(() => { e.target.textContent = 'Copy'; }, 1500);
+});
+
+// Game settings (from js/guides.js)
+document.getElementById('settings-intro').textContent = G.settingsIntro;
+document.getElementById('settings').innerHTML = G.settings.map(([title, items]) => `
+  <section class="box"><h2>${esc(title)}</h2><ul>${items.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></section>`).join('');
+
+// Member tips (Supabase)
 const form = document.getElementById('new');
 const msg = document.getElementById('form-msg');
 if (!supabase) { msg.textContent = 'Not connected yet.'; form.querySelector('button').disabled = true; }
 else if (!user) { msg.textContent = 'Log in with Discord to share.'; form.querySelector('button').disabled = true; }
 else if (!(await isGuildMember())) { msg.textContent = 'Only members of the Mannenkeuken Discord can share.'; form.querySelector('button').disabled = true; }
 
-async function load() {
+async function loadTips() {
   const data = supabase ? (await supabase.from('tips').select('*').order('created_at', { ascending: false })).data ?? [] : [];
-  for (const cat of ['addon', 'macro', 'setting']) {
-    const items = data.filter((t) => t.category === cat);
-    document.getElementById(cat).innerHTML = items.map((t) => `
-      <article style="border-top:1px solid #d1d5db;padding-top:12px;margin-top:12px">
-        <strong>${esc(t.title)}</strong>${t.class ? ` <span class="muted">· ${esc(t.class)}</span>` : ''}
-        ${t.link && /^https?:\/\//.test(t.link) ? ` · <a href="${esc(t.link)}" target="_blank" rel="noopener">link</a>` : ''}
-        ${t.content ? `<pre style="white-space:pre-wrap;font:inherit;margin:8px 0 0">${esc(t.content)}</pre>` : ''}
-        <p class="muted" style="font-size:13px">by ${esc(t.author_name)}${t.user_id === user?.id ? ` · <button class="link-btn" data-del="${t.id}">Remove</button>` : ''}</p>
-      </article>`).join('') || '<p class="muted">Nothing yet.</p>';
+  for (const cat of ['macro', 'setting']) {
+    document.getElementById(`tips-${cat}`).innerHTML = data.filter((t) => t.category === cat).map(tipHtml).join('') || '<p class="muted">Nothing yet – share yours!</p>';
   }
+  const memberAddons = data.filter((t) => t.category === 'addon');
+  document.getElementById('member-addons')?.remove();
+  if (memberAddons.length) {
+    document.getElementById('addons').insertAdjacentHTML('afterend', `<div class="box" id="member-addons"><h2>Suggested by members</h2>${memberAddons.map(tipHtml).join('')}</div>`);
+  }
+}
+function tipHtml(t) {
+  return `<article class="tip">
+    <div><strong>${esc(t.title)}</strong>${t.class ? ` <span class="muted">· ${esc(t.class)}</span>` : ''}
+    ${t.link && /^https?:\/\//.test(t.link) ? ` · <a href="${esc(t.link)}" target="_blank" rel="noopener">link</a>` : ''}</div>
+    ${t.content ? `<pre class="${t.category === 'macro' ? 'code' : ''}" style="white-space:pre-wrap;font:inherit;margin:0">${esc(t.content)}</pre>` : ''}
+    <p class="muted" style="font-size:13px;margin:0">by ${esc(t.author_name)}${t.user_id === user?.id ? ` · <button class="link-btn" type="button" data-del="${t.id}">Remove</button>` : ''}</p>
+  </article>`;
 }
 document.querySelector('main').addEventListener('click', async (e) => {
   const id = e.target.dataset.del;
   if (!id) return;
   await supabase.from('tips').delete().eq('id', id);
-  load();
+  loadTips();
 });
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -69,9 +183,9 @@ form.addEventListener('submit', async (e) => {
     link: d.get('link'), content: d.get('content'), author_name: displayName(user),
   });
   msg.textContent = error ? `Could not share: ${error.message}` : 'Shared!';
-  if (!error) { form.reset(); load(); }
+  if (!error) { const cat = d.get('category'); form.reset(); form.querySelector('select').value = cat; loadTips(); }
 });
-load();
+loadTips();
 </script>
 </body>
 </html>

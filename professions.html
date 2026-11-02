@@ -20,15 +20,16 @@ import { loadMembers, esc } from './js/sheet.js';
 renderHeader();
 
 const MAX = 300;
+const SECONDARY = ['Cooking', 'First Aid', 'Fishing'];
 loadMembers().then((members) => {
   const byProf = {};
   for (const m of members.filter((x) => x.status !== 'Gestopt')) {
-    for (const [p, s] of [[m.prof1, m.skill1], [m.prof2, m.skill2]]) {
-      if (!p) continue;
+    for (const [p, s] of [[m.prof1, m.skill1], [m.prof2, m.skill2], ['Cooking', m.cooking], ['First Aid', m.firstAid], ['Fishing', m.fishing]]) {
+      if (!p || (SECONDARY.includes(p) && (s === '' || s == null))) continue;
       (byProf[p] ??= []).push({ name: m.character || m.player, player: m.player, skill: Number(s) || 0 });
     }
   }
-  const names = Object.keys(byProf).sort();
+  const names = [...Object.keys(byProf).filter((p) => !SECONDARY.includes(p)).sort(), ...SECONDARY.filter((p) => byProf[p])];
   document.getElementById('cards').innerHTML = names.map((p) => `
     <section class="box">
       <h2>${esc(p)}</h2>
