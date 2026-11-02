@@ -33,10 +33,9 @@ supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supaba
 ## Afspraken
 
 1. **Nooit direct op `main` werken.** Laat Claude per taak een branch maken: `jelle/...` of `tinus/...`.
-2. Klaar? Laat Claude een **pull request** openen. De ander kijkt hem na en merget.
-3. Verdeling: **Jelle** → Trade Market, Addons & Settings, Home. **Tinus** → Roster, Professions, Raids & Events.
-4. **Geheimen nooit in de repo.** De Supabase *anon key* mag in `js/config.js`; de *service_role key* en het *Discord Client Secret* nooit.
-5. Simpel houden: gewone HTML/CSS/JS, geen build-stap.
+2. Klaar? Laat Claude een **pull request** openen en merge hem. Even laten weten in Discord waar je mee bezig bent, zodat je niet tegelijk hetzelfde bestand aanpast.
+3. **Geheimen nooit in de repo.** De Supabase *anon key* mag in `js/config.js`; de *service_role key* en het *Discord Client Secret* nooit.
+4. Simpel houden: gewone HTML/CSS/JS, geen build-stap.
 
 ## Wat Tinus moet doen (eenmalig)
 
@@ -47,9 +46,10 @@ supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supaba
    > Lees README.md en CLAUDE.md in jdckoop-sudo/mannenkeuken. Maak een branch `tinus/events` en bouw de pagina Raids & Events volgens de wireframe. Open daarna een pull request.
 5. Wil je in Supabase meekijken? Vraag Jelle om je uit te nodigen voor het Supabase-project (niet verplicht).
 
-## Instellingen (al gedaan door Jelle)
+## Instellingen
 
-- Google Sheet gedeeld als *Iedereen met de link kan bekijken* (nodig voor Roster/Professions).
-- Supabase-project aangemaakt, `supabase/schema.sql` uitgevoerd, Discord-provider aangezet.
-- Discord-app in het Discord Developer Portal, met de redirect-URL van Supabase.
-- In Supabase → Authentication → URL Configuration: Site URL = de live site.
+- Google Sheet gedeeld als *Iedereen met de link kan bekijken* (nodig voor Roster/Professions). ✔
+- Supabase-project `mannenkeuken` (regio Europa), `supabase/schema.sql` uitgevoerd. ✔
+- Supabase → Authentication → URL Configuration: Site URL + redirect = de live site. ✔
+- Discord-app in het Discord Developer Portal, gekoppeld als Discord-provider in Supabase.
+  Callback-URL: `https://uvnmgyhnqlibnvpivhdf.supabase.co/auth/v1/callback`
