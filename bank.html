@@ -20,14 +20,16 @@
       <h2>How it works</h2>
       <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
         <li><strong>Got spare items or gold?</strong> Mail them in-game to <strong>Opie Bank</strong> (or put them in the guild bank), then add them to the list below so everyone can see what's in stock.</li>
-        <li><strong>Need something?</strong> Ask in the <strong>#guild-bank</strong> channel on Discord. When you take it, lower the count here (or remove the line).</li>
-        <li><strong>Gold</strong> goes towards the guild goal below. Whoever updates the gold in-game, also updates it here.</li>
+        <li><strong>Need something?</strong> Log in and press <strong>Reserve</strong> next to the item: pick which of your characters it is for. Everyone can see who reserved what. Questions go in <strong>#guild-bank</strong> on Discord.</li>
+        <li><strong>Picked it up?</strong> Lower the count here (or remove the line). Reservations on an item disappear with it.</li>
+        <li id="how-gold"><strong>Gold:</strong> we are saving <strong>100 gold</strong> to buy a shared guild bank. Whoever updates the gold in-game, also updates it here.</li>
         <li>Everyone who is logged in can add, change and remove items – keep it honest.</li>
       </ul>
     </section>
 
     <section class="box" style="flex: 1 1 340px">
-      <h2>Gold</h2>
+      <h2 id="gold-title">Saving for the guild bank</h2>
+      <p class="muted" id="gold-intro" style="margin:0">A shared guild bank costs <strong>100 gold</strong>. This is how far we are:</p>
       <div id="gold"><p class="muted">Loading…</p></div>
       <form id="gold-form" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
         <label style="width:90px">Gold<input name="g" type="number" min="0" value="0"></label>
@@ -36,7 +38,8 @@
         <button class="btn" type="submit" value="set">Set balance</button>
         <button class="btn" type="submit" value="add">+ Add</button>
       </form>
-      <details>
+      <button class="btn" type="button" id="bought">We bought the guild bank!</button>
+      <details id="goal-details">
         <summary style="cursor:pointer">Change goal</summary>
         <form id="goal-form" style="display:flex;gap:8px;align-items:flex-end;margin-top:8px">
           <label style="width:120px">Goal (gold)<input name="goal" type="number" min="1" value="100"></label>
@@ -76,6 +79,7 @@ import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { toCopper, formatGold, goldBar } from './js/gold.js?v=__V__';
+import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from './js/reserve.js?v=__V__';
 
 const user = await renderHeader();
 const canEdit = !!(supabase && user && await isGuildMember());
@@ -84,7 +88,7 @@ const goldMsg = document.getElementById('gold-msg');
 if (!canEdit) {
   const why = !supabase ? 'Not connected yet.' : !user ? 'Log in with Discord to update the bank.' : 'Only members of the Mannenkeuken Discord can update the bank.';
   msg.textContent = why; goldMsg.textContent = why;
-  document.querySelectorAll('#new button, #gold-form button, #goal-form button').forEach((b) => { b.disabled = true; });
+  document.querySelectorAll('#new button, #gold-form button, #goal-form button, #bought').forEach((b) => { b.disabled = true; });
 }
 
 // Gold
@@ -93,7 +97,14 @@ async function loadGold() {
   if (!supabase) return;
   const { data } = await supabase.from('bank').select('*').eq('id', 1).maybeSingle();
   if (data) bank = data;
-  document.getElementById('gold').innerHTML = goldBar(bank.copper, bank.goal_copper)
+  const bought = !!bank.guild_bank_bought;
+  // Before the purchase: progress towards the guild bank. After: just the guild's gold.
+  document.getElementById('gold-title').textContent = bought ? 'Guild gold' : 'Saving for the guild bank';
+  document.getElementById('gold-intro').innerHTML = bought ? 'We own a shared guild bank. Current guild gold:' : `A shared guild bank costs <strong>${esc(formatGold(bank.goal_copper).replace(/ 0s 0c$/, ''))}</strong>. This is how far we are:`;
+  document.getElementById('how-gold').innerHTML = bought ? '<strong>Gold</strong> is kept in the guild bank. Whoever changes the gold in-game, also updates it here.' : document.getElementById('how-gold').innerHTML;
+  document.getElementById('bought').hidden = bought;
+  document.getElementById('goal-details').hidden = bought;
+  document.getElementById('gold').innerHTML = (bought ? `<strong style="font-size:32px">${esc(formatGold(bank.copper))}</strong>` : goldBar(bank.copper, bank.goal_copper))
     + (bank.updated_by ? `<p class="muted" style="font-size:13px;margin:0">Last updated by ${esc(bank.updated_by)} · ${new Date(bank.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</p>` : '');
   document.querySelector('#goal-form [name="goal"]').value = Math.round(bank.goal_copper / 10000);
 }
@@ -116,8 +127,17 @@ document.getElementById('goal-form').addEventListener('submit', async (e) => {
   if (!error) loadGold();
 });
 
+document.getElementById('bought').addEventListener('click', async () => {
+  if (!confirm('Are you sure the guild bank has been bought? The page will then show the guild gold instead of the savings goal. Enter the gold that is left afterwards.')) return;
+  const { error } = await supabase.from('bank').update({ guild_bank_bought: true, updated_by: displayName(user), updated_at: new Date().toISOString() }).eq('id', 1);
+  goldMsg.textContent = error ? `Could not save: ${error.message}` : 'Congratulations on the guild bank! Now set the gold that is left.';
+  if (!error) loadGold();
+});
+
 // Items
 let items = [];
+let reservations = [];
+let myChars = [];
 let itemsById = new Map();
 let pickedItem = null;
 const hint = document.getElementById('item-hint');
@@ -134,6 +154,8 @@ async function load() {
   if (!supabase) { document.getElementById('rows').innerHTML = '<tr><td colspan="6">Not connected yet.</td></tr>'; return; }
   const { data } = await supabase.from('bank_items').select('*').order('category', { nullsFirst: false }).order('item');
   items = data ?? [];
+  const ids = items.map((i) => i.id);
+  reservations = ids.length ? (await supabase.from('bank_reservations').select('*').in('bank_item_id', ids).order('created_at')).data ?? [] : [];
   document.getElementById('bank-cats').innerHTML = [...new Set(items.map((i) => i.category).filter(Boolean))].map((c) => `<option value="${esc(c)}"></option>`).join('');
   draw();
 }
@@ -145,8 +167,10 @@ function draw() {
     const name = i.item_id
       ? `<a href="${wowheadUrl(i.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${known ? `color:${qualityColor(known.quality)}` : ''}">${esc(i.item)}</a>`
       : esc(i.item);
+    const res = reservations.filter((r) => r.bank_item_id === i.id);
+    const free = i.quantity - reservedCount(res);
     return `<tr>
-      <td>${name}${i.note ? `<br><span class="muted">${esc(i.note)}</span>` : ''}</td>
+      <td>${name}${i.note ? `<br><span class="muted">${esc(i.note)}</span>` : ''}${reservationsHtml(res, user)}${canEdit ? reserveFormHtml(i.id, myChars, free) : ''}${res.length ? `<span class="muted" style="font-size:13px">${Math.max(0, free)} of ${esc(i.quantity)} free</span>` : ''}</td>
       <td>${canEdit ? `<span style="display:inline-flex;gap:6px;align-items:center"><button class="btn" style="padding:2px 10px" type="button" data-dec="${i.id}" aria-label="One less">−</button><strong>${esc(i.quantity)}</strong><button class="btn" style="padding:2px 10px" type="button" data-inc="${i.id}" aria-label="One more">+</button></span>` : esc(i.quantity)}</td>
       <td>${esc(i.category ?? '')}</td><td>${esc(i.deposited_by ?? '')}</td>
       <td>${new Date(i.updated_at).toLocaleDateString('en-GB')}</td>
@@ -155,9 +179,25 @@ function draw() {
   refreshTooltips();
 }
 document.getElementById('q').addEventListener('input', draw);
+document.getElementById('rows').addEventListener('submit', async (e) => {
+  const f = e.target.closest('form[data-reserve]');
+  if (!f) return;
+  e.preventDefault();
+  const d = new FormData(f);
+  const { error } = await supabase.from('bank_reservations').insert({
+    bank_item_id: f.dataset.reserve, reserved_by: displayName(user), character: d.get('character'), quantity: Number(d.get('quantity')) || 1,
+  });
+  if (error) { alert(`Could not reserve: ${error.message}`); return; }
+  load();
+});
 document.getElementById('rows').addEventListener('click', async (e) => {
   const t = e.target.closest('button');
   if (!t) return;
+  if (t.dataset.unreserve) {
+    if (!confirm(`Are you sure you want to cancel the reservation for ${t.dataset.name}?`)) return;
+    await supabase.from('bank_reservations').delete().eq('id', t.dataset.unreserve);
+    load(); return;
+  }
   const id = t.dataset.inc || t.dataset.dec || t.dataset.del;
   const row = items.find((i) => i.id === id);
   if (!row) return;
@@ -191,6 +231,7 @@ document.getElementById('new').addEventListener('submit', async (e) => {
   if (!error) { f.reset(); pickedItem = null; hint.textContent = ''; search.reset(); load(); }
 });
 
+if (canEdit) myCharacters(user).then((c) => { myChars = c; draw(); });
 loadGold();
 load();
 </script>

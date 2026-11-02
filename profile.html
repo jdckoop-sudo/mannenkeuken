@@ -11,6 +11,8 @@
   <div>
     <h1>My profile</h1>
     <p class="muted">Save your main character once. It is used when you sign up for events. Alts are your secondary characters for levelling, collecting items, etc.</p>
+    <p class="muted" id="sync-note" style="font-size:14px">Your main is filled in automatically from the guild sheet (the same as your Discord roles). Alts from the sheet are added here too, and alts you add here are put in the guild sheet at the next guild sync.</p>
+    <p id="player-link" style="font-size:14px;margin:0"></p>
   </div>
   <div class="row">
     <form id="profile" class="box" style="flex: 1 1 340px; max-width: 480px">
@@ -36,6 +38,9 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, getProfile } from './js/supabase.js?v=__V__';
 import { wireCharacterFields } from './js/charform.js?v=__V__';
+import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
+import { RACES } from './js/wowdata.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
 
 const MAX_ALTS = 2;
 const user = await renderHeader();
@@ -46,6 +51,14 @@ const altList = document.getElementById('alt-list');
 const altMsg = document.getElementById('alt-msg');
 const addBtn = document.getElementById('add-alt');
 const canEdit = !!(supabase && user);
+let me = null;            // my player name in the guild sheet
+let altMsgExtra = '';
+// The sheet says "Skyborne"; the form needs the faction ("Skyborne (Horde)" – we are a Horde guild).
+function formRace(race) {
+  if (!race) return null;
+  if (race === 'Skyborne') return 'Skyborne (Horde)';
+  return Object.values(RACES).some((r) => r[race]) ? race : null;
+}
 
 if (!canEdit) {
   const m = !supabase ? 'Not connected yet.' : 'Log in with Discord to edit your profile.';
@@ -53,16 +66,43 @@ if (!canEdit) {
   form.querySelectorAll('button').forEach((b) => { b.disabled = true; });
   addBtn.disabled = true;
 } else {
-  main.set(await getProfile(user));
-  const { data } = await supabase.from('alts').select('*').eq('user_id', user.id).order('created_at');
-  (data ?? []).slice(0, MAX_ALTS).forEach(addAltCard);
+  let profile = await getProfile(user);
+  const { characters, players } = await loadCharacters();
+  me = playerForUser(user, players);
+  if (me) document.getElementById('player-link').innerHTML = `You are <strong>${esc(me)}</strong> in the guild sheet · <a href="${playerUrl(me)}">View your player page & stats</a>`;
+
+  // 1. No main yet? Take the Main from the guild sheet (= the Discord roles) and save it.
+  const sheetMain = me && characters.find((c) => c.player === me && c.inSheet && c.kind === 'Main' && c.hasName);
+  if (!profile?.character_name && sheetMain) {
+    const values = { character_name: sheetMain.name, race: formRace(sheetMain.race), class: sheetMain.class || null, role: sheetMain.role || null };
+    const { data, error } = await supabase.from('profiles').upsert({ user_id: user.id, ...values, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
+    if (!error) { profile = data; msg.textContent = 'Your main character was filled in from the guild sheet. Check it and save if something is off.'; }
+  } else if (me && profile && !profile.player_name) {
+    await supabase.from('profiles').update({ player_name: me }).eq('user_id', user.id);
+  }
+  main.set(profile);
+
+  // 2. Alts in the sheet that are not on the dashboard yet: add them (max MAX_ALTS).
+  let { data: alts } = await supabase.from('alts').select('*').eq('user_id', user.id).order('created_at');
+  alts = alts ?? [];
+  const have = new Set([profile?.character_name, ...alts.map((a) => a.character_name)].filter(Boolean).map((n) => n.toLowerCase()));
+  const sheetAlts = me ? characters.filter((c) => c.player === me && c.inSheet && c.kind === 'Alt' && c.hasName && !have.has(c.name.toLowerCase())) : [];
+  const added = [];
+  for (const a of sheetAlts) {
+    if (alts.length >= MAX_ALTS) break;
+    const { data, error } = await supabase.from('alts').insert({ character_name: a.name, race: formRace(a.race), class: a.class || null, role: a.role || null }).select().single();
+    if (!error && data) { alts.push(data); added.push(a.name); }
+  }
+  if (added.length) altMsgExtra = `Added from the guild sheet: ${added.join(', ')}.`;
+  if (sheetAlts.length > added.length) altMsgExtra += ` (${sheetAlts.length - added.length} more alt(s) in the sheet – the dashboard holds ${MAX_ALTS}.)`;
+  alts.slice(0, MAX_ALTS).forEach(addAltCard);
   updateAlts();
 }
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const { error } = await supabase.from('profiles').upsert({
-    user_id: user.id, ...main.values(), updated_at: new Date().toISOString(),
+    user_id: user.id, ...main.values(), ...(me ? { player_name: me } : {}), updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
   msg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
 });
@@ -79,7 +119,7 @@ function updateAlts() {
   const cards = [...altList.children];
   cards.forEach((c, i) => { c.querySelector('h2').textContent = `Alt ${i + 1}`; });
   addBtn.hidden = cards.length >= MAX_ALTS;
-  altMsg.textContent = cards.length ? '' : 'No alts yet.';
+  altMsg.textContent = (cards.length ? '' : 'No alts yet. ') + altMsgExtra;
 }
 
 function addAltCard(alt) {

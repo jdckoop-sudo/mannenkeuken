@@ -18,6 +18,9 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 | Trade Market | `market.html` | Supabase `listings` | klaar |
 | Raids & Events | `events.html` | Supabase `events`, `signups` | klaar |
 | Guild Bank | `bank.html` | Supabase `bank_items`, `bank` (goud) | klaar |
+| Player / Character | `player.html?name=…`, `character.html?name=…` | Sheet + Supabase `profiles`, `alts`, `players` | klaar |
+| Achievements | `achievements.html` | Sheet + Supabase | klaar |
+| My profile | `profile.html` | Supabase `profiles`, `alts` (main automatisch uit de sheet) | klaar |
 | Addons & Settings | `setup.html` | Supabase `addons` + `tips`, macros/settings in `js/guides.js` | klaar |
 
 ## Mappen

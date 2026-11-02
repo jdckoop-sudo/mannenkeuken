@@ -7,6 +7,7 @@ const pages = [
   ['market.html', 'Trade Market'],
   ['events.html', 'Raids & Events'],
   ['bank.html', 'Guild Bank'],
+  ['achievements.html', 'Achievements'],
   ['setup.html', 'Addons & Settings'],
   ['profile.html', 'My profile'],
 ];

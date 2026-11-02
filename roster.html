@@ -38,8 +38,8 @@ const n = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
 const prof = (p, s) => (p ? `${esc(p)}${s ? ` (${esc(s)})` : ''}` : '');
 // key, label, value used for sorting, cell html, numeric?
 const cols = [
-  ['player', 'Player', (m) => m.player, (m) => esc(m.player)],
-  ['character', 'Character', (m) => m.character, (m) => esc(m.character)],
+  ['player', 'Player', (m) => m.player, (m) => `<a href="player.html?name=${encodeURIComponent(m.player)}">${esc(m.player)}</a>`],
+  ['character', 'Character', (m) => m.character, (m) => (m.character ? `<a href="character.html?name=${encodeURIComponent(m.character)}">${esc(m.character)}</a>` : '')],
   ['race', 'Race', (m) => m.race, (m) => esc(m.race)],
   ['cls', 'Class', (m) => m.cls, (m) => esc(m.cls)],
   ['role', 'Role', (m) => m.role, (m) => esc(m.role)],

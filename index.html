@@ -26,6 +26,15 @@
     </section>
   </div>
 
+  <section class="box" id="for-me" aria-label="For you" hidden>
+    <h2>For you on the market</h2>
+    <div class="grid">
+      <div><h3 style="margin:0 0 8px;font-size:16px">You were tagged</h3><div id="tagged"></div></div>
+      <div><h3 style="margin:0 0 8px;font-size:16px">Requests you can craft</h3><div id="craftable"></div></div>
+    </div>
+    <a href="market.html?tagged=1">Open the trade market</a>
+  </section>
+
   <section class="grid" aria-label="Key numbers">
     <div class="box stat"><span class="muted">Members (Main)</span><strong id="stat-members">–</strong></div>
     <div class="box stat"><span class="muted">Tank / Healer / DPS</span><strong id="stat-roles">–</strong></div>
@@ -35,7 +44,7 @@
 
   <section class="box" aria-label="Guild overview">
     <h2>Guild overview</h2>
-    <p class="muted" style="margin:0;font-size:14px">Main characters from the guild sheet. Professions count Mains and Alts.</p>
+    <p class="muted" style="margin:0;font-size:14px">Main characters from the guild sheet: number of characters · average level (highest). Professions count Mains and Alts: number · average skill (highest).</p>
     <div class="grid" id="overview"><p class="muted">Loading…</p></div>
   </section>
 
@@ -51,6 +60,7 @@ import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { supabase, getProfile } from './js/supabase.js?v=__V__';
 import { upcomingReleases, releaseWhen } from './js/releases.js?v=__V__';
 import { goldBar } from './js/gold.js?v=__V__';
+import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
 
 const user = await renderHeader();
 const membersPromise = loadMembers().catch(() => []);
@@ -63,30 +73,36 @@ document.getElementById('releases').innerHTML = upcomingReleases().slice(0, 3)
 const all = await membersPromise;
 const mains = all.filter((m) => m.status === 'Main');
 const active = all.filter((m) => m.status !== 'Gestopt');
-const countBy = (list, key) => {
-  const c = {};
-  for (const m of list) { const v = typeof key === 'function' ? key(m) : m[key]; for (const x of [].concat(v)) if (x) c[x] = (c[x] ?? 0) + 1; }
-  return Object.entries(c).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-};
 const roleCount = (r) => mains.filter((m) => m.role === r).length;
 const levels = mains.map((m) => Number(m.level)).filter((n) => n > 0);
 document.getElementById('stat-members').textContent = mains.length;
 document.getElementById('stat-roles').textContent = `${roleCount('Tank')} / ${roleCount('Healer')} / ${roleCount('DPS')}`;
 document.getElementById('stat-level').textContent = levels.length ? Math.round(levels.reduce((a, b) => a + b, 0) / levels.length) : '–';
 
-const secondary = (name, key) => {
-  const n = active.filter((m) => Number(m[key]) > 0).length;
-  return n ? [[name, n]] : [];
-};
+// Groups with count, average and highest value (level for characters, skill for professions)
+function group(list, keyOf, valueOf) {
+  const g = {};
+  for (const m of list) for (const k of [].concat(keyOf(m))) {
+    if (!k) continue;
+    const e = (g[k] ??= { n: 0, vals: [] });
+    e.n += 1;
+    const v = Number(valueOf(m, k));
+    if (v > 0) e.vals.push(v);
+  }
+  return Object.entries(g).sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0]));
+}
+const skillOf = (m, prof) => ({ [m.prof1]: m.skill1, [m.prof2]: m.skill2, Cooking: m.cooking, 'First Aid': m.firstAid, Fishing: m.fishing })[prof];
+const profKeys = (m) => [m.prof1, m.prof2, ...[['Cooking', m.cooking], ['First Aid', m.firstAid], ['Fishing', m.fishing]].filter(([, v]) => Number(v) > 0).map(([k]) => k)];
 const groups = [
-  ['Roles', countBy(mains, 'role')],
-  ['Races', countBy(mains, 'race')],
-  ['Classes', countBy(mains, 'cls')],
-  ['Professions', [...countBy(active, (m) => [m.prof1, m.prof2]), ...secondary('Cooking', 'cooking'), ...secondary('First Aid', 'firstAid'), ...secondary('Fishing', 'fishing')]],
+  ['Roles', group(mains, (m) => m.role, (m) => m.level), 'lvl'],
+  ['Races', group(mains, (m) => m.race, (m) => m.level), 'lvl'],
+  ['Classes', group(mains, (m) => m.cls, (m) => m.level), 'lvl'],
+  ['Professions', group(active, profKeys, skillOf), 'skill'],
 ];
-document.getElementById('overview').innerHTML = all.length ? groups.map(([title, rows]) => `
+const fmt = (e, unit) => e.vals.length ? `<span class="muted" style="font-size:13px">${unit} ${Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length)} (${Math.max(...e.vals)})</span>` : '';
+document.getElementById('overview').innerHTML = all.length ? groups.map(([title, rows, unit]) => `
   <div><h3 style="margin:0 0 8px;font-size:16px">${title}</h3>
-    <div class="stat-list">${rows.map(([k, n]) => `<div><span>${esc(k)}</span><strong>${n}</strong></div>`).join('') || '<span class="muted">–</span>'}</div>
+    <div class="stat-list" style="grid-template-columns:1fr">${rows.map(([k, e]) => `<div><span>${esc(k)}</span><span style="display:flex;gap:10px;align-items:baseline">${fmt(e, unit)}<strong>${e.n}</strong></span></div>`).join('') || '<span class="muted">–</span>'}</div>
   </div>`).join('') : '<p class="muted">Could not read the sheet.</p>';
 
 // My character: profile (main + alts) matched with the sheet for level and professions
@@ -116,9 +132,32 @@ async function drawMe() {
     </div>`;
   };
   box.innerHTML = card(profile, 'Main') + (alts ?? []).filter((a) => a.character_name).map((a) => card(a, 'Alt')).join('')
-    + '<a href="profile.html" style="font-size:14px">Edit my profile</a>';
+    + `<span style="font-size:14px"><a href="profile.html">Edit my profile</a>${profile.player_name ? ` · <a href="${playerUrl(profile.player_name)}">My player page & stats</a>` : ''}</span>`;
 }
 drawMe();
+
+// For you on the market: listings where you were tagged, and requests one of your characters can craft
+async function drawForMe() {
+  if (!supabase || !user) return;
+  const { characters, players } = await loadCharacters();
+  const me = playerForUser(user, players);
+  const mine = characters.filter((c) => c.status !== 'Gestopt' && (c.userId === user.id || (me && c.player === me)));
+  const crafts = mine.flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill ?? 0 })));
+  const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });
+  const open = (data ?? []).filter((l) => l.user_id !== user.id);
+  const tagged = me ? open.filter((l) => (l.pinged ?? []).includes(me)) : [];
+  const craftable = open.filter((l) => l.kind === 'request' && l.profession).map((l) => {
+    const mineWith = crafts.filter((c) => c.name === l.profession).sort((a, b) => b.skill - a.skill)[0];
+    return mineWith ? { l, c: mineWith, ok: mineWith.skill >= (l.min_skill ?? 0) } : null;
+  }).filter(Boolean);
+  if (!tagged.length && !craftable.length) return;
+  document.getElementById('for-me').hidden = false;
+  const line = (l) => `<strong>${esc(l.item)}</strong> ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span>`;
+  document.getElementById('tagged').innerHTML = tagged.map((l) => `<p style="margin:0 0 6px">${line(l)}${l.note ? `<br><span class="muted" style="font-size:13px">${esc(l.note)}</span>` : ''}</p>`).join('') || '<p class="muted">Nothing right now.</p>';
+  document.getElementById('craftable').innerHTML = craftable.map(({ l, c, ok }) => `<p style="margin:0 0 6px">${line(l)}<br>
+    <span style="font-size:13px;${ok ? 'color:#1a7f00' : 'color:#b45309'}">${ok ? 'You can make this' : 'Not yet'}: ${esc(c.character)} – ${esc(l.profession)} ${esc(c.skill)}${l.min_skill ? ` / ${esc(l.min_skill)} needed` : ''}</span></p>`).join('') || '<p class="muted">Nothing right now.</p>';
+}
+drawForMe();
 
 // Supabase: gold, events, market
 if (supabase) {
