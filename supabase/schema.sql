@@ -50,6 +50,9 @@ create table if not exists public.signups (
   primary key (event_id, user_id)
 );
 
+-- 2026-11-02: link a listing to an item from data/items.json (optional)
+alter table public.listings add column if not exists item_id int;
+
 do $$
 declare t text;
 begin
