@@ -1,8 +1,8 @@
-# Weekly: rebuild the WoW: Forever quest list (Questie for Forever) and commit it if it changed.
+# Daily: rebuild the WoW: Forever quest list (Questie for Forever) and commit it if it changed.
 name: Update quests
 on:
   schedule:
-    - cron: '37 5 * * 1'   # Mondays 05:37 UTC
+    - cron: '37 5 * * *'   # daily 05:37 UTC (only commits when the list changed)
   workflow_dispatch:
 permissions:
   contents: write
