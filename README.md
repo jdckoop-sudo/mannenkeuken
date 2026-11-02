@@ -16,7 +16,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 | Roster | `roster.html` | Google Sheet (tab Members) | klaar |
 | Professions | `professions.html` | Google Sheet | klaar |
 | Trade Market | `market.html` | Supabase `listings` | klaar |
-| Raids & Events | `events.html` | Supabase `events`, `signups` | klaar |
+| Raids & Events | `events.html` | Supabase `events` (rollen óf `players_needed` = gewoon spelers; `pinged` = getagde spelers, zien het op Home), `signups` | klaar |
 | Guild Bank | `bank.html` | Supabase `bank_items` (`location` opie/guild, `status` sent/in_stock), `bank` (goud) – Opie Bank-voorraad (bijgehouden door Jelle, leden melden wat ze opsturen) + guildbank (open na aankoop). Bank deposits op spelerpagina's tellen vanaf de launch (`LAUNCH` in `js/releases.js`) | klaar |
 | Player / Character | `player.html?name=…`, `character.html?name=…` | Sheet + Supabase `profiles`, `alts`, `players` | klaar |
 | Achievements | `achievements.html` | Sheet + Supabase | klaar |
