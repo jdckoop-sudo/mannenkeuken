@@ -93,3 +93,21 @@ drop policy if exists "delete any logged in" on public.addons;
 create policy "read all" on public.addons for select using (true);
 create policy "insert own" on public.addons for insert to authenticated with check (created_by = auth.uid());
 create policy "delete any logged in" on public.addons for delete to authenticated using (true);
+
+-- 2026-11-02: member profile with a saved main character (one row per user).
+create table if not exists public.profiles (
+  user_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  character_name text check (char_length(character_name) <= 40),
+  class text check (char_length(class) <= 40),
+  role text check (role in ('Tank', 'Healer', 'DPS')),
+  updated_at timestamptz not null default now()
+);
+alter table public.profiles enable row level security;
+drop policy if exists "read all" on public.profiles;
+drop policy if exists "insert own" on public.profiles;
+drop policy if exists "update own" on public.profiles;
+drop policy if exists "delete own" on public.profiles;
+create policy "read all" on public.profiles for select using (true);
+create policy "insert own" on public.profiles for insert to authenticated with check (user_id = auth.uid());
+create policy "update own" on public.profiles for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "delete own" on public.profiles for delete to authenticated using (user_id = auth.uid());

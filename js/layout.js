@@ -7,6 +7,7 @@ const pages = [
   ['market.html', 'Trade Market'],
   ['events.html', 'Raids & Events'],
   ['setup.html', 'Addons & Settings'],
+  ['profile.html', 'My profile'],
 ];
 
 export async function renderHeader() {

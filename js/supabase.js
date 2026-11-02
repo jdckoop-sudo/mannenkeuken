@@ -20,6 +20,13 @@ export function avatarUrl(user) {
   return m.avatar_url || m.picture || '';
 }
 
+// The member's saved profile (main character), or null if none / table not created yet.
+export async function getProfile(user) {
+  if (!supabase || !user) return null;
+  const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
+  return data ?? null;
+}
+
 export async function login() {
   if (!supabase) { alertNotConfigured(); return; }
   await supabase.auth.signInWithOAuth({
