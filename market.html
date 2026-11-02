@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trade Market – Mannenkeuken</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=__V__">
 </head>
 <body>
 <main>
@@ -37,9 +37,9 @@
   </div>
 </main>
 <script type="module">
-import { renderHeader } from './js/layout.js';
-import { supabase, displayName, isGuildMember } from './js/supabase.js';
-import { esc } from './js/sheet.js';
+import { renderHeader } from './js/layout.js?v=__V__';
+import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
 
 const user = await renderHeader();
 const form = document.getElementById('new');

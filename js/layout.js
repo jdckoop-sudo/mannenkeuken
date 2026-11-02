@@ -1,4 +1,4 @@
-import { getUser, displayName, login, logout } from './supabase.js';
+import { getUser, displayName, login, logout } from './supabase.js?v=__V__';
 
 const pages = [
   ['index.html', 'Home'],
