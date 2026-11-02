@@ -10,78 +10,59 @@
 <main>
   <div>
     <h1>My profile</h1>
-    <p class="muted">Save your main character once. It is used when you sign up for events.</p>
+    <p class="muted">Save your main character once. It is used when you sign up for events. Alts are your secondary characters for levelling, collecting items, etc.</p>
   </div>
-  <form id="profile" class="box" style="max-width: 480px">
-    <h2>Main character</h2>
-    <p id="form-msg" class="muted"></p>
-    <label>Character name<input name="character_name" maxlength="40" placeholder="e.g. Grommash"></label>
-    <label>Race<select name="race"></select></label>
-    <label>Class<select name="class"></select></label>
-    <label>Role<select name="role"></select></label>
-    <div class="row">
-      <button class="btn btn-primary" type="submit">Save profile</button>
-      <button class="btn" id="clear" type="button">Clear</button>
-    </div>
-  </form>
+  <div class="row">
+    <form id="profile" class="box" style="flex: 1 1 340px; max-width: 480px">
+      <h2>Main character</h2>
+      <p id="form-msg" class="muted"></p>
+      <label>Character name<input name="character_name" maxlength="40" placeholder="e.g. Grommash"></label>
+      <label>Race<select name="race"></select></label>
+      <label>Class<select name="class"></select></label>
+      <label>Role<select name="role"></select></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save profile</button>
+        <button class="btn" id="clear" type="button">Clear</button>
+      </div>
+    </form>
+    <section id="alts" style="flex: 1 1 340px; max-width: 480px; display: flex; flex-direction: column; gap: 16px">
+      <div id="alt-list" style="display: flex; flex-direction: column; gap: 16px"></div>
+      <p id="alt-msg" class="muted"></p>
+      <div><button class="btn" id="add-alt" type="button">Add an Alt</button></div>
+    </section>
+  </div>
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, getProfile } from './js/supabase.js?v=__V__';
-import { esc } from './js/sheet.js?v=__V__';
-import { RACES, classesForRace, rolesForClass } from './js/wowdata.js?v=__V__';
+import { wireCharacterFields } from './js/charform.js?v=__V__';
 
+const MAX_ALTS = 2;
 const user = await renderHeader();
 const form = document.getElementById('profile');
 const msg = document.getElementById('form-msg');
+const main = wireCharacterFields(form);
+const altList = document.getElementById('alt-list');
+const altMsg = document.getElementById('alt-msg');
+const addBtn = document.getElementById('add-alt');
+const canEdit = !!(supabase && user);
 
-// Race -> class -> role: each dropdown only offers what the previous choice allows.
-const options = (list, placeholder) => [`<option value="">${placeholder}</option>`, ...list.map((x) => `<option>${esc(x)}</option>`)].join('');
-form.race.innerHTML = '<option value="">–</option>' + Object.entries(RACES).map(([faction, races]) =>
-  `<optgroup label="${faction}">${Object.keys(races).map((r) => `<option>${esc(r)}</option>`).join('')}</optgroup>`).join('');
-function fillClasses() {
-  const classes = classesForRace(form.race.value);
-  const keep = classes.includes(form.class.value) ? form.class.value : '';
-  form.class.innerHTML = options(classes, form.race.value ? '–' : 'Pick a race first');
-  form.class.value = keep;
-  form.class.disabled = !form.race.value;
-  fillRoles();
-}
-function fillRoles() {
-  const roles = rolesForClass(form.class.value);
-  const keep = roles.includes(form.role.value) ? form.role.value : '';
-  form.role.innerHTML = options(roles, form.class.value ? '–' : 'Pick a class first');
-  form.role.value = keep;
-  form.role.disabled = !form.class.value;
-}
-form.race.addEventListener('change', fillClasses);
-form.class.addEventListener('change', fillRoles);
-fillClasses();
-
-if (!supabase) { msg.textContent = 'Not connected yet.'; form.querySelectorAll('button').forEach((b) => { b.disabled = true; }); }
-else if (!user) { msg.textContent = 'Log in with Discord to edit your profile.'; form.querySelectorAll('button').forEach((b) => { b.disabled = true; }); }
-else {
-  const p = await getProfile(user);
-  if (p) {
-    form.character_name.value = p.character_name ?? '';
-    form.race.value = p.race ?? '';
-    fillClasses();
-    form.class.value = p.class ?? '';
-    fillRoles();
-    form.role.value = p.role ?? '';
-  }
+if (!canEdit) {
+  const m = !supabase ? 'Not connected yet.' : 'Log in with Discord to edit your profile.';
+  msg.textContent = m;
+  form.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  addBtn.disabled = true;
+} else {
+  main.set(await getProfile(user));
+  const { data } = await supabase.from('alts').select('*').eq('user_id', user.id).order('created_at');
+  (data ?? []).slice(0, MAX_ALTS).forEach(addAltCard);
+  updateAlts();
 }
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const d = new FormData(form);
   const { error } = await supabase.from('profiles').upsert({
-    user_id: user.id,
-    character_name: d.get('character_name').trim() || null,
-    race: d.get('race') || null,
-    class: d.get('class') || null,
-    role: d.get('role') || null,
-    updated_at: new Date().toISOString(),
+    user_id: user.id, ...main.values(), updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
   msg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
 });
@@ -89,8 +70,63 @@ form.addEventListener('submit', async (e) => {
 document.getElementById('clear').addEventListener('click', async () => {
   if (!confirm('Are you sure you want to clear your saved character?')) return;
   const { error } = await supabase.from('profiles').delete().eq('user_id', user.id);
-  if (!error) { form.reset(); fillClasses(); }
+  if (!error) main.reset();
   msg.textContent = error ? `Could not clear: ${error.message}` : 'Cleared.';
+});
+
+// Alts: up to MAX_ALTS cards, same fields as the main character.
+function updateAlts() {
+  const cards = [...altList.children];
+  cards.forEach((c, i) => { c.querySelector('h2').textContent = `Alt ${i + 1}`; });
+  addBtn.hidden = cards.length >= MAX_ALTS;
+  altMsg.textContent = cards.length ? '' : 'No alts yet.';
+}
+
+function addAltCard(alt) {
+  const card = document.createElement('form');
+  card.className = 'box';
+  card.innerHTML = `
+    <h2></h2>
+    <p class="muted card-msg"></p>
+    <label>Character name<input name="character_name" maxlength="40" placeholder="e.g. Thrall"></label>
+    <label>Race<select name="race"></select></label>
+    <label>Class<select name="class"></select></label>
+    <label>Role<select name="role"></select></label>
+    <div class="row">
+      <button class="btn btn-primary" type="submit">Save alt</button>
+      <button class="btn" data-remove type="button">Remove</button>
+    </div>`;
+  const fields = wireCharacterFields(card);
+  if (alt) { fields.set(alt); card.dataset.id = alt.id; }
+  const cardMsg = card.querySelector('.card-msg');
+
+  card.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const values = fields.values();
+    const { data, error } = card.dataset.id
+      ? await supabase.from('alts').update(values).eq('id', card.dataset.id).select().single()
+      : await supabase.from('alts').insert(values).select().single();
+    if (!error && data) card.dataset.id = data.id;
+    cardMsg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
+  });
+
+  card.querySelector('[data-remove]').addEventListener('click', async () => {
+    if (card.dataset.id) {
+      if (!confirm('Are you sure you want to remove this alt?')) return;
+      const { error } = await supabase.from('alts').delete().eq('id', card.dataset.id);
+      if (error) { cardMsg.textContent = `Could not remove: ${error.message}`; return; }
+    }
+    card.remove();
+    updateAlts();
+  });
+
+  altList.append(card);
+}
+
+addBtn.addEventListener('click', () => {
+  if (altList.children.length >= MAX_ALTS) return;
+  addAltCard(null);
+  updateAlts();
 });
 </script>
 </body>
