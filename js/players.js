@@ -44,7 +44,7 @@ export async function loadCharacters() {
       .filter(([p]) => p).map(([p, s]) => ({ name: p, skill: num(s) })).filter((p) => !SECONDARY.includes(p.name) || p.skill !== null);
     byName.set(norm(name), {
       name, player: m.player, kind: m.status === 'Alt' ? 'Alt' : 'Main', status: m.status || 'Main',
-      race: m.race, class: m.cls, role: m.role, level: num(m.level), profs, recipes: m.recipes, updated: m.updated,
+      race: m.race, class: m.cls, role: m.role, level: num(m.level), profs, recipes: m.recipes, notes: m.notes, updated: m.updated,
       inSheet: true, onSite: false, hasName: !!m.character,
     });
   }

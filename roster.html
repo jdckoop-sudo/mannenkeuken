@@ -50,6 +50,7 @@ const cols = [
   ['firstAid', 'First Aid', (m) => n(m.firstAid), (m) => esc(m.firstAid), true],
   ['fishing', 'Fishing', (m) => n(m.fishing), (m) => esc(m.fishing), true],
   ['recipes', 'Key recipes', (m) => m.recipes, (m) => esc(m.recipes)],
+  ['notes', 'Notes', (m) => m.notes, (m) => esc(m.notes)],
   ['status', 'Status', (m) => m.status, (m) => esc(m.status)],
   ['updated', 'Last updated', (m) => m.updated?.split('-').reverse().join(''), (m) => esc(m.updated)],
 ];
