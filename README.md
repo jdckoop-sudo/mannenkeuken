@@ -17,7 +17,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 | Professions | `professions.html` | Google Sheet | klaar |
 | Trade Market | `market.html` | Supabase `listings` | klaar |
 | Raids & Events | `events.html` | Supabase `events`, `signups` | klaar |
-| Addons & Settings | `setup.html` | Supabase `tips` | klaar |
+| Addons & Settings | `setup.html` | Supabase `addons` + `tips`, macros/settings in `js/guides.js` | klaar |
 
 ## Mappen
 

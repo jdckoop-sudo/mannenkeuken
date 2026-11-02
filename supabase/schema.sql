@@ -68,3 +68,28 @@ begin
     execute format('create policy "delete own" on public.%I for delete to authenticated using (user_id = auth.uid())', t);
   end loop;
 end $$;
+
+-- 2026-11-02: addons live on the site (moved from the "Addons" tab of the sheet).
+-- Anyone logged in can add an addon and remove any addon (the site asks "Are you sure?").
+create table if not exists public.addons (
+  id uuid primary key default gen_random_uuid(),
+  sort int,
+  category text not null default 'Other',
+  name text not null check (char_length(name) <= 80),
+  what text check (char_length(what) <= 500),
+  priority text,
+  who text,
+  link text,
+  link_label text,
+  note text check (char_length(note) <= 500),
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  author_name text,
+  created_at timestamptz not null default now()
+);
+alter table public.addons enable row level security;
+drop policy if exists "read all" on public.addons;
+drop policy if exists "insert own" on public.addons;
+drop policy if exists "delete any logged in" on public.addons;
+create policy "read all" on public.addons for select using (true);
+create policy "insert own" on public.addons for insert to authenticated with check (created_by = auth.uid());
+create policy "delete any logged in" on public.addons for delete to authenticated using (true);

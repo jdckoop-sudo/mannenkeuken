@@ -36,8 +36,8 @@
           In-game: Esc → AddOns to turn them on/off, <code>/reload</code> after changes. Old Classic addons often don't work – always take the Forever version.
         </div>
         <label style="max-width: 260px">Priority<select id="prio"><option value="">All</option></select></label>
-        <div id="addons" style="display: flex; flex-direction: column; gap: 16px"><p class="muted">Loading from the sheet…</p></div>
-        <p class="muted" style="font-size: 13px">This list is read live from the "Addons" tab of the guild sheet – edit it there.</p>
+        <div id="addons" style="display: flex; flex-direction: column; gap: 16px"><p class="muted">Loading…</p></div>
+        <p class="muted" style="font-size: 13px">Logged-in members can add addons with the form and remove outdated ones.</p>
       </section>
 
       <section id="tab-macros" role="tabpanel" hidden style="display: flex; flex-direction: column; gap: 16px">
@@ -59,7 +59,11 @@
       <p id="form-msg" class="muted"></p>
       <label>Category<select name="category"><option value="macro">Macro</option><option value="setting">Game setting</option><option value="addon">Addon</option></select></label>
       <label>Title<input name="title" required maxlength="80"></label>
-      <label>Class (optional)<input name="class" maxlength="40" placeholder="e.g. Warrior"></label>
+      <div id="addon-fields" style="display: flex; flex-direction: column; gap: 12px">
+        <label>Addon category<input name="addon_category" list="addon-cats" maxlength="40" placeholder="e.g. Interface"><datalist id="addon-cats"></datalist></label>
+        <label>Priority<select name="priority"><option>Must-have</option><option>Aanrader</option><option selected>Optioneel</option><option>Alternatief</option></select></label>
+      </div>
+      <label><span id="class-label">Class (optional)</span><input name="class" maxlength="40" placeholder="e.g. Warrior"></label>
       <label>Link (optional)<input name="link" type="url" placeholder="https://"></label>
       <label>Content – description, macro text or setting<textarea name="content" rows="6" maxlength="2000"></textarea></label>
       <button class="btn btn-primary" type="submit">Share</button>
@@ -69,7 +73,7 @@
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
-import { loadAddons, esc } from './js/sheet.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
 import * as G from './js/guides.js?v=__V__';
 
 const user = await renderHeader();
@@ -81,6 +85,7 @@ function show(name) {
   for (const t of ['addons', 'macros', 'settings']) document.getElementById(`tab-${t}`).hidden = t !== name;
   const sel = document.querySelector('#new select[name="category"]');
   sel.value = name === 'settings' ? 'setting' : name === 'macros' ? 'macro' : 'addon';
+  sel.dispatchEvent(new Event('change'));
   const url = new URL(location.href); url.hash = ''; url.searchParams.set('tab', name);
   history.replaceState(null, '', url); // a query, not #hash: a hash would scroll to the element with that id
 }
@@ -89,9 +94,11 @@ const startTab = new URLSearchParams(location.search).get('tab') || location.has
 show(['addons', 'macros', 'settings'].includes(startTab) ? startTab : 'addons');
 if (location.hash) scrollTo(0, 0);
 
-// Addons (live from the sheet)
+// Addons (Supabase table "addons"; anyone logged in can add and remove)
 let addons = [];
-const link = (a) => (a.link ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${esc(/^(curseforge|github)$/i.test(a.linkLabel) ? a.linkLabel : 'Link')}</a>` : `<span class="muted">${esc(a.linkLabel)}</span>`);
+const link = (a) => (a.link && /^https?:\/\//.test(a.link)
+  ? `<a href="${esc(a.link)}" target="_blank" rel="noopener">${/curseforge/i.test(a.link) ? 'CurseForge' : /github/i.test(a.link) ? 'GitHub' : 'Link'}</a>`
+  : a.link_label ? `<span class="muted">${esc(a.link_label)}</span>` : '');
 function drawAddons() {
   const p = document.getElementById('prio').value;
   const list = addons.filter((a) => !p || a.priority === p);
@@ -105,20 +112,35 @@ function drawAddons() {
             <strong>${esc(a.name)}</strong>
             ${a.priority ? `<span class="badge ${/must/i.test(a.priority) ? 'must' : ''}">${esc(a.priority)}</span>` : ''}
             ${a.who ? `<span class="muted" style="font-size:13px">${esc(a.who)}</span>` : ''}
-            <span style="margin-left:auto">${link(a)}</span>
+            <span style="margin-left:auto;display:flex;gap:12px">${link(a)}${user ? `<button class="link-btn" type="button" data-del-addon="${a.id}" data-name="${esc(a.name)}">Remove</button>` : ''}</span>
           </div>
           ${a.what ? `<span>${esc(a.what)}</span>` : ''}
           ${a.note ? `<span class="muted" style="font-size:14px">Note: ${esc(a.note)}</span>` : ''}
+          ${a.author_name ? `<span class="muted" style="font-size:13px">Added by ${esc(a.author_name)}</span>` : ''}
         </div>`).join('')}
     </div>`).join('') || '<p class="muted">No addons.</p>';
 }
-document.getElementById('prio').addEventListener('input', drawAddons);
-loadAddons().then((a) => {
-  addons = a;
-  const prios = [...new Set(a.map((x) => x.priority).filter(Boolean))];
-  document.getElementById('prio').insertAdjacentHTML('beforeend', prios.map((p) => `<option>${esc(p)}</option>`).join(''));
+async function loadAddonList() {
+  if (!supabase) { document.getElementById('addons').innerHTML = '<p class="muted">Not connected yet.</p>'; return; }
+  const { data, error } = await supabase.from('addons').select('*').order('sort', { nullsFirst: false }).order('created_at');
+  if (error) { document.getElementById('addons').innerHTML = `<p class="muted">Could not load addons: ${esc(error.message)}</p>`; return; }
+  addons = data ?? [];
+  const sel = document.getElementById('prio'); const cur = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + [...new Set(addons.map((x) => x.priority).filter(Boolean))].map((p) => `<option>${esc(p)}</option>`).join('');
+  sel.value = cur;
+  document.getElementById('addon-cats').innerHTML = [...new Set(addons.map((x) => x.category))].map((c) => `<option value="${esc(c)}"></option>`).join('');
   drawAddons();
-}).catch(() => { document.getElementById('addons').innerHTML = '<p class="muted">Could not read the Addons tab of the sheet.</p>'; });
+}
+document.getElementById('prio').addEventListener('input', drawAddons);
+document.getElementById('addons').addEventListener('click', async (e) => {
+  const id = e.target.dataset.delAddon;
+  if (!id) return;
+  if (!confirm(`Are you sure you want to remove "${e.target.dataset.name}" for everyone?`)) return;
+  const { error } = await supabase.from('addons').delete().eq('id', id);
+  if (error) alert(`Could not remove: ${error.message}`);
+  loadAddonList();
+});
+loadAddonList();
 
 // Macros (from js/guides.js)
 document.getElementById('macro-intro').innerHTML = `
@@ -158,11 +180,6 @@ async function loadTips() {
   for (const cat of ['macro', 'setting']) {
     document.getElementById(`tips-${cat}`).innerHTML = data.filter((t) => t.category === cat).map(tipHtml).join('') || '<p class="muted">Nothing yet – share yours!</p>';
   }
-  const memberAddons = data.filter((t) => t.category === 'addon');
-  document.getElementById('member-addons')?.remove();
-  if (memberAddons.length) {
-    document.getElementById('addons').insertAdjacentHTML('afterend', `<div class="box" id="member-addons"><h2>Suggested by members</h2>${memberAddons.map(tipHtml).join('')}</div>`);
-  }
 }
 function tipHtml(t) {
   return `<article class="tip">
@@ -178,9 +195,28 @@ document.querySelector('main').addEventListener('click', async (e) => {
   await supabase.from('tips').delete().eq('id', id);
   loadTips();
 });
+const catSel = form.querySelector('select[name="category"]');
+function toggleFields() {
+  const isAddon = catSel.value === 'addon';
+  document.getElementById('addon-fields').hidden = !isAddon;
+  document.getElementById('class-label').textContent = isAddon ? 'For whom (optional)' : 'Class (optional)';
+  form.class.placeholder = isAddon ? 'e.g. Iedereen, Healers' : 'e.g. Warrior';
+}
+catSel.addEventListener('change', toggleFields);
+toggleFields();
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const d = new FormData(form);
+  if (d.get('category') === 'addon') {
+    const { error } = await supabase.from('addons').insert({
+      category: d.get('addon_category') || 'Other', name: d.get('title'), what: d.get('content'),
+      priority: d.get('priority'), who: d.get('class'), link: d.get('link'), author_name: displayName(user),
+    });
+    msg.textContent = error ? `Could not add: ${error.message}` : 'Addon added!';
+    if (!error) { form.reset(); catSel.value = 'addon'; toggleFields(); loadAddonList(); }
+    return;
+  }
   const { error } = await supabase.from('tips').insert({
     category: d.get('category'), title: d.get('title'), class: d.get('class'),
     link: d.get('link'), content: d.get('content'), author_name: displayName(user),
