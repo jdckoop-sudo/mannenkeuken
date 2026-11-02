@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Achievements – Mannenkeuken</title>
+<link rel="stylesheet" href="css/style.css?v=__V__">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Achievements</h1>
+    <p class="muted">Guild records from the guild sheet: highest characters, players (all characters together) and professions. Characters marked "Gestopt" don't count.</p>
+  </div>
+  <div class="grid">
+    <section class="box"><h2>Highest character level</h2><ol id="chars" class="board"></ol></section>
+    <section class="box"><h2>Player level (all characters)</h2><ol id="players" class="board"></ol></section>
+    <section class="box"><h2>Total profession skill per player</h2><ol id="skillers" class="board"></ol></section>
+  </div>
+  <h2>Best per profession</h2>
+  <div class="grid" id="profs"><p class="muted">Loading…</p></div>
+</main>
+<style>
+  .board { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 6px; }
+  .board li::marker { font-weight: 700; }
+  .board li:first-child { font-weight: 700; }
+</style>
+<script type="module">
+import { renderHeader } from './js/layout.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
+import { loadCharacters, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
+
+await renderHeader();
+const { characters } = await loadCharacters();
+const active = characters.filter((c) => c.status !== 'Gestopt' && c.hasName);
+const top = 10;
+const who = (c) => `<a href="${characterUrl(c.name)}">${esc(c.name)}</a>${c.player ? ` <span class="muted">(<a href="${playerUrl(c.player)}">${esc(c.player)}</a>)</span>` : ''}`;
+const empty = '<li class="muted" style="list-style:none;margin-left:-24px">No data yet.</li>';
+
+document.getElementById('chars').innerHTML = active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).slice(0, top)
+  .map((c) => `<li>${who(c)} – level ${c.level}</li>`).join('') || empty;
+
+const byPlayer = {};
+for (const c of characters.filter((x) => x.status !== 'Gestopt' && x.player)) (byPlayer[c.player] ??= []).push(c);
+const playerStats = Object.entries(byPlayer).map(([p, cs]) => ({ p, ...statsFor(cs) }));
+document.getElementById('players').innerHTML = playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel).slice(0, top)
+  .map((s) => `<li><a href="${playerUrl(s.p)}">${esc(s.p)}</a> – ${s.totalLevel} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span></li>`).join('') || empty;
+document.getElementById('skillers').innerHTML = playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).slice(0, top)
+  .map((s) => `<li><a href="${playerUrl(s.p)}">${esc(s.p)}</a> – ${s.totalSkill}</li>`).join('') || empty;
+
+// Best per profession (top 3)
+const profNames = [...new Set(active.flatMap((c) => c.profs.map((p) => p.name)))]
+  .sort((a, b) => (SECONDARY.includes(a) - SECONDARY.includes(b)) || a.localeCompare(b));
+document.getElementById('profs').innerHTML = profNames.map((pn) => {
+  const rows = active.map((c) => ({ c, skill: c.profs.find((p) => p.name === pn)?.skill })).filter((r) => r.skill !== null && r.skill !== undefined)
+    .sort((a, b) => b.skill - a.skill).slice(0, 3);
+  return `<section class="box"><h2>${esc(pn)}</h2><ol class="board">${rows.map((r) => `<li>${who(r.c)} – ${r.skill}</li>`).join('') || empty}</ol></section>`;
+}).join('') || '<p class="muted">No professions yet.</p>';
+</script>
+</body>
+</html>

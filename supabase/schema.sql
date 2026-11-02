@@ -172,3 +172,71 @@ create policy "update logged in" on public.bank for update to authenticated usin
 -- Event type (raid / dungeon / quest help / guild night / other) and the quest for quest help.
 alter table public.events add column if not exists kind text not null default 'dungeon';
 alter table public.events add column if not exists quest text;
+
+-- 2026-11-02: players (sheet name <-> Discord name), profile link, bank reservations, guild bank purchase.
+-- Who is who: the player's name in the guild sheet (column A) and their Discord display name.
+-- Kept up to date by the "sync de guild" routine (see the project instructions).
+create table if not exists public.players (
+  player_name text primary key check (char_length(player_name) <= 40),
+  discord_name text check (char_length(discord_name) <= 60),
+  updated_at timestamptz not null default now()
+);
+alter table public.players enable row level security;
+drop policy if exists "read all" on public.players;
+drop policy if exists "write logged in" on public.players;
+create policy "read all" on public.players for select using (true);
+create policy "write logged in" on public.players for all to authenticated using (true) with check (true);
+insert into public.players (player_name, discord_name) values
+  ('Jelle', 'Dirk-Christiaan'), ('Justin', 'Dokter Tinus'), ('Bas', 'bas'), ('Rawas', 'Daddy Draven'),
+  ('Jermo', 'Eterniity - Jermo'), ('Jacco', 'Jaccico'), ('Laurens', 'Le Noir'), ('Mike', 'VDwerg'),
+  ('Murn', 'MURN'), ('Yvo', 'Skynal'), ('Mees', 'mjezzo'), ('Ian', null)
+on conflict (player_name) do update set discord_name = excluded.discord_name;
+
+-- The profile remembers which sheet player it belongs to.
+alter table public.profiles add column if not exists player_name text;
+
+-- Guild bank: saving for the guild bank (100 gold) until it is bought; after that just the guild gold.
+alter table public.bank add column if not exists guild_bank_bought boolean not null default false;
+
+-- Reservations on bank items: any logged-in member can reserve for one of their characters.
+create table if not exists public.bank_reservations (
+  id uuid primary key default gen_random_uuid(),
+  bank_item_id uuid not null references public.bank_items(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  reserved_by text not null,
+  character text not null check (char_length(character) <= 40),
+  quantity int not null default 1 check (quantity > 0),
+  created_at timestamptz not null default now()
+);
+alter table public.bank_reservations enable row level security;
+drop policy if exists "read all" on public.bank_reservations;
+drop policy if exists "insert own" on public.bank_reservations;
+drop policy if exists "delete own" on public.bank_reservations;
+create policy "read all" on public.bank_reservations for select using (true);
+create policy "insert own" on public.bank_reservations for insert to authenticated with check (user_id = auth.uid());
+create policy "delete own" on public.bank_reservations for delete to authenticated using (user_id = auth.uid());
+
+-- 2026-11-02: reservations on trade market offers (same idea as bank reservations).
+create table if not exists public.listing_reservations (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.listings(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  reserved_by text not null,
+  character text not null check (char_length(character) <= 40),
+  quantity int not null default 1 check (quantity > 0),
+  created_at timestamptz not null default now()
+);
+alter table public.listing_reservations enable row level security;
+drop policy if exists "read all" on public.listing_reservations;
+drop policy if exists "insert own" on public.listing_reservations;
+drop policy if exists "delete own" on public.listing_reservations;
+create policy "read all" on public.listing_reservations for select using (true);
+create policy "insert own" on public.listing_reservations for insert to authenticated with check (user_id = auth.uid());
+create policy "delete own" on public.listing_reservations for delete to authenticated using (user_id = auth.uid());
+
+-- 2026-11-02: crafting requests – which profession can make the item, and the skill needed (optional).
+alter table public.listings add column if not exists profession text check (char_length(profession) <= 40);
+alter table public.listings add column if not exists min_skill int check (min_skill between 1 and 300);
+
+-- 2026-11-02: tag (ping) players on a trade listing; they see it on their Home page.
+alter table public.listings add column if not exists pinged text[] not null default '{}';

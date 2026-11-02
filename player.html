@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player – Mannenkeuken</title>
+<link rel="stylesheet" href="css/style.css?v=__V__">
+</head>
+<body>
+<main>
+  <div>
+    <a href="roster.html">← Roster</a>
+    <h1 id="title">Player</h1>
+    <p class="muted" id="sub"></p>
+  </div>
+  <section class="grid" id="stats" aria-label="Stats"></section>
+  <h2>Characters</h2>
+  <div class="grid" id="chars"><p class="muted">Loading…</p></div>
+  <section class="box" aria-label="Activity">
+    <h2>Activity on the dashboard</h2>
+    <div class="stat-list" id="activity"><span class="muted">Loading…</span></div>
+  </section>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js?v=__V__';
+import { supabase } from './js/supabase.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
+import { loadCharacters, statsFor, characterUrl, playerForUser } from './js/players.js?v=__V__';
+
+const user = await renderHeader();
+const name = new URLSearchParams(location.search).get('name');
+const { characters, players } = await loadCharacters();
+const target = name || playerForUser(user, players);
+if (!target) {
+  document.getElementById('title').textContent = 'Player not found';
+  document.getElementById('chars').innerHTML = '<p class="muted">Pick a player on the <a href="roster.html">Roster</a>.</p>';
+} else {
+  const p = players.find((x) => x.player_name.toLowerCase() === target.toLowerCase());
+  const chars = characters.filter((c) => (c.player || '').toLowerCase() === target.toLowerCase())
+    .sort((a, b) => (a.kind === 'Main' ? -1 : 1) - (b.kind === 'Main' ? -1 : 1) || (b.level ?? 0) - (a.level ?? 0));
+  document.title = `${target} – Mannenkeuken`;
+  document.getElementById('title').textContent = target;
+  document.getElementById('sub').textContent = p?.discord_name ? `Discord: ${p.discord_name}` : 'Discord name not linked yet';
+
+  const s = statsFor(chars.filter((c) => c.status !== 'Gestopt'));
+  const tile = (label, value) => `<div class="box stat"><span class="muted">${label}</span><strong>${esc(value ?? '–')}</strong></div>`;
+  document.getElementById('stats').innerHTML = tile('Characters', s.characters) + tile('Player level (all characters)', s.totalLevel || '–')
+    + tile('Highest character level', s.highestLevel) + tile('Total profession skill', s.totalSkill || '–')
+    + tile('Best profession', s.bestProfession ? `${s.bestProfession.name} ${s.bestProfession.skill}` : '–');
+
+  document.getElementById('chars').innerHTML = chars.map((c) => `
+    <a class="box" href="${characterUrl(c.name)}" style="text-decoration:none">
+      <span class="badge">${esc(c.status)}</span>
+      <strong style="font-size:18px">${esc(c.name)}</strong>
+      <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · ') || '–')}</span>
+      <span>Level <strong>${esc(c.level ?? '–')}</strong></span>
+      ${c.profs.length ? `<span class="muted" style="font-size:14px">${c.profs.map((x) => `${esc(x.name)} ${esc(x.skill ?? '–')}`).join(' · ')}</span>` : ''}
+    </a>`).join('') || '<p class="muted">No characters yet.</p>';
+
+  // Activity (Supabase): by this player's login(s) and Discord name
+  if (supabase) {
+    const ids = [...new Set(chars.map((c) => c.userId).filter(Boolean))];
+    const dn = p?.discord_name ?? '\u0000';
+    const count = async (q) => (await q).count ?? 0;
+    const head = { count: 'exact', head: true };
+    const [signups, listings, deposits, tips, addons] = await Promise.all([
+      ids.length ? count(supabase.from('signups').select('*', head).in('user_id', ids).eq('answer', 'yes')) : 0,
+      ids.length ? count(supabase.from('listings').select('*', head).in('user_id', ids)) : 0,
+      count(supabase.from('bank_items').select('*', head).eq('deposited_by', dn)),
+      ids.length ? count(supabase.from('tips').select('*', head).in('user_id', ids)) : 0,
+      count(supabase.from('addons').select('*', head).eq('author_name', dn)),
+    ]);
+    document.getElementById('activity').innerHTML = [['Event sign-ups', signups], ['Trade listings', listings], ['Bank deposits', deposits], ['Tips shared', tips], ['Addons added', addons]]
+      .map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');
+  } else document.getElementById('activity').innerHTML = '<span class="muted">Not connected yet.</span>';
+}
+</script>
+</body>
+</html>

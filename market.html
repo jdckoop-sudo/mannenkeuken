@@ -12,7 +12,7 @@
 <main>
   <div>
     <h1>Trade Market</h1>
-    <p class="muted">Offer or request items within the guild – no prices, we share. Log in with Discord to post.</p>
+    <p class="muted">Offer or request items within the guild – no prices, we share. Log in with Discord to post or to reserve an offer for one of your characters.</p>
   </div>
   <div class="row">
     <form id="new" class="box" style="flex: 1 1 300px">
@@ -25,11 +25,28 @@
       <label for="item-input">Item</label>
       <div><input id="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"><p id="item-hint" class="muted" style="font-size:13px;margin:6px 0 0"></p></div>
       <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <label style="flex:1 1 140px">Crafted with (optional)<select name="profession"><option value="">–</option></select></label>
+        <label style="flex:0 1 110px">Skill needed<input name="min_skill" type="number" min="1" max="300" placeholder="e.g. 75"></label>
+      </div>
+      <fieldset style="flex-direction:column;gap:6px"><legend style="font-size:14px;margin-bottom:6px">Tag players (they see it on their Home page)</legend>
+        <div id="ping-list" style="display:flex;flex-wrap:wrap;gap:6px 14px"></div>
+      </fieldset>
       <label>Note<textarea name="note" rows="3" maxlength="300"></textarea></label>
       <div class="row"><button class="btn btn-primary" id="submit-btn" type="submit">Post listing</button><button class="btn" id="cancel-edit" type="button" hidden>Cancel</button></div>
     </form>
     <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
-      <label>Show<select id="filter"><option value="">All</option><option value="offer">Offers</option><option value="request">Requests</option><option value="mine">My listings</option></select></label>
+      <div class="box" style="flex-direction:row;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:14px">
+        <label style="flex:1 1 180px">Search<input id="f-q" type="search" placeholder="Item, note or player"></label>
+        <label>Type<select id="filter"><option value="">All</option><option value="offer">Offers</option><option value="request">Requests</option></select></label>
+        <label>Profession<select id="f-prof"><option value="">Any</option></select></label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px">
+          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-tagged"> Tagged me</label>
+          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-craft"> I can craft</label>
+          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-mine"> My listings</label>
+          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-res"> My reservations</label>
+        </div>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Item</th><th>Type</th><th>Qty</th><th>Posted by</th><th>Date</th><th><span class="muted">Actions</span></th></tr></thead>
@@ -44,11 +61,20 @@ import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
+import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from './js/reserve.js?v=__V__';
+import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
+
+const PROFESSIONS = ['Alchemy', 'Blacksmithing', 'Enchanting', 'Engineering', 'Herbalism', 'Leatherworking', 'Mining', 'Skinning', 'Tailoring', 'Cooking', 'First Aid', 'Fishing'];
 
 const user = await renderHeader();
 const form = document.getElementById('new');
 const msg = document.getElementById('form-msg');
 let listings = [];
+let reservations = [];
+let myChars = [];
+let me = null;          // my player name (sheet)
+let myCrafts = [];      // [{ character, name, skill }] professions of my characters
+let playerNames = [];
 let pickedItem = null;
 let editingId = null;
 let itemsById = new Map();
@@ -70,30 +96,66 @@ async function load() {
   if (!supabase) { document.getElementById('rows').innerHTML = '<tr><td colspan="7">Not connected yet.</td></tr>'; return; }
   const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });
   listings = data ?? [];
+  const ids = listings.map((l) => l.id);
+  reservations = ids.length ? (await supabase.from('listing_reservations').select('*').in('listing_id', ids).order('created_at')).data ?? [] : [];
   draw();
 }
 
 function draw() {
   const f = document.getElementById('filter').value;
-  const list = listings.filter((l) => !f || (f === 'mine' ? l.user_id === user?.id : l.kind === f));
+  const q = document.getElementById('f-q').value.trim().toLowerCase();
+  const prof = document.getElementById('f-prof').value;
+  const tagged = document.getElementById('f-tagged').checked;
+  const craft = document.getElementById('f-craft').checked;
+  const onlyMine = document.getElementById('f-mine').checked;
+  const myRes = document.getElementById('f-res').checked;
+  const list = listings.filter((l) => (!f || l.kind === f)
+    && (!q || `${l.item} ${l.note ?? ''} ${l.author_name} ${(l.pinged ?? []).join(' ')}`.toLowerCase().includes(q))
+    && (!prof || l.profession === prof)
+    && (!tagged || (me && (l.pinged ?? []).includes(me)))
+    && (!craft || canCraft(l).length)
+    && (!onlyMine || l.user_id === user?.id)
+    && (!myRes || reservations.some((r) => r.listing_id === l.id && r.user_id === user?.id)));
   document.getElementById('rows').innerHTML = list.map((l) => {
     const mine = l.user_id === user?.id;
+    const res = reservations.filter((r) => r.listing_id === l.id);
+    const free = l.quantity - reservedCount(res);
+    const reserveUi = l.kind === 'offer' ? reservationsHtml(res, user) + (user && !mine ? reserveFormHtml(l.id, myChars, free) : '') : '';
+    const crafters = canCraft(l);
+    const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${crafters.length ? ` <span style="font-size:13px;color:#1a7f00">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
+      + ((l.pinged ?? []).length ? `<br><span class="muted" style="font-size:13px">Tagged: ${l.pinged.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</span>` : '');
     return `<tr class="${mine ? 'mine' : ''}">
-      <td>${l.item_id ? `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)}` : ''}">${esc(l.item)}</a>` : esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}</td>
-      <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}</td>
+      <td>${l.item_id ? `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)}` : ''}">${esc(l.item)}</a>` : esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}${extra}${reserveUi}</td>
+      <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}${res.length ? `<br><span class="muted" style="font-size:13px">${free} free</span>` : ''}</td>
       <td>${mine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
       <td>${mine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
   refreshTooltips();
 }
 
-document.getElementById('filter').addEventListener('input', draw);
+['filter', 'f-q', 'f-prof', 'f-tagged', 'f-craft', 'f-mine', 'f-res'].forEach((id) => document.getElementById(id).addEventListener('input', draw));
+
+// Which of my characters can craft this listing (profession + enough skill)?
+function canCraft(l) {
+  if (!l.profession || l.kind !== 'request') return [];
+  return myCrafts.filter((c) => c.name === l.profession && (c.skill ?? 0) >= (l.min_skill ?? 0));
+}
+const profOptions = PROFESSIONS.map((p) => `<option>${esc(p)}</option>`).join('');
+form.profession.insertAdjacentHTML('beforeend', profOptions);
+document.getElementById('f-prof').insertAdjacentHTML('beforeend', profOptions);
+function drawPingList(selected = []) {
+  document.getElementById('ping-list').innerHTML = playerNames.filter((p) => p !== me).map((p) =>
+    `<label style="flex-direction:row;align-items:center;gap:6px;font-size:14px"><input type="checkbox" name="pinged" value="${esc(p)}" ${selected.includes(p) ? 'checked' : ''}> ${esc(p)}</label>`).join('') || '<span class="muted">No players yet.</span>';
+}
 function startEdit(l) {
   editingId = l.id;
   form.kind.value = l.kind;
   document.getElementById('item-input').value = l.item;
   form.quantity.value = l.quantity;
   form.note.value = l.note ?? '';
+  form.profession.value = l.profession ?? '';
+  form.min_skill.value = l.min_skill ?? '';
+  drawPingList(l.pinged ?? []);
   pickedItem = l.item_id ? itemsById.get(l.item_id) ?? null : null;
   hint.textContent = '';
   document.getElementById('form-title').textContent = 'Edit listing';
@@ -104,12 +166,31 @@ function startEdit(l) {
 }
 function stopEdit() {
   editingId = null;
-  form.reset(); pickedItem = null; hint.textContent = ''; search.reset();
+  form.reset(); pickedItem = null; hint.textContent = ''; search.reset(); drawPingList();
   document.getElementById('form-title').textContent = 'New listing';
   document.getElementById('submit-btn').textContent = 'Post listing';
   document.getElementById('cancel-edit').hidden = true;
 }
 document.getElementById('cancel-edit').addEventListener('click', stopEdit);
+// Reserve an offer for one of your characters / cancel your reservation
+document.getElementById('rows').addEventListener('submit', async (e) => {
+  const f = e.target.closest('form[data-reserve]');
+  if (!f) return;
+  e.preventDefault();
+  const d = new FormData(f);
+  const { error } = await supabase.from('listing_reservations').insert({
+    listing_id: f.dataset.reserve, reserved_by: displayName(user), character: d.get('character'), quantity: Number(d.get('quantity')) || 1,
+  });
+  if (error) { alert(`Could not reserve: ${error.message}`); return; }
+  load();
+});
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const id = e.target.dataset.unreserve;
+  if (!id) return;
+  if (!confirm(`Are you sure you want to cancel the reservation for ${e.target.dataset.name}?`)) return;
+  await supabase.from('listing_reservations').delete().eq('id', id);
+  load();
+});
 document.getElementById('rows').addEventListener('click', async (e) => {
   const { edit, done, del, name } = e.target.dataset;
   if (edit) { startEdit(listings.find((l) => l.id === edit)); return; }
@@ -131,12 +212,24 @@ form.addEventListener('submit', async (e) => {
   const fields = {
     kind: d.get('kind'), item: d.get('item'), item_id: pickedItem && pickedItem.name === d.get('item') ? pickedItem.id : null,
     quantity: Number(d.get('quantity')) || 1, note: d.get('note'),
+    profession: d.get('profession') || null, min_skill: d.get('min_skill') ? Number(d.get('min_skill')) : null,
+    pinged: d.getAll('pinged'),
   };
   const { error } = editingId
     ? await supabase.from('listings').update(fields).eq('id', editingId)
     : await supabase.from('listings').insert({ ...fields, author_name: displayName(user) });
   msg.textContent = error ? `Could not save: ${error.message}` : editingId ? 'Saved!' : 'Posted!';
   if (!error) { stopEdit(); load(); }
+});
+myCharacters(user).then((c) => { myChars = c; draw(); });
+loadCharacters().then(({ characters, players }) => {
+  playerNames = players.map((p) => p.player_name).sort();
+  me = playerForUser(user, players);
+  myCrafts = characters.filter((c) => user && c.status !== 'Gestopt' && (c.userId === user.id || (me && c.player === me)))
+    .flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill })));
+  drawPingList();
+  if (new URLSearchParams(location.search).get('tagged') === '1') document.getElementById('f-tagged').checked = true;
+  draw();
 });
 load();
 </script>
