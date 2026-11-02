@@ -11,7 +11,7 @@
   <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: flex-end">
     <div>
       <h1>Raids &amp; Events</h1>
-      <p class="muted">Dungeon runs, raids and guild nights – sign up with your role</p>
+      <p class="muted">Dungeon runs, raids, quest help and guild nights – sign up with your role. WoW: Forever releases are shown too.</p>
     </div>
     <button id="toggle-new" class="btn" type="button">Create event</button>
   </div>
@@ -20,7 +20,9 @@
     <h2>New event</h2>
     <p id="form-msg" class="muted"></p>
     <div class="grid">
+      <label>Type<select name="kind"><option value="dungeon">Dungeon</option><option value="raid">Raid</option><option value="quest">Quest help</option><option value="guild">Guild night</option><option value="other">Other</option></select></label>
       <label>Title<input name="title" required maxlength="80" placeholder="e.g. [dungeon name]"></label>
+      <label id="quest-field" hidden>Quest<input name="quest" maxlength="80" placeholder="Name of the quest you need help with"></label>
       <label>Date<input name="date" type="date" required></label>
       <fieldset style="flex-direction: column; gap: 6px"><legend style="font-size: 14px; margin-bottom: 6px">Time (24h)</legend>
         <div style="display: flex; gap: 6px; align-items: center">
@@ -52,6 +54,12 @@
     </div>
   </section>
 
+  <section class="box" aria-label="WoW: Forever releases">
+    <h2>WoW: Forever releases</h2>
+    <ul id="releases" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px"></ul>
+    <p class="muted" style="font-size:13px;margin:0">From Blizzard's 2026–2027 roadmap (<a id="release-src" target="_blank" rel="noopener">source</a>). Kept by hand in <code>js/releases.js</code> – Blizzard has no public calendar feed.</p>
+  </section>
+
   <h2>Upcoming</h2>
   <div id="events" style="display: flex; flex-direction: column; gap: 16px"><p class="muted">Loading…</p></div>
 </main>
@@ -59,6 +67,10 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember, getProfile } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
+import { releases, upcomingReleases, releaseWhen, releaseSource } from './js/releases.js?v=__V__';
+
+const KIND = { dungeon: 'Dungeon', raid: 'Raid', quest: 'Quest help', guild: 'Guild night', other: 'Other' };
+const questUrl = (q) => `https://www.wowhead.com/forever/search?q=${encodeURIComponent(q)}`;
 
 const user = await renderHeader();
 const canPost = !!(supabase && user && await isGuildMember());
@@ -110,9 +122,11 @@ function drawWeek() {
   for (let i = 0; i < 7; i++) {
     const day = new Date(weekStart); day.setDate(day.getDate() + i);
     const items = events.filter((e) => new Date(e.starts_at).toDateString() === day.toDateString());
+    const rel = releases.filter((r) => r.date && new Date(r.date).toDateString() === day.toDateString());
     html += `<div style="border:${day.toDateString() === todayKey ? '2px solid #1f2937' : '1px solid #d1d5db'};border-radius:6px;padding:10px;min-height:120px;display:flex;flex-direction:column;gap:8px">
       <strong style="font-size:14px">${fmtDay(day)}</strong>
-      ${items.map((e) => `<a href="#ev-${e.id}" style="background:#e5e7eb;border-radius:4px;padding:6px;font-size:13px;text-decoration:none">${esc(e.title)} · ${fmtTime(new Date(e.starts_at))}</a>`).join('')}
+      ${rel.map((r) => `<span style="border:2px dashed #b45309;border-radius:4px;padding:6px;font-size:13px"><strong>Release:</strong> ${esc(r.title)}</span>`).join('')}
+      ${items.map((e) => `<a href="#ev-${e.id}" style="background:#e5e7eb;border-radius:4px;padding:6px;font-size:13px;text-decoration:none">${e.kind === 'quest' ? 'Quest: ' : ''}${esc(e.title)} · ${fmtTime(new Date(e.starts_at))}</a>`).join('')}
     </div>`;
   }
   document.getElementById('week').innerHTML = html;
@@ -146,7 +160,9 @@ function drawEvents() {
     return `<section class="box" id="ev-${e.id}">
       <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start">
         <div style="display:flex;flex-direction:column;gap:6px">
+          <span class="badge">${esc(KIND[e.kind] ?? 'Event')}</span>
           <h2 style="font-size:24px">${esc(e.title)}</h2>
+          ${e.quest ? `<span>Quest: <strong>${esc(e.quest)}</strong> · <a href="${questUrl(e.quest)}" target="_blank" rel="noopener">Look it up on Wowhead</a></span>` : ''}
           <span class="muted">${fmtFull(new Date(e.starts_at))}${e.min_level ? ` · Min. level ${esc(e.min_level)}` : ''} · Organised by ${esc(e.author_name)}</span>
           ${e.note ? `<span>${esc(e.note)}</span>` : ''}
         </div>
@@ -201,6 +217,7 @@ form.addEventListener('submit', async (e) => {
   const num = (k) => (d.get(k) === '' ? null : Number(d.get(k)));
   const { error } = await supabase.from('events').insert({
     title: d.get('title'), starts_at: startsAt(d).toISOString(),
+    kind: d.get('kind'), quest: d.get('kind') === 'quest' ? (d.get('quest') || null) : null,
     min_level: num('min_level'), tanks_needed: num('tanks_needed') ?? 0,
     healers_needed: num('healers_needed') ?? 0, dps_needed: num('dps_needed') ?? 0,
     note: d.get('note'), author_name: displayName(user),
@@ -208,6 +225,18 @@ form.addEventListener('submit', async (e) => {
   document.getElementById('form-msg').textContent = error ? `Could not create: ${error.message}` : 'Event created!';
   if (!error) { form.reset(); fillTime(); form.hidden = true; weekStart = startOfWeek(startsAt(d)); load(); }
 });
+
+// Type: quest help shows the quest field and needs fewer people by default
+form.kind.addEventListener('change', () => {
+  const quest = form.kind.value === 'quest';
+  document.getElementById('quest-field').hidden = !quest;
+  form.title.placeholder = quest ? 'e.g. Help with [quest name]' : 'e.g. [dungeon name]';
+  if (quest) { form.tanks_needed.value = 0; form.healers_needed.value = 0; form.dps_needed.value = 2; }
+});
+
+// WoW: Forever releases
+document.getElementById('release-src').href = releaseSource;
+document.getElementById('releases').innerHTML = upcomingReleases().map((r) => `<li><strong>${esc(releaseWhen(r))}</strong> – ${esc(r.title)}${r.note ? ` <span class="muted">(${esc(r.note)})</span>` : ''}</li>`).join('') || '<li class="muted">Nothing announced.</li>';
 
 load();
 </script>

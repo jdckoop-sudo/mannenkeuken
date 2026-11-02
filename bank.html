@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Bank – Mannenkeuken</title>
+<link rel="stylesheet" href="css/style.css?v=__V__">
+<script>const whTooltips = { colorLinks: true, iconizeLinks: true, renameLinks: false, iconSize: 'small' };</script>
+<script src="https://wow.zamimg.com/js/tooltips.js" async></script>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Guild Bank – Opie Bank</h1>
+    <p class="muted">Our shared stock of items and gold, kept on the bank character <strong>Opie Bank</strong>.</p>
+  </div>
+
+  <div class="row">
+    <section class="box" style="flex: 1 1 340px">
+      <h2>How it works</h2>
+      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+        <li><strong>Got spare items or gold?</strong> Mail them in-game to <strong>Opie Bank</strong> (or put them in the guild bank), then add them to the list below so everyone can see what's in stock.</li>
+        <li><strong>Need something?</strong> Ask in the <strong>#guild-bank</strong> channel on Discord. When you take it, lower the count here (or remove the line).</li>
+        <li><strong>Gold</strong> goes towards the guild goal below. Whoever updates the gold in-game, also updates it here.</li>
+        <li>Everyone who is logged in can add, change and remove items – keep it honest.</li>
+      </ul>
+    </section>
+
+    <section class="box" style="flex: 1 1 340px">
+      <h2>Gold</h2>
+      <div id="gold"><p class="muted">Loading…</p></div>
+      <form id="gold-form" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+        <label style="width:90px">Gold<input name="g" type="number" min="0" value="0"></label>
+        <label style="width:80px">Silver<input name="s" type="number" min="0" max="99" value="0"></label>
+        <label style="width:80px">Copper<input name="c" type="number" min="0" max="99" value="0"></label>
+        <button class="btn" type="submit" value="set">Set balance</button>
+        <button class="btn" type="submit" value="add">+ Add</button>
+      </form>
+      <details>
+        <summary style="cursor:pointer">Change goal</summary>
+        <form id="goal-form" style="display:flex;gap:8px;align-items:flex-end;margin-top:8px">
+          <label style="width:120px">Goal (gold)<input name="goal" type="number" min="1" value="100"></label>
+          <button class="btn" type="submit">Save goal</button>
+        </form>
+      </details>
+      <p id="gold-msg" class="muted" style="font-size:13px"></p>
+    </section>
+  </div>
+
+  <div class="row">
+    <form id="new" class="box" style="flex: 1 1 300px">
+      <h2>Add to the bank</h2>
+      <p id="form-msg" class="muted"></p>
+      <label for="item-input">Item</label>
+      <div><input id="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"><p id="item-hint" class="muted" style="font-size:13px;margin:6px 0 0"></p></div>
+      <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
+      <label>Category<input name="category" list="bank-cats" maxlength="40" placeholder="e.g. Cloth, Herbs, Gear"><datalist id="bank-cats"></datalist></label>
+      <label>Note (optional)<input name="note" maxlength="200" placeholder="e.g. reserved for Justin"></label>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+
+    <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+      <label style="max-width:320px">Search<input id="q" type="search" placeholder="Item or category"></label>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Deposited by</th><th>Updated</th><th><span class="muted">Actions</span></th></tr></thead>
+          <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js?v=__V__';
+import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
+import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
+import { toCopper, formatGold, goldBar } from './js/gold.js?v=__V__';
+
+const user = await renderHeader();
+const canEdit = !!(supabase && user && await isGuildMember());
+const msg = document.getElementById('form-msg');
+const goldMsg = document.getElementById('gold-msg');
+if (!canEdit) {
+  const why = !supabase ? 'Not connected yet.' : !user ? 'Log in with Discord to update the bank.' : 'Only members of the Mannenkeuken Discord can update the bank.';
+  msg.textContent = why; goldMsg.textContent = why;
+  document.querySelectorAll('#new button, #gold-form button, #goal-form button').forEach((b) => { b.disabled = true; });
+}
+
+// Gold
+let bank = { copper: 0, goal_copper: 1000000 };
+async function loadGold() {
+  if (!supabase) return;
+  const { data } = await supabase.from('bank').select('*').eq('id', 1).maybeSingle();
+  if (data) bank = data;
+  document.getElementById('gold').innerHTML = goldBar(bank.copper, bank.goal_copper)
+    + (bank.updated_by ? `<p class="muted" style="font-size:13px;margin:0">Last updated by ${esc(bank.updated_by)} · ${new Date(bank.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</p>` : '');
+  document.querySelector('#goal-form [name="goal"]').value = Math.round(bank.goal_copper / 10000);
+}
+document.getElementById('gold-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const d = new FormData(e.target);
+  const amount = toCopper(d.get('g'), d.get('s'), d.get('c'));
+  const mode = e.submitter?.value;
+  const copper = mode === 'add' ? bank.copper + amount : amount;
+  if (mode === 'set' && !confirm(`Are you sure you want to set the bank balance to ${formatGold(copper)}?`)) return;
+  const { error } = await supabase.from('bank').update({ copper, updated_by: displayName(user), updated_at: new Date().toISOString() }).eq('id', 1);
+  goldMsg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
+  if (!error) { e.target.reset(); loadGold(); }
+});
+document.getElementById('goal-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const goal = toCopper(new FormData(e.target).get('goal'));
+  const { error } = await supabase.from('bank').update({ goal_copper: goal, updated_by: displayName(user), updated_at: new Date().toISOString() }).eq('id', 1);
+  goldMsg.textContent = error ? `Could not save: ${error.message}` : 'Goal saved!';
+  if (!error) loadGold();
+});
+
+// Items
+let items = [];
+let itemsById = new Map();
+let pickedItem = null;
+const hint = document.getElementById('item-hint');
+const search = attachItemSearch(document.getElementById('item-input'), (it) => {
+  pickedItem = it;
+  if (it) {
+    hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
+    refreshTooltips();
+  } else hint.textContent = '';
+});
+loadItems().then((list) => { itemsById = new Map(list.map((i) => [i.id, i])); draw(); });
+
+async function load() {
+  if (!supabase) { document.getElementById('rows').innerHTML = '<tr><td colspan="6">Not connected yet.</td></tr>'; return; }
+  const { data } = await supabase.from('bank_items').select('*').order('category', { nullsFirst: false }).order('item');
+  items = data ?? [];
+  document.getElementById('bank-cats').innerHTML = [...new Set(items.map((i) => i.category).filter(Boolean))].map((c) => `<option value="${esc(c)}"></option>`).join('');
+  draw();
+}
+function draw() {
+  const q = document.getElementById('q').value.toLowerCase();
+  const list = items.filter((i) => !q || `${i.item} ${i.category ?? ''}`.toLowerCase().includes(q));
+  document.getElementById('rows').innerHTML = list.map((i) => {
+    const known = i.item_id && itemsById.get(i.item_id);
+    const name = i.item_id
+      ? `<a href="${wowheadUrl(i.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${known ? `color:${qualityColor(known.quality)}` : ''}">${esc(i.item)}</a>`
+      : esc(i.item);
+    return `<tr>
+      <td>${name}${i.note ? `<br><span class="muted">${esc(i.note)}</span>` : ''}</td>
+      <td>${canEdit ? `<span style="display:inline-flex;gap:6px;align-items:center"><button class="btn" style="padding:2px 10px" type="button" data-dec="${i.id}" aria-label="One less">−</button><strong>${esc(i.quantity)}</strong><button class="btn" style="padding:2px 10px" type="button" data-inc="${i.id}" aria-label="One more">+</button></span>` : esc(i.quantity)}</td>
+      <td>${esc(i.category ?? '')}</td><td>${esc(i.deposited_by ?? '')}</td>
+      <td>${new Date(i.updated_at).toLocaleDateString('en-GB')}</td>
+      <td>${canEdit ? `<button class="link-btn" type="button" data-del="${i.id}" data-name="${esc(i.item)}">Remove</button>` : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="6">The bank is empty.</td></tr>';
+  refreshTooltips();
+}
+document.getElementById('q').addEventListener('input', draw);
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  const id = t.dataset.inc || t.dataset.dec || t.dataset.del;
+  const row = items.find((i) => i.id === id);
+  if (!row) return;
+  if (t.dataset.del) {
+    if (!confirm(`Are you sure you want to remove "${t.dataset.name}" from the bank?`)) return;
+    await supabase.from('bank_items').delete().eq('id', id);
+  } else {
+    const quantity = row.quantity + (t.dataset.inc ? 1 : -1);
+    if (quantity <= 0) {
+      if (!confirm(`That was the last one. Are you sure you want to remove "${row.item}" from the bank?`)) return;
+      await supabase.from('bank_items').delete().eq('id', id);
+    } else {
+      await supabase.from('bank_items').update({ quantity, updated_at: new Date().toISOString() }).eq('id', id);
+    }
+  }
+  load();
+});
+document.getElementById('new').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const d = new FormData(f);
+  const qty = Number(d.get('quantity')) || 1;
+  const existing = items.find((i) => (pickedItem ? i.item_id === pickedItem.id : i.item.toLowerCase() === String(d.get('item')).toLowerCase()));
+  const { error } = existing
+    ? await supabase.from('bank_items').update({ quantity: existing.quantity + qty, updated_at: new Date().toISOString() }).eq('id', existing.id)
+    : await supabase.from('bank_items').insert({
+      item: d.get('item'), item_id: pickedItem?.id ?? null, quantity: qty,
+      category: d.get('category') || null, note: d.get('note') || null, deposited_by: displayName(user),
+    });
+  msg.textContent = error ? `Could not add: ${error.message}` : existing ? `Added ${qty} to the existing "${existing.item}".` : 'Added!';
+  if (!error) { f.reset(); pickedItem = null; hint.textContent = ''; search.reset(); load(); }
+});
+
+loadGold();
+load();
+</script>
+</body>
+</html>

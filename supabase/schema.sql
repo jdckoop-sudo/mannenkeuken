@@ -134,3 +134,41 @@ create policy "insert own" on public.alts for insert to authenticated
   with check (user_id = auth.uid() and (select count(*) from public.alts a where a.user_id = auth.uid()) < 2);
 create policy "update own" on public.alts for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "delete own" on public.alts for delete to authenticated using (user_id = auth.uid());
+
+-- 2026-11-02: guild bank (Opie Bank), event types + quest help.
+-- Guild bank inventory: shared, so any logged-in member can add, change and remove.
+create table if not exists public.bank_items (
+  id uuid primary key default gen_random_uuid(),
+  item text not null check (char_length(item) <= 80),
+  item_id int,
+  quantity int not null default 1 check (quantity >= 0),
+  category text,
+  note text check (char_length(note) <= 200),
+  deposited_by text,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+alter table public.bank_items enable row level security;
+drop policy if exists "read all" on public.bank_items;
+drop policy if exists "write logged in" on public.bank_items;
+create policy "read all" on public.bank_items for select using (true);
+create policy "write logged in" on public.bank_items for all to authenticated using (true) with check (true);
+
+-- Guild bank gold (one row, id = 1). Amounts in copper.
+create table if not exists public.bank (
+  id int primary key default 1 check (id = 1),
+  copper bigint not null default 0 check (copper >= 0),
+  goal_copper bigint not null default 1000000,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+insert into public.bank (id) values (1) on conflict (id) do nothing;
+alter table public.bank enable row level security;
+drop policy if exists "read all" on public.bank;
+drop policy if exists "update logged in" on public.bank;
+create policy "read all" on public.bank for select using (true);
+create policy "update logged in" on public.bank for update to authenticated using (true) with check (true);
+
+-- Event type (raid / dungeon / quest help / guild night / other) and the quest for quest help.
+alter table public.events add column if not exists kind text not null default 'dungeon';
+alter table public.events add column if not exists quest text;

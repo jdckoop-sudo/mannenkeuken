@@ -14,6 +14,18 @@
     <p class="muted">[Short guild intro / message of the day]</p>
   </section>
 
+  <div class="row">
+    <section class="box" style="flex: 1 1 380px" aria-label="My character">
+      <h2>My character</h2>
+      <div id="me"><p class="muted">Loading…</p></div>
+    </section>
+    <section class="box" style="flex: 1 1 380px" aria-label="Guild bank gold">
+      <h2>Guild bank gold</h2>
+      <div id="gold"><p class="muted">Loading…</p></div>
+      <a href="bank.html">Go to the guild bank</a>
+    </section>
+  </div>
+
   <section class="grid" aria-label="Key numbers">
     <div class="box stat"><span class="muted">Members (Main)</span><strong id="stat-members">–</strong></div>
     <div class="box stat"><span class="muted">Tank / Healer / DPS</span><strong id="stat-roles">–</strong></div>
@@ -21,39 +33,111 @@
     <div class="box stat"><span class="muted">Open trade listings</span><strong id="stat-market">–</strong></div>
   </section>
 
+  <section class="box" aria-label="Guild overview">
+    <h2>Guild overview</h2>
+    <p class="muted" style="margin:0;font-size:14px">Main characters from the guild sheet. Professions count Mains and Alts.</p>
+    <div class="grid" id="overview"><p class="muted">Loading…</p></div>
+  </section>
+
   <div class="grid">
     <section class="box"><h2>Upcoming events</h2><div id="upcoming"><p class="muted">Loading…</p></div><a href="events.html">View all</a></section>
+    <section class="box"><h2>WoW: Forever releases</h2><div id="releases"></div><a href="events.html">Full schedule</a></section>
     <section class="box"><h2>Latest trade listings</h2><div id="latest"><p class="muted">Loading…</p></div><a href="market.html">Go to market</a></section>
   </div>
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
-import { supabase } from './js/supabase.js?v=__V__';
+import { supabase, getProfile } from './js/supabase.js?v=__V__';
+import { upcomingReleases, releaseWhen } from './js/releases.js?v=__V__';
+import { goldBar } from './js/gold.js?v=__V__';
 
-renderHeader();
+const user = await renderHeader();
+const membersPromise = loadMembers().catch(() => []);
 
-loadMembers().then((all) => {
-  const mains = all.filter((m) => m.status === 'Main');
-  const count = (r) => mains.filter((m) => m.role === r).length;
-  const levels = mains.map((m) => Number(m.level)).filter((n) => n > 0);
-  document.getElementById('stat-members').textContent = mains.length;
-  document.getElementById('stat-roles').textContent = `${count('Tank')} / ${count('Healer')} / ${count('DPS')}`;
-  document.getElementById('stat-level').textContent = levels.length ? Math.round(levels.reduce((a, b) => a + b, 0) / levels.length) : '–';
-}).catch(() => {});
+// Releases (next 3)
+document.getElementById('releases').innerHTML = upcomingReleases().slice(0, 3)
+  .map((r) => `<p style="margin:0"><strong>${esc(releaseWhen(r))}</strong><br>${esc(r.title)}</p>`).join('') || '<p class="muted">Nothing announced.</p>';
 
+// Key numbers + guild overview (from the sheet)
+const all = await membersPromise;
+const mains = all.filter((m) => m.status === 'Main');
+const active = all.filter((m) => m.status !== 'Gestopt');
+const countBy = (list, key) => {
+  const c = {};
+  for (const m of list) { const v = typeof key === 'function' ? key(m) : m[key]; for (const x of [].concat(v)) if (x) c[x] = (c[x] ?? 0) + 1; }
+  return Object.entries(c).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+};
+const roleCount = (r) => mains.filter((m) => m.role === r).length;
+const levels = mains.map((m) => Number(m.level)).filter((n) => n > 0);
+document.getElementById('stat-members').textContent = mains.length;
+document.getElementById('stat-roles').textContent = `${roleCount('Tank')} / ${roleCount('Healer')} / ${roleCount('DPS')}`;
+document.getElementById('stat-level').textContent = levels.length ? Math.round(levels.reduce((a, b) => a + b, 0) / levels.length) : '–';
+
+const secondary = (name, key) => {
+  const n = active.filter((m) => Number(m[key]) > 0).length;
+  return n ? [[name, n]] : [];
+};
+const groups = [
+  ['Roles', countBy(mains, 'role')],
+  ['Races', countBy(mains, 'race')],
+  ['Classes', countBy(mains, 'cls')],
+  ['Professions', [...countBy(active, (m) => [m.prof1, m.prof2]), ...secondary('Cooking', 'cooking'), ...secondary('First Aid', 'firstAid'), ...secondary('Fishing', 'fishing')]],
+];
+document.getElementById('overview').innerHTML = all.length ? groups.map(([title, rows]) => `
+  <div><h3 style="margin:0 0 8px;font-size:16px">${title}</h3>
+    <div class="stat-list">${rows.map(([k, n]) => `<div><span>${esc(k)}</span><strong>${n}</strong></div>`).join('') || '<span class="muted">–</span>'}</div>
+  </div>`).join('') : '<p class="muted">Could not read the sheet.</p>';
+
+// My character: profile (main + alts) matched with the sheet for level and professions
+async function drawMe() {
+  const box = document.getElementById('me');
+  if (!supabase || !user) { box.innerHTML = '<p class="muted">Log in with Discord to see your character here.</p>'; return; }
+  const profile = await getProfile(user);
+  const { data: alts } = await supabase.from('alts').select('*').eq('user_id', user.id).order('created_at');
+  if (!profile?.character_name) {
+    box.innerHTML = '<p class="muted">You have not set your main character yet.</p><a class="btn" href="profile.html" style="align-self:flex-start">Set up my profile</a>';
+    return;
+  }
+  const find = (name) => all.find((m) => (m.character || '').trim().toLowerCase() === (name || '').trim().toLowerCase());
+  const card = (c, label) => {
+    const row = find(c.character_name);
+    const profs = row ? [[row.prof1, row.skill1], [row.prof2, row.skill2], ['Cooking', row.cooking], ['First Aid', row.firstAid], ['Fishing', row.fishing]].filter(([p, s]) => p && (s || s === 0) && s !== '') : [];
+    return `<div style="border:1px solid #d1d5db;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline"><span class="badge">${label}</span><strong style="font-size:18px">${esc(c.character_name)}</strong>
+        <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · '))}</span></div>
+      ${row ? `<div class="stat-list">
+          <div><span>Level</span><strong>${esc(row.level || '–')}</strong></div>
+          ${profs.map(([p, s]) => `<div><span>${esc(p)}</span><strong>${esc(s)} / 300</strong></div>`).join('')}
+        </div>
+        ${row.recipes ? `<span class="muted" style="font-size:14px">Key recipes: ${esc(row.recipes)}</span>` : ''}
+        ${row.updated ? `<span class="muted" style="font-size:13px">Sheet last updated ${esc(row.updated)}</span>` : ''}`
+      : '<span class="muted" style="font-size:14px">Not found in the guild sheet yet – add a line with this character name to see level and professions.</span>'}
+    </div>`;
+  };
+  box.innerHTML = card(profile, 'Main') + (alts ?? []).filter((a) => a.character_name).map((a) => card(a, 'Alt')).join('')
+    + '<a href="profile.html" style="font-size:14px">Edit my profile</a>';
+}
+drawMe();
+
+// Supabase: gold, events, market
 if (supabase) {
+  const { data: bank } = await supabase.from('bank').select('*').eq('id', 1).maybeSingle();
+  document.getElementById('gold').innerHTML = bank ? goldBar(bank.copper, bank.goal_copper) : '<p class="muted">Not set up yet.</p>';
+
   const { data, count } = await supabase.from('listings').select('*', { count: 'exact' }).eq('status', 'open').order('created_at', { ascending: false }).limit(5);
   document.getElementById('stat-market').textContent = count ?? 0;
   document.getElementById('latest').innerHTML = (data ?? []).map((l) =>
-    `<p>${esc(l.item)} ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span></p>`
+    `<p style="margin:0">${esc(l.item)} ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span></p>`
   ).join('') || '<p class="muted">No listings yet.</p>';
-  const { data: ev } = await supabase.from('events').select('id,title,starts_at').gte('starts_at', new Date().toISOString()).order('starts_at').limit(3);
+
+  const { data: ev } = await supabase.from('events').select('id,title,starts_at,kind').gte('starts_at', new Date().toISOString()).order('starts_at').limit(4);
   document.getElementById('upcoming').innerHTML = (ev ?? []).map((e) => {
     const d = new Date(e.starts_at);
-    return `<p><a href="events.html#ev-${e.id}">${esc(e.title)}</a> <span class="muted">${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></p>`;
+    return `<p style="margin:0">${e.kind === 'quest' ? '<span class="badge">Quest help</span> ' : ''}<a href="events.html#ev-${e.id}">${esc(e.title)}</a> <span class="muted">${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span></p>`;
   }).join('') || '<p class="muted">No upcoming events.</p>';
 } else {
+  document.getElementById('gold').innerHTML = '<p class="muted">Not connected yet.</p>';
   document.getElementById('latest').innerHTML = '<p class="muted">Market not connected yet.</p>';
   document.getElementById('upcoming').innerHTML = '<p class="muted">Not connected yet.</p>';
 }
