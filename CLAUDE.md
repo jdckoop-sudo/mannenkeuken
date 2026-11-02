@@ -1,6 +1,6 @@
 # Instructions for Claude (both Jelle's and Tinus's)
 
-This repo is the Mannenkeuken guild dashboard. Read README.md first.
+This repo is the Mannenkeuken guild dashboard. Read README.md first. The working instructions (guild sync + dashboard, in Dutch) are in `docs/instructies.md`: follow them, and update that file in the same pull request whenever sync or dashboard behaviour changes.
 
 - Site copy is in **English**. Talk to Jelle/Tinus in **Dutch**.
 - Plain static HTML/CSS/JS served by GitHub Pages. No frameworks, no build step, no npm.
