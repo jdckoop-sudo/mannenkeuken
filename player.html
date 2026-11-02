@@ -17,7 +17,7 @@
   <h2>Characters</h2>
   <div class="grid" id="chars"><p class="muted">Loading…</p></div>
   <section class="box" aria-label="Activity">
-    <h2>Activity on the dashboard</h2>
+    <h2>Activity on the dashboard <span class="muted" style="font-size:14px;font-weight:400">(since WoW: Forever launch)</span></h2>
     <div class="stat-list" id="activity"><span class="muted">Loading…</span></div>
   </section>
 </main>
@@ -64,15 +64,17 @@ if (!target) {
     const dn = p?.discord_name ?? '\u0000';
     const count = async (q) => (await q).count ?? 0;
     const head = { count: 'exact', head: true };
+    // Everything before the WoW: Forever launch was testing, so only count from LAUNCH.
+    const since = (q) => q.gte('created_at', LAUNCH);
     const [signups, listings, deposits, tips, addons] = await Promise.all([
-      ids.length ? count(supabase.from('signups').select('*', head).in('user_id', ids).eq('answer', 'yes')) : 0,
-      ids.length ? count(supabase.from('listings').select('*', head).in('user_id', ids)) : 0,
-      count(supabase.from('bank_items').select('*', head).eq('deposited_by', dn).gte('created_at', LAUNCH)),
-      ids.length ? count(supabase.from('tips').select('*', head).in('user_id', ids)) : 0,
-      count(supabase.from('addons').select('*', head).eq('author_name', dn)),
+      ids.length ? count(since(supabase.from('signups').select('*', head).in('user_id', ids).eq('answer', 'yes'))) : 0,
+      ids.length ? count(since(supabase.from('listings').select('*', head).in('user_id', ids))) : 0,
+      count(since(supabase.from('bank_items').select('*', head).eq('deposited_by', dn))),
+      ids.length ? count(since(supabase.from('tips').select('*', head).in('user_id', ids))) : 0,
+      count(since(supabase.from('addons').select('*', head).eq('author_name', dn))),
     ]);
     document.getElementById('activity').innerHTML = [['Event sign-ups', signups], ['Trade listings', listings], ['Bank deposits', deposits], ['Tips shared', tips], ['Addons added', addons]]
-      .map(([k, v]) => `<div><span>${k}${k === 'Bank deposits' ? ' <span class="muted" style="font-size:12px">(since WoW: Forever launch)</span>' : ''}</span><strong>${v}</strong></div>`).join('');
+      .map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');
   } else document.getElementById('activity').innerHTML = '<span class="muted">Not connected yet.</span>';
 }
 </script>
