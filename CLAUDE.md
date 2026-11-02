@@ -11,3 +11,4 @@ This repo is the Mannenkeuken guild dashboard. Read README.md first.
 - Never commit secrets (service_role key, Discord Client Secret). The anon key in `js/config.js` is fine.
 - Work on a branch (`jelle/...` or `tinus/...`) and open a pull request. Never push to `main` directly.
 - Keep the look simple (wireframe style) until the final design is agreed.
+- Every local CSS link and JS import carries `?v=__V__` (e.g. `import { esc } from './js/sheet.js?v=__V__'`, inside js/: `'./supabase.js?v=__V__'`). The deploy workflow replaces `__V__` with the commit id so browsers never mix old and new files. Keep it on new imports too.

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, DISCORD_GUILD_ID } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, DISCORD_GUILD_ID } from './config.js?v=__V__';
 
 export const configured = !SUPABASE_URL.includes('YOUR-PROJECT');
 export const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;

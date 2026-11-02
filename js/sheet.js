@@ -1,4 +1,4 @@
-import { SHEET_ID } from './config.js';
+import { SHEET_ID } from './config.js?v=__V__';
 
 // Reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
 // Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
