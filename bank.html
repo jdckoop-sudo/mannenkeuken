@@ -22,13 +22,14 @@
         <li><strong>Got spare items or gold?</strong> Mail them in-game to <strong>Opie Bank</strong>. <strong>Jelle</strong> keeps the Opie Bank inventory up to date; you can see it below.</li>
         <li><strong>Sent something?</strong> Add it under <em>Send to Opie Bank</em> so Jelle knows it is coming. Once he has it, it moves into the inventory.</li>
         <li><strong>Picked it up?</strong> Lower the count here (or remove the line). Reservations on an item disappear with it.</li>
-        <li id="how-gold"><strong>Gold:</strong> we are saving <strong>100 gold</strong> to buy a shared guild bank. Whoever updates the gold in-game, also updates it here.</li>
+        <li id="how-gold"><strong>Gold:</strong> we are saving <strong>100 gold</strong> to buy a shared guild bank. Mail your gold for the guild to <strong>Opie Bank</strong> as well; Jelle then updates the amount here.</li>
       </ul>
     </section>
 
     <section class="box" style="flex: 1 1 340px">
       <h2 id="gold-title">Saving for the guild bank</h2>
       <p class="muted" id="gold-intro" style="margin:0">A shared guild bank costs <strong>100 gold</strong>. This is how far we are:</p>
+      <p class="muted" style="margin:0;font-size:13px">Send guild gold to <strong>Opie Bank</strong> in-game; the amount here is updated after it arrives.</p>
       <div id="gold"><p class="muted">Loading…</p></div>
       <form id="gold-form" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
         <label style="width:90px">Gold<input name="g" type="number" min="0" value="0"></label>
@@ -140,7 +141,7 @@ async function loadGold() {
   // Before the purchase: progress towards the guild bank. After: just the guild's gold.
   document.getElementById('gold-title').textContent = bought ? 'Guild gold' : 'Saving for the guild bank';
   document.getElementById('gold-intro').innerHTML = bought ? 'We own a shared guild bank. Current guild gold:' : `A shared guild bank costs <strong>${esc(formatGold(bank.goal_copper).replace(/ 0s 0c$/, ''))}</strong>. This is how far we are:`;
-  if (bought) document.getElementById('how-gold').innerHTML = '<strong>Gold</strong> is kept in the guild bank. Whoever changes the gold in-game, also updates it here.';
+  if (bought) document.getElementById('how-gold').innerHTML = '<strong>Gold</strong> for the guild: mail it to <strong>Opie Bank</strong>; Jelle puts it in the guild bank and updates the amount here.';
   document.getElementById('bought').hidden = bought;
   // Guild bank items (add, list, reserve) only after the guild bank has been bought
   document.getElementById('items-section').hidden = !bought;
