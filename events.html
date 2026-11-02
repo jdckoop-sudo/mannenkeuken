@@ -79,7 +79,7 @@
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
-import { supabase, displayName, isGuildMember, getProfile } from './js/supabase.js?v=__V__';
+import { supabase, displayName, isGuildMember, getProfile, mine } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { releases, upcomingReleases, releaseWhen, releaseSource } from './js/releases.js?v=__V__';
 import { loadPlayers, playerForUser, playerUrl } from './js/players.js?v=__V__';
@@ -114,7 +114,7 @@ toggle.addEventListener('click', () => {
   form.hidden = !form.hidden;
 });
 function alertMsg() {
-  const m = !supabase ? 'Not connected yet.' : !user ? 'Log in with Discord to create events.' : 'Only members of the Mannenkeuken Discord can create events.';
+  const m = !supabase ? 'Not connected yet.' : !user ? 'Choose your player (top right) to create events.' : 'Choose your player with the guild code to create events.';
   document.getElementById('events').insertAdjacentHTML('afterbegin', `<p class="notice">${m}</p>`);
 }
 
@@ -163,7 +163,7 @@ function drawEvents() {
   const upcoming = events.filter((e) => new Date(e.starts_at).getTime() > Date.now() - 6 * 3600e3);
   document.getElementById('events').innerHTML = upcoming.map((e) => {
     const s = signups.filter((x) => x.event_id === e.id);
-    const mine = s.find((x) => x.user_id === user?.id);
+    const myRow = s.find((x) => mine(user, x.user_id));
     const need = { Tank: e.tanks_needed, Healer: e.healers_needed, DPS: e.dps_needed };
     const playersCol = () => {
       const yes = s.filter((x) => x.answer === 'yes');
@@ -190,11 +190,11 @@ function drawEvents() {
     const no = s.filter((x) => x.answer === 'no');
     const signupForm = canPost ? `
       <form data-signup="${e.id}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-        <label>Your role<select name="role">${ROLES.map((r) => `<option ${(mine?.role ?? profile?.role) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
-        <button class="btn ${mine?.answer === 'yes' ? 'btn-primary' : ''}" type="submit" value="yes">Sign up</button>
-        <button class="btn ${mine?.answer === 'maybe' ? 'btn-primary' : ''}" type="submit" value="maybe">Maybe</button>
-        <button class="btn ${mine?.answer === 'no' ? 'btn-primary' : ''}" type="submit" value="no">Can't come</button>
-      </form>` : '<p class="muted">Log in with Discord to sign up.</p>';
+        <label>Your role<select name="role">${ROLES.map((r) => `<option ${(myRow?.role ?? profile?.role) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+        <button class="btn ${myRow?.answer === 'yes' ? 'btn-primary' : ''}" type="submit" value="yes">Sign up</button>
+        <button class="btn ${myRow?.answer === 'maybe' ? 'btn-primary' : ''}" type="submit" value="maybe">Maybe</button>
+        <button class="btn ${myRow?.answer === 'no' ? 'btn-primary' : ''}" type="submit" value="no">Can't come</button>
+      </form>` : '<p class="muted">Choose your player (top right) to sign up.</p>';
     return `<section class="box" id="ev-${e.id}">
       <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start">
         <div style="display:flex;flex-direction:column;gap:6px">
@@ -207,7 +207,7 @@ function drawEvents() {
           ${e.note ? `<span>${esc(e.note)}</span>` : ''}
           ${(e.pinged ?? []).length ? `<span class="muted" style="font-size:14px">Tagged: ${e.pinged.map((p) => `<a href="${playerUrl(p)}"${p === me ? ' style="font-weight:700"' : ''}>${esc(p)}</a>`).join(', ')}</span>` : ''}
         </div>
-        ${e.user_id === user?.id ? `<button class="link-btn" type="button" data-del="${e.id}" data-name="${esc(e.title)}">Cancel event</button>` : ''}
+        ${mine(user, e.user_id) ? `<button class="link-btn" type="button" data-del="${e.id}" data-name="${esc(e.title)}">Cancel event</button>` : ''}
       </div>
       ${signupForm}
       <div class="grid">${cols}</div>
@@ -227,7 +227,7 @@ document.getElementById('events').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const answer = ev.submitter?.value ?? 'yes';
   const { error } = await supabase.from('signups').upsert({
-    event_id: f.dataset.signup, user_id: user.id, author_name: profile?.character_name || displayName(user),
+    event_id: f.dataset.signup, user_id: signups.find((x) => x.event_id === f.dataset.signup && mine(user, x.user_id))?.user_id ?? user.id, author_name: profile?.character_name || displayName(user),
     role: new FormData(f).get('role'), answer,
   }, { onConflict: 'event_id,user_id' });
   if (error) f.insertAdjacentHTML('beforeend', `<span class="muted">Could not save: ${esc(error.message)}</span>`);

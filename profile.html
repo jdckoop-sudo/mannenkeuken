@@ -61,13 +61,18 @@ function formRace(race) {
   return Object.values(RACES).some((r) => r[race]) ? race : null;
 }
 
+// The profile row may belong to another browser of the same player: keep using that row.
+let profileOwner = null;
+const owner = () => profileOwner ?? user.id;
+
 if (!canEdit) {
-  const m = !supabase ? 'Not connected yet.' : 'Log in with Discord to edit your profile.';
+  const m = !supabase ? 'Not connected yet.' : 'Choose your player (top right) to edit your profile.';
   msg.textContent = m;
   form.querySelectorAll('button').forEach((b) => { b.disabled = true; });
   addBtn.disabled = true;
 } else {
   let profile = await getProfile(user);
+  profileOwner = profile?.user_id ?? null;
   const { characters, players } = await loadCharacters();
   me = playerForUser(user, players);
   if (me) document.getElementById('player-link').innerHTML = `You are <strong>${esc(me)}</strong> in the guild sheet · <a href="${playerUrl(me)}">View your player page & stats</a>`;
@@ -76,17 +81,17 @@ if (!canEdit) {
   const sheetMain = me && characters.find((c) => c.player === me && c.inSheet && c.kind === 'Main' && c.hasName);
   if (!profile?.character_name && sheetMain) {
     const values = { character_name: sheetMain.name, race: formRace(sheetMain.race), class: sheetMain.class || null, role: sheetMain.role || null };
-    const { data, error } = await supabase.from('profiles').upsert({ user_id: user.id, ...values, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
+    const { data, error } = await supabase.from('profiles').upsert({ user_id: owner(), ...values, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
     if (!error) { profile = data; msg.textContent = 'Your main character was filled in from the guild sheet. Check it and save if something is off.'; }
   } else if (me && profile && !profile.player_name) {
-    await supabase.from('profiles').update({ player_name: me }).eq('user_id', user.id);
+    await supabase.from('profiles').update({ player_name: me }).eq('user_id', owner());
   }
   // Main in the sheet: name, race and class always follow the sheet (it is leading); only the role can be changed.
   if (sheetMain) {
     locked = { character_name: sheetMain.name, race: formRace(sheetMain.race), class: sheetMain.class || null };
     const differs = !profile || profile.character_name !== locked.character_name || profile.race !== locked.race || profile.class !== locked.class;
     if (differs) {
-      const { data } = await supabase.from('profiles').upsert({ user_id: user.id, ...locked, role: profile?.role ?? sheetMain.role ?? null, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
+      const { data } = await supabase.from('profiles').upsert({ user_id: owner(), ...locked, role: profile?.role ?? sheetMain.role ?? null, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
       if (data) profile = data;
     }
   }
@@ -100,7 +105,7 @@ if (!canEdit) {
   }
 
   // 2. Alts in the sheet that are not on the dashboard yet: add them (max MAX_ALTS).
-  let { data: alts } = await supabase.from('alts').select('*').eq('user_id', user.id).order('created_at');
+  let { data: alts } = await supabase.from('alts').select('*').in('user_id', [...user.ids]).order('created_at');
   alts = alts ?? [];
   const have = new Set([profile?.character_name, ...alts.map((a) => a.character_name)].filter(Boolean).map((n) => n.toLowerCase()));
   const sheetAlts = me ? characters.filter((c) => c.player === me && c.inSheet && c.kind === 'Alt' && c.hasName && !have.has(c.name.toLowerCase())) : [];
@@ -119,14 +124,14 @@ if (!canEdit) {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const { error } = await supabase.from('profiles').upsert({
-    user_id: user.id, ...main.values(), ...(locked ?? {}), ...(me ? { player_name: me } : {}), updated_at: new Date().toISOString(),
+    user_id: owner(), ...main.values(), ...(locked ?? {}), ...(me ? { player_name: me } : {}), updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
   msg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
 });
 
 document.getElementById('clear').addEventListener('click', async () => {
   if (!confirm('Are you sure you want to clear your saved character?')) return;
-  const { error } = await supabase.from('profiles').delete().eq('user_id', user.id);
+  const { error } = await supabase.from('profiles').delete().eq('user_id', owner());
   if (!error) main.reset();
   msg.textContent = error ? `Could not clear: ${error.message}` : 'Cleared.';
 });

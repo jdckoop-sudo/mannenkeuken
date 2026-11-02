@@ -1,18 +1,40 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, DISCORD_GUILD_ID } from './config.js?v=__V__';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js?v=__V__';
+
+// Login = choose your player + the shared guild code (no Discord login).
+// The browser signs in anonymously; join_guild(code, player) in Supabase links it to a sheet player
+// (table `members`). One player can use several browsers; their rows count as "mine" on all of them.
 
 export const configured = !SUPABASE_URL.includes('YOUR-PROJECT');
 export const supabase = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-export async function getUser() {
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user ?? null;
+let userPromise = null;
+// The signed-in member: the Supabase user plus .player (sheet player name) and .ids (all browser ids of that player).
+// null when this browser has not chosen a player yet.
+export function getUser() {
+  userPromise ??= (async () => {
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    const user = data.session?.user ?? null;
+    if (!user) return null;
+    const { data: me } = await supabase.from('members').select('player_name').eq('user_id', user.id).maybeSingle();
+    if (!me) return null; // signed in, but no player chosen (or wrong code): treat as logged out
+    const { data: same } = await supabase.from('members').select('user_id').eq('player_name', me.player_name);
+    user.player = me.player_name;
+    user.ids = new Set([user.id, ...(same ?? []).map((m) => m.user_id)]);
+    return user;
+  })();
+  return userPromise;
+}
+
+// Is this row (by its user_id) from the signed-in player?
+export function mine(user, uid) {
+  return !!user && !!uid && (uid === user.id || !!user.ids?.has(uid));
 }
 
 export function displayName(user) {
   const m = user?.user_metadata ?? {};
-  return m.custom_claims?.global_name || m.full_name || m.name || 'Member';
+  return user?.player || m.custom_claims?.global_name || m.full_name || m.name || 'Member';
 }
 
 export function avatarUrl(user) {
@@ -20,48 +42,35 @@ export function avatarUrl(user) {
   return m.avatar_url || m.picture || '';
 }
 
-// The member's saved profile (main character), or null if none / table not created yet.
+// The player's saved profile (main character) from any of their browsers, or null.
 export async function getProfile(user) {
   if (!supabase || !user) return null;
-  const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
-  return data ?? null;
+  const ids = [...(user.ids ?? [user.id])];
+  const { data } = await supabase.from('profiles').select('*').in('user_id', ids).order('updated_at', { ascending: false }).limit(1);
+  return data?.[0] ?? null;
 }
 
-export async function login() {
-  if (!supabase) { alertNotConfigured(); return; }
-  await supabase.auth.signInWithOAuth({
-    provider: 'discord',
-    options: { scopes: 'identify guilds', redirectTo: window.location.href },
-  });
+// Choose a player: sign in anonymously (once per browser) and check the guild code.
+export async function joinGuild(player, code) {
+  if (!supabase) throw new Error('Not connected yet.');
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) {
+    const { error } = await supabase.auth.signInAnonymously();
+    if (error) throw new Error(error.message.includes('nonymous') ? 'Logging in is not switched on yet (anonymous sign-ins in Supabase).' : error.message);
+  }
+  const { error } = await supabase.rpc('join_guild', { code, player });
+  if (error) throw new Error(error.message);
+  userPromise = null;
 }
 
+// Switch player / log out. Keeps the anonymous browser session, so choosing again is quick.
 export async function logout() {
   if (supabase) await supabase.auth.signOut();
-  sessionStorage.removeItem('mk-guild-ok');
+  userPromise = null;
   window.location.reload();
 }
 
-// Checks (in the browser) whether the logged-in Discord user is in the Mannenkeuken server.
-// Only works right after login, while Discord's provider token is available; the result is cached.
+// Everyone who chose a player with the right guild code is a member.
 export async function isGuildMember() {
-  const cached = sessionStorage.getItem('mk-guild-ok');
-  if (cached !== null) return cached === '1';
-  if (!supabase) return false;
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.provider_token;
-  if (!token) return true; // token no longer available: don't lock people out
-  try {
-    const res = await fetch('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${token}` } });
-    const guilds = await res.json();
-    const ok = Array.isArray(guilds) && guilds.some((g) => g.id === DISCORD_GUILD_ID);
-    sessionStorage.setItem('mk-guild-ok', ok ? '1' : '0');
-    return ok;
-  } catch {
-    return true;
-  }
-}
-
-function alertNotConfigured() {
-  const el = document.getElementById('auth-msg');
-  if (el) el.textContent = 'Login is not set up yet (Supabase settings missing in js/config.js).';
+  return !!(await getUser());
 }

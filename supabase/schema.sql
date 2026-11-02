@@ -255,3 +255,106 @@ alter table public.listings add column if not exists min_skill int check (min_sk
 
 -- 2026-11-02: tag (ping) players on a trade listing; they see it on their Home page.
 alter table public.listings add column if not exists pinged text[] not null default '{}';
+
+-- =====================================================================
+-- 2026-11-02: log in by choosing your player + a shared guild code (no Discord login).
+-- The browser signs in anonymously (Supabase "anonymous sign-ins" must be ON) and calls
+-- join_guild(code, player). That links the browser (auth.uid()) to a sheet player in `members`.
+-- One player can have several browsers (phone + pc); "own rows" means: rows of the same player.
+-- The guild code is stored only as a bcrypt hash. Set or change it (Jelle runs this himself):
+--   insert into private.settings (key, value)
+--   values ('guild_code_hash', extensions.crypt('THE-CODE', extensions.gen_salt('bf')))
+--   on conflict (key) do update set value = excluded.value;
+-- =====================================================================
+create extension if not exists pgcrypto with schema extensions;
+create schema if not exists private;
+revoke all on schema private from anon, authenticated;
+create table if not exists private.settings (key text primary key, value text not null);
+create table if not exists private.join_attempts (user_id uuid primary key, attempts int not null default 0, last_at timestamptz not null default now());
+
+create table if not exists public.members (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  player_name text not null references public.players(player_name) on update cascade on delete cascade,
+  joined_at timestamptz not null default now()
+);
+alter table public.members enable row level security;
+drop policy if exists "read all" on public.members;
+create policy "read all" on public.members for select using (true);
+-- no insert/update/delete policies: only join_guild() writes here
+
+-- Earlier Discord logins keep their rows: link them to their player.
+insert into public.members (user_id, player_name)
+select p.user_id, p.player_name from public.profiles p
+join public.players pl on pl.player_name = p.player_name
+on conflict (user_id) do nothing;
+insert into public.members (user_id, player_name)
+select u.id, pl.player_name from auth.users u
+join public.players pl on lower(pl.discord_name) in (
+  lower(u.raw_user_meta_data->>'full_name'), lower(u.raw_user_meta_data->>'name'),
+  lower(u.raw_user_meta_data->'custom_claims'->>'global_name'))
+on conflict (user_id) do nothing;
+
+create or replace function public.join_guild(code text, player text) returns text
+language plpgsql security definer set search_path = public, private, extensions as $$
+declare h text; n int;
+begin
+  if auth.uid() is null then raise exception 'Not signed in'; end if;
+  insert into private.join_attempts (user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  update private.join_attempts set attempts = case when last_at < now() - interval '1 hour' then 1 else attempts + 1 end, last_at = now()
+    where user_id = auth.uid() returning attempts into n;
+  if n > 10 then raise exception 'Too many tries, wait an hour'; end if;
+  select value into h from private.settings where key = 'guild_code_hash';
+  if h is null then raise exception 'The guild code has not been set yet'; end if;
+  if extensions.crypt(coalesce(code, ''), h) <> h then raise exception 'Wrong guild code'; end if;
+  if not exists (select 1 from public.players where player_name = player) then raise exception 'Unknown player'; end if;
+  insert into public.members (user_id, player_name) values (auth.uid(), player)
+    on conflict (user_id) do update set player_name = excluded.player_name, joined_at = now();
+  delete from private.join_attempts where user_id = auth.uid();
+  return player;
+end $$;
+revoke all on function public.join_guild(text, text) from public, anon;
+grant execute on function public.join_guild(text, text) to authenticated;
+
+create or replace function public.is_member() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.members where user_id = auth.uid()) $$;
+create or replace function public.same_player(uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.members a join public.members b using (player_name)
+                 where a.user_id = auth.uid() and b.user_id = uid) $$;
+grant execute on function public.is_member() to anon, authenticated;
+grant execute on function public.same_player(uuid) to anon, authenticated;
+
+-- Personal tables: insert as yourself (member only); change/delete rows of your own player.
+do $$
+declare t text;
+begin
+  foreach t in array array['listings', 'tips', 'events', 'signups', 'profiles', 'bank_reservations', 'listing_reservations'] loop
+    execute format('drop policy if exists "insert own" on public.%I', t);
+    execute format('drop policy if exists "update own" on public.%I', t);
+    execute format('drop policy if exists "delete own" on public.%I', t);
+    execute format('create policy "insert own" on public.%I for insert to authenticated with check (user_id = auth.uid() and public.is_member())', t);
+    execute format('create policy "update own" on public.%I for update to authenticated using (public.same_player(user_id)) with check (public.same_player(user_id))', t);
+    execute format('create policy "delete own" on public.%I for delete to authenticated using (public.same_player(user_id))', t);
+  end loop;
+end $$;
+drop policy if exists "insert own" on public.alts;
+drop policy if exists "update own" on public.alts;
+drop policy if exists "delete own" on public.alts;
+create policy "insert own" on public.alts for insert to authenticated
+  with check (user_id = auth.uid() and public.is_member()
+    and (select count(*) from public.alts a where public.same_player(a.user_id)) < 2);
+create policy "update own" on public.alts for update to authenticated using (public.same_player(user_id)) with check (public.same_player(user_id));
+create policy "delete own" on public.alts for delete to authenticated using (public.same_player(user_id));
+
+-- Shared things: any member.
+drop policy if exists "insert own" on public.addons;
+drop policy if exists "delete any logged in" on public.addons;
+create policy "insert own" on public.addons for insert to authenticated with check (created_by = auth.uid() and public.is_member());
+create policy "delete any logged in" on public.addons for delete to authenticated using (public.is_member());
+drop policy if exists "write logged in" on public.bank_items;
+create policy "write logged in" on public.bank_items for all to authenticated using (public.is_member()) with check (public.is_member());
+drop policy if exists "update logged in" on public.bank;
+create policy "update logged in" on public.bank for update to authenticated using (public.is_member()) with check (public.is_member());
+drop policy if exists "write logged in" on public.players;
+create policy "write logged in" on public.players for all to authenticated using (public.is_member()) with check (public.is_member());
