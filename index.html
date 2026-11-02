@@ -27,9 +27,10 @@
   </div>
 
   <section class="box" id="for-me" aria-label="For you" hidden>
-    <h2>For you on the market</h2>
+    <h2>For you</h2>
     <div class="grid">
-      <div><h3 style="margin:0 0 8px;font-size:16px">You were tagged</h3><div id="tagged"></div></div>
+      <div id="tagged-events-box" hidden><h3 style="margin:0 0 8px;font-size:16px">Tagged in events</h3><div id="tagged-events"></div></div>
+      <div><h3 style="margin:0 0 8px;font-size:16px">Tagged on the market</h3><div id="tagged"></div></div>
       <div><h3 style="margin:0 0 8px;font-size:16px">Requests you can craft</h3><div id="craftable"></div></div>
     </div>
     <a href="market.html?tagged=1">Open the trade market</a>
@@ -150,8 +151,12 @@ async function drawForMe() {
     const mineWith = crafts.filter((c) => c.name === l.profession).sort((a, b) => b.skill - a.skill)[0];
     return mineWith ? { l, c: mineWith, ok: mineWith.skill >= (l.min_skill ?? 0) } : null;
   }).filter(Boolean);
-  if (!tagged.length && !craftable.length) return;
+  const { data: evs } = me ? await supabase.from('events').select('id,title,kind,starts_at,author_name,pinged').contains('pinged', [me]).gte('starts_at', new Date(Date.now() - 6 * 3600e3).toISOString()).order('starts_at') : { data: [] };
+  const taggedEvents = evs ?? [];
+  if (!tagged.length && !craftable.length && !taggedEvents.length) return;
   document.getElementById('for-me').hidden = false;
+  document.getElementById('tagged-events-box').hidden = !taggedEvents.length;
+  document.getElementById('tagged-events').innerHTML = taggedEvents.map((e) => `<p style="margin:0 0 6px"><a href="events.html#ev-${e.id}"><strong>${esc(e.title)}</strong></a> <span class="muted">(${new Date(e.starts_at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by ${esc(e.author_name)})</span></p>`).join('');
   const line = (l) => `<strong>${esc(l.item)}</strong> ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span>`;
   document.getElementById('tagged').innerHTML = tagged.map((l) => `<p style="margin:0 0 6px">${line(l)}${l.note ? `<br><span class="muted" style="font-size:13px">${esc(l.note)}</span>` : ''}</p>`).join('') || '<p class="muted">Nothing right now.</p>';
   document.getElementById('craftable').innerHTML = craftable.map(({ l, c, ok }) => `<p style="margin:0 0 6px">${line(l)}<br>
