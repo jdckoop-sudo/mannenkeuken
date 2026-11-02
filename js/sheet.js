@@ -2,9 +2,9 @@ import { SHEET_ID } from './config.js?v=__V__';
 
 // Reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
 // Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
-// I Prof 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated, P Status.
+// I Prof 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated (set automatically by the sheet's onEdit script), P Status, Q Notes.
 export async function loadMembers() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:P200&headers=0`;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Sheet not reachable');
   const rows = parseCsv(await res.text());
@@ -14,7 +14,7 @@ export async function loadMembers() {
       player: r[0], character: r[1], race: r[2], cls: r[3], role: r[4], level: r[5],
       prof1: r[6], skill1: r[7], prof2: r[8], skill2: r[9],
       cooking: r[10], firstAid: r[11], fishing: r[12], recipes: r[13],
-      updated: r[14], status: r[15] || 'Main',
+      updated: r[14], status: r[15] || 'Main', notes: r[16] ?? '',
     }));
 }
 

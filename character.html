@@ -59,7 +59,7 @@ if (!c) {
       <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, ((p.skill ?? 0) / 300) * 100)}%"></div></div></div>`;
   }).join('') || '<p class="muted">No professions in the sheet yet.</p>';
 
-  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', c.status], ['Key recipes', c.recipes], ['Sheet last updated', c.updated]]
+  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', c.status], ['Key recipes', c.recipes], ['Notes', c.notes], ['Sheet last updated', c.updated]]
     .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
   document.getElementById('where').textContent = c.inSheet ? (c.onSite ? 'In the guild sheet and on the dashboard.' : 'From the guild sheet.') : 'Added on the dashboard – not in the guild sheet yet (it is added at the next guild sync).';
 }

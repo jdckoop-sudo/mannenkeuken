@@ -128,6 +128,7 @@ async function drawMe() {
           ${profs.map(([p, s]) => `<div><span>${esc(p)}</span><strong>${esc(s)} / 300</strong></div>`).join('')}
         </div>
         ${row.recipes ? `<span class="muted" style="font-size:14px">Key recipes: ${esc(row.recipes)}</span>` : ''}
+        ${row.notes ? `<span class="muted" style="font-size:14px">Notes: ${esc(row.notes)}</span>` : ''}
         ${row.updated ? `<span class="muted" style="font-size:13px">Sheet last updated ${esc(row.updated)}</span>` : ''}`
       : '<span class="muted" style="font-size:14px">Not found in the guild sheet yet – add a line with this character name to see level and professions.</span>'}
     </div>`;
