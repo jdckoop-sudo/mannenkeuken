@@ -16,7 +16,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 | Roster | `roster.html` | Google Sheet (tab Members) | klaar |
 | Professions | `professions.html` | Google Sheet | klaar |
 | Trade Market | `market.html` | Supabase `listings` | klaar |
-| Raids & Events | `events.html` | Supabase `events`, `signups` | **nog te bouwen** |
+| Raids & Events | `events.html` | Supabase `events`, `signups` | klaar |
 | Addons & Settings | `setup.html` | Supabase `tips` | klaar |
 
 ## Mappen
