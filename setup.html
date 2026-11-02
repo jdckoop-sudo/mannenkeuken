@@ -81,10 +81,13 @@ function show(name) {
   for (const t of ['addons', 'macros', 'settings']) document.getElementById(`tab-${t}`).hidden = t !== name;
   const sel = document.querySelector('#new select[name="category"]');
   sel.value = name === 'settings' ? 'setting' : name === 'macros' ? 'macro' : 'addon';
-  history.replaceState(null, '', `#${name}`);
+  const url = new URL(location.href); url.hash = ''; url.searchParams.set('tab', name);
+  history.replaceState(null, '', url); // a query, not #hash: a hash would scroll to the element with that id
 }
 tabs.forEach((t) => t.addEventListener('click', () => show(t.dataset.tab)));
-show(['addons', 'macros', 'settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'addons');
+const startTab = new URLSearchParams(location.search).get('tab') || location.hash.slice(1);
+show(['addons', 'macros', 'settings'].includes(startTab) ? startTab : 'addons');
+if (location.hash) scrollTo(0, 0);
 
 // Addons (live from the sheet)
 let addons = [];
