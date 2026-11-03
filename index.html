@@ -206,8 +206,8 @@ async function drawForMe() {
   if (!supabase || !user) return;
   const { characters } = await loadCharacters();
   const me = playerForUser(user);
-  const mine = characters.filter((c) => c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)));
-  const crafts = mine.flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill ?? 0 })));
+  const myChars = characters.filter((c) => c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)));
+  const crafts = myChars.flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill ?? 0 })));
   const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });
   const open = (data ?? []).filter((l) => !mine(user, l.user_id));
   const tagged = me ? open.filter((l) => (l.pinged ?? []).includes(me)) : [];

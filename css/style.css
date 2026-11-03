@@ -196,4 +196,12 @@ hr { border: none; border-top: 1px solid var(--border); }
   .chart-filters label { flex-basis: calc(50% - 6px); }
   .chart-filters .btn { flex: 1 1 100%; }
   th, td { padding: 8px; }
+  .stat-list { grid-template-columns: 1fr; }
+  /* Menu: one row you can swipe sideways */
+  .site-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .site-nav::-webkit-scrollbar { display: none; }
+  .site-nav a { flex: none; }
+  /* Week agenda: days under each other, empty days small */
+  #week { grid-template-columns: 1fr !important; min-width: 0 !important; }
+  #week > div { min-height: 0 !important; }
 }
