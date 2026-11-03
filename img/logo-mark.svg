@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 40 320 320" role="img" aria-label="Mannenkeuken">
+<!-- Mannenkeuken guild seal: our own drawing (no game artwork). Text = Cinzel (SIL OFL) converted to paths. -->
+<defs>
+<linearGradient id="mkGold" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#f4cf72"/><stop offset="0.55" stop-color="#d9ac45"/><stop offset="1" stop-color="#8a6f2e"/></linearGradient>
+<linearGradient id="mkDark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1d1c"/><stop offset="1" stop-color="#120e10"/></linearGradient>
+<linearGradient id="mkCrimson" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b52a31"/><stop offset="1" stop-color="#6e1418"/></linearGradient>
+<linearGradient id="mkPot" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1f1c29"/><stop offset="0.5" stop-color="#3a3448"/><stop offset="1" stop-color="#16141d"/></linearGradient>
+</defs>
+<circle cx="200" cy="200" r="152" fill="url(#mkDark)" stroke="url(#mkGold)" stroke-width="12"/>
+<circle cx="200" cy="200" r="136" fill="none" stroke="#8a6f2e" stroke-width="2"/>
+<g transform="rotate(-42 200 210)">
+<rect x="195" y="88" width="10" height="150" rx="5" fill="url(#mkGold)" stroke="#120e10" stroke-width="2"/>
+<path d="M178 82 C178 64 222 64 222 82 C222 100 178 100 178 82 Z" fill="url(#mkGold)" stroke="#120e10" stroke-width="2"/>
+<path d="M186 82 C186 72 214 72 214 82 C214 92 186 92 186 82 Z" fill="#2a1d1c"/>
+</g>
+<g transform="rotate(42 200 210)">
+<rect x="193" y="160" width="14" height="80" rx="5" fill="#5a2a1c" stroke="#120e10" stroke-width="2"/>
+<path d="M174 74 H224 C228 74 230 77 230 81 V162 H174 Z" fill="#cfc6b2" stroke="#120e10" stroke-width="2"/>
+<path d="M174 74 V162" stroke="#fbf6ea" stroke-width="3"/>
+<circle cx="216" cy="90" r="6" fill="#16141d" stroke="#8a6f2e" stroke-width="2"/>
+</g>
+<path d="M170 168 C160 156 180 146 170 132" fill="none" stroke="#a39b8b" stroke-width="4" stroke-linecap="round"/>
+<path d="M200 162 C190 148 210 138 200 120" fill="none" stroke="#e8e2d4" stroke-width="4" stroke-linecap="round"/>
+<path d="M230 168 C220 156 240 146 230 132" fill="none" stroke="#a39b8b" stroke-width="4" stroke-linecap="round"/>
+<path d="M126 196 H274 C274 248 244 278 200 278 C156 278 126 248 126 196 Z" fill="url(#mkPot)" stroke="url(#mkGold)" stroke-width="4" stroke-linejoin="round"/>
+<rect x="116" y="182" width="168" height="18" rx="9" fill="url(#mkGold)" stroke="#120e10" stroke-width="2"/>
+<path d="M118 190 C104 190 104 212 120 212" fill="none" stroke="#d9ac45" stroke-width="4"/>
+<path d="M282 190 C296 190 296 212 280 212" fill="none" stroke="#d9ac45" stroke-width="4"/>
+<path d="M150 226 C170 238 230 238 250 226" fill="none" stroke="#8a6f2e" stroke-width="2"/>
+<path d="M200 276 C218 288 224 306 210 322 C207 312 202 308 198 304 C196 312 192 318 188 322 C176 306 182 290 200 276 Z" fill="url(#mkCrimson)"/>
+<path d="M164 282 C176 290 180 302 170 314 C168 306 164 303 161 300 C158 307 156 311 153 314 C146 302 150 292 164 282 Z" fill="url(#mkCrimson)"/>
+<path d="M236 282 C248 290 252 302 242 314 C240 306 236 303 233 300 C230 307 228 311 225 314 C218 302 222 292 236 282 Z" fill="url(#mkCrimson)"/>
+<path d="M200 294 C208 300 210 310 204 318 C202 312 200 310 198 308 C196 312 194 315 192 317 C188 310 190 302 200 294 Z" fill="#f4cf72"/>
+</svg>
