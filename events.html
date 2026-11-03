@@ -184,7 +184,7 @@ function agendaTipHtml(e) {
   const need = e.players_needed != null ? `${s.length} / ${e.players_needed} players`
     : ['Tank', 'Healer', 'DPS'].map((r) => `${s.filter((x) => x.role === r).length}/${({ Tank: e.tanks_needed, Healer: e.healers_needed, DPS: e.dps_needed })[r] ?? 0} ${r}`).join(' · ');
   const dg = e.dungeon && findDungeon(e.dungeon);
-  return `<strong>${esc(e.title)}</strong><br>${esc(KIND[e.kind] ?? 'Event')}${dg ? ` · ${esc(dungeonInfo(dg))}` : ''}
+  return `<strong>${esc(e.title)}</strong><br>${dg ? esc(dungeonInfo(dg)) : esc(KIND[e.kind] ?? 'Event')}
     <br>${esc(fmtFull(new Date(e.starts_at)))}${e.min_level ? `<br>Min. level ${esc(e.min_level)}` : ''}
     ${e.quest ? `<br>Quest: ${esc(e.quest)}` : ''}<br>Signed up: ${esc(need)}<br><span class="muted">by ${esc(e.author_name)}</span>`;
 }
