@@ -490,6 +490,31 @@ create policy "write devs" on public.dev_tickets for all to authenticated using 
 -- Urgency of a ticket: 4 = Urgent, 3 = High, 2 = Normal, 1 = Low (highest first on the board).
 alter table public.dev_tickets add column if not exists urgency smallint not null default 2 check (urgency between 1 and 4);
 
+-- Reactions on a ticket (❤️ 👍 …): per emoji the names of who reacted, e.g. {"❤️": ["Jelle", "Justin"]}.
+-- Changed only through toggle_ticket_reaction(), which takes your name from members (so you can only switch your own).
+alter table public.dev_tickets add column if not exists reactions jsonb not null default '{}'::jsonb;
+create or replace function public.toggle_ticket_reaction(p_ticket uuid, p_emoji text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare me text; cur jsonb; arr jsonb;
+begin
+  if not public.is_dev() then raise exception 'Only developers can react'; end if;
+  if p_emoji not in ('❤️', '👍', '👎', '🔥', '😂', '🤔', '🎉', '👀', '🚀', '⭐') then raise exception 'Unknown reaction'; end if;
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  select reactions into cur from public.dev_tickets where id = p_ticket for update;
+  if cur is null then raise exception 'Ticket not found'; end if;
+  arr := coalesce(cur -> p_emoji, '[]'::jsonb);
+  if arr ? me then
+    arr := (select coalesce(jsonb_agg(x), '[]'::jsonb) from jsonb_array_elements_text(arr) as x where x <> me);
+  else
+    arr := arr || to_jsonb(me);
+  end if;
+  if jsonb_array_length(arr) = 0 then cur := cur - p_emoji; else cur := jsonb_set(cur, array[p_emoji], arr); end if;
+  update public.dev_tickets set reactions = cur where id = p_ticket;
+  return cur;
+end $$;
+revoke execute on function public.toggle_ticket_reaction(uuid, text) from public, anon;
+grant execute on function public.toggle_ticket_reaction(uuid, text) to authenticated;
+
 -- The first ideas (fixed ids, so running this file again adds nothing twice and keeps your changes).
 insert into public.dev_tickets (id, title, area, created_by, created_at, body) values
 ('6f1d2a10-0001-4c3e-9a51-000000000001', $q$Achievements: bigger and more fun$q$, $q$Achievements$q$, $q$Justin$q$, now() - interval '3 minutes', $q$Nothing concrete yet – collect thoughts here first.

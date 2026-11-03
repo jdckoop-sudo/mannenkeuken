@@ -160,6 +160,17 @@
   .urg-3 { color: var(--warn); }
   .urg-2 { color: var(--gold-bright); }
   .urg-1 { color: var(--muted); }
+  .reactions { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+  .rx { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 999px; padding: 1px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .rx span { color: var(--muted); font-size: 12px; }
+  .rx.on { border-color: var(--gold); }
+  .rx.on span { color: var(--gold-bright); }
+  .rx-add summary { list-style: none; cursor: pointer; border: 1px dashed var(--border); border-radius: 999px; padding: 1px 9px; font-size: 13px; color: var(--muted); }
+  .rx-add summary::-webkit-details-marker { display: none; }
+  .rx-add[open] summary { border-color: var(--gold-dim); color: var(--gold-bright); }
+  .rx-pick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .rx-pick button { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; font-size: 17px; line-height: 1; padding: 4px 6px; cursor: pointer; }
+  .rx-pick button:hover, .rx-pick button.on { border-color: var(--gold); }
   .ticket .top { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
   .ticket-form textarea { min-height: 140px; }
   .ticket-form .full { grid-column: 1 / -1; }
@@ -371,6 +382,8 @@ const COLS = [['open', 'Open'], ['doing', 'In progress'], ['done', 'Done']];
 // Urgency: 4 = Urgent … 1 = Low. Highest first in Open and In progress.
 const URGENCY = { 4: 'Urgent', 3: 'High', 2: 'Normal', 1: 'Low' };
 const urg = (t) => t.urgency ?? 2;
+// Reactions: each developer can switch each of these on a card (stored per emoji with the names, toggled by toggle_ticket_reaction()).
+const REACTIONS = ['❤️', '👍', '👎', '🔥', '😂', '🤔', '🎉', '👀', '🚀', '⭐'];
 let tickets = [];
 const hosts = Object.fromEntries([...document.querySelectorAll('.board-host')].map((h) => [h.dataset.kind, h]));
 for (const [kind, host] of Object.entries(hosts)) {
@@ -400,6 +413,12 @@ async function loadTickets() {
   }
   Object.keys(hosts).forEach(drawBoard);
 }
+function reactionsRow(t) {
+  const rx = t.reactions ?? {};
+  const on = REACTIONS.filter((e) => rx[e]?.length).map((e) => `<button type="button" class="rx ${rx[e].includes(user.player) ? 'on' : ''}" data-act="react" data-emoji="${e}" data-id="${t.id}" title="${esc(rx[e].join(' and '))} – click to switch yours on/off">${e} <span>${esc(rx[e].join(' + '))}</span></button>`).join('');
+  const pick = REACTIONS.map((e) => `<button type="button" class="${rx[e]?.includes(user.player) ? 'on' : ''}" data-act="react" data-emoji="${e}" data-id="${t.id}">${e}</button>`).join('');
+  return `<div class="reactions">${on}<details class="rx-add"><summary title="Add a reaction">☺+</summary><div class="rx-pick">${pick}</div></details></div>`;
+}
 function ticketCard(t) {
   const mine = t.claimed_by === user.player;
   const long = (t.body ?? '').length > 220 || (t.body ?? '').split('\n').length > 4;
@@ -415,6 +434,7 @@ function ticketCard(t) {
     <div class="top"><h4>${esc(t.title)}${t.area ? `<span class="area">${esc(t.area)}</span>` : ''}</h4>${t.status === 'done' ? '' : `<button type="button" class="urg urg-${urg(t)}" data-act="urgency" data-id="${t.id}" title="Click to change the urgency">${URGENCY[urg(t)]}</button>`}</div>
     <div class="meta">Added by ${esc(t.created_by ?? '?')} · ${esc(ago(t.created_at))}</div>
     ${claim}${t.status === 'done' ? '' : body}
+    ${reactionsRow(t)}
     <div class="actions">${actions.join('')}</div>
   </article>`;
 }
@@ -451,6 +471,12 @@ for (const [kind, host] of Object.entries(hosts)) {
     if (b.hasAttribute('data-cancel')) { form.hidden = true; return; }
     const t = tickets.find((x) => x.id === b.dataset.id);
     if (!t) return;
+    if (b.dataset.act === 'react') {
+      const { error } = await supabase.rpc('toggle_ticket_reaction', { p_ticket: t.id, p_emoji: b.dataset.emoji });
+      msg.textContent = error ? `Could not save: ${error.message}` : '';
+      loadTickets();
+      return;
+    }
     const stamp = { updated_by: user.player, updated_at: new Date().toISOString() };
     let change;
     switch (b.dataset.act) {
