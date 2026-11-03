@@ -11,17 +11,23 @@ export function setDevMode(on) {
   try { on ? localStorage.setItem('mk-dev-mode', '1') : localStorage.removeItem('mk-dev-mode'); } catch { /* storage not available */ }
 }
 
+// Main menu: six places. Pages that belong to a place (e.g. the Guild tabs, player and character pages) light it up too.
 const pages = [
   ['index.html', 'Home'],
-  ['roster.html', 'Roster'],
-  ['professions.html', 'Professions'],
-  ['market.html', 'Trade Market'],
-  ['events.html', 'Raids & Events'],
-  ['bank.html', 'Guild Bank'],
-  ['achievements.html', 'Achievements'],
-  ['setup.html', 'Addons & Settings'],
-  ['profile.html', 'My profile'],
+  ['roster.html', 'Guild', ['roster.html', 'overview.html', 'professions.html', 'achievements.html', 'player.html', 'character.html']],
+  ['market.html', 'Market'],
+  ['events.html', 'Events'],
+  ['bank.html', 'Bank'],
+  ['setup.html', 'Tips'],
 ];
+// Tabs at the top of the Guild pages.
+export const GUILD_TABS = [
+  ['roster.html', 'Members'],
+  ['overview.html', 'Overview'],
+  ['professions.html', 'Professions'],
+  ['achievements.html', 'Achievements'],
+];
+const escHtml = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export async function renderHeader() {
   const current = location.pathname.split('/').pop() || 'index.html';
@@ -30,15 +36,37 @@ export async function renderHeader() {
   header.innerHTML = `
     <a class="brand" href="index.html"><img class="brand-logo" src="img/logo-mark.png?v=__V__" alt="" width="86" height="56">Mannenkeuken</a>
     <nav class="site-nav" aria-label="Main">
-      ${pages.map(([href, label]) => `<a href="${href}" class="${href === current ? 'active' : ''}">${label}</a>`).join('')}
+      ${pages.map(([href, label, also]) => `<a href="${href}" class="${href === current || (also ?? []).includes(current) ? 'active' : ''}"${href === current ? ' aria-current="page"' : ''}>${label}</a>`).join('')}
     </nav>
     <div class="auth" id="auth"></div>`;
   document.body.prepend(header);
+  // Guild pages: tabs above the page content
+  if (GUILD_TABS.some(([href]) => href === current)) {
+    const main = document.querySelector('main');
+    main?.insertAdjacentHTML('afterbegin', `<nav class="page-tabs" aria-label="Guild">${GUILD_TABS.map(([href, label]) => `<a href="${href}"${href === current ? ' class="active" aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`);
+  }
+  if (location.pathname.includes('/preview/')) previewBar();
 
   const auth = header.querySelector('#auth');
   const user = await getUser();
   if (user) {
-    auth.innerHTML = `<span class="user"><span class="user-icon"></span><span class="user-name"></span></span><button class="btn" type="button">Switch player</button>`;
+    const isDev = DEVS.includes(user.player);
+    auth.innerHTML = `<span class="user"><span class="user-icon"></span>
+      <span class="user-menu-wrap">
+        <button class="user-chip" type="button" aria-haspopup="menu" aria-expanded="false"><span class="user-name"></span><svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5 L7 9 L11 5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+        <div class="user-menu" role="menu" hidden>
+          <a role="menuitem" href="profile.html">My profile</a>
+          ${user.player ? `<a role="menuitem" href="player.html?name=${encodeURIComponent(user.player)}">My player page &amp; stats</a>` : ''}
+          ${isDev ? `<a role="menuitem" href="dev.html" class="user-menu-dev">Developer mode <span class="dev-badge">${isDevMode(user) ? 'ON' : 'OFF'}</span></a>` : ''}
+          <button role="menuitem" type="button" data-switch>Switch player</button>
+        </div>
+      </span></span>`;
+    const chip = auth.querySelector('.user-chip');
+    const menu = auth.querySelector('.user-menu');
+    const setMenu = (open) => { menu.hidden = !open; chip.setAttribute('aria-expanded', String(open)); };
+    chip.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.hidden); });
+    document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('.user-menu-wrap')) setMenu(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { setMenu(false); chip.focus(); } });
     const nameEl = auth.querySelector('.user-name');
     nameEl.textContent = displayName(user);
     // Class icon next to the name: the main character's class (remembered per player so it shows at once).
@@ -84,7 +112,7 @@ export async function renderHeader() {
       showClass(p?.class);
       try { p?.class ? localStorage.setItem(cacheKey, p.class) : localStorage.removeItem(cacheKey); } catch { /* storage not available */ }
     }).catch(() => {});
-    auth.querySelector('button').addEventListener('click', () => {
+    auth.querySelector('[data-switch]').addEventListener('click', () => {
       if (confirm('Are you sure you want to switch player? You can choose again with the guild code.')) logout();
     });
   } else {
@@ -136,4 +164,52 @@ export function openPicker() {
     }
   }
   dlg.showModal();
+}
+
+
+// Preview of a pull request (published at /preview/): a bar on top with what changed and a one-step "approve = live".
+async function previewBar() {
+  const REPO = 'jdckoop-sudo/mannenkeuken';
+  const bar = document.createElement('div');
+  bar.className = 'preview-bar';
+  bar.innerHTML = `<div class="preview-inner">
+      <span class="preview-tag">PREVIEW</span>
+      <span class="preview-text">You are looking at a <strong>preview</strong> of a change that is not live yet. The data is real: what you add here is added to the live site too.</span>
+      <span class="preview-actions">
+        <a class="btn" href="../" >Back to the live site</a>
+        <button class="btn btn-primary" type="button" data-ok>Looks good – put it live</button>
+      </span>
+    </div>`;
+  document.body.prepend(bar);
+  let pr = null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/pulls?state=open&per_page=50`, { headers: { Accept: 'application/vnd.github+json' } });
+    const list = res.ok ? await res.json() : [];
+    pr = list.filter((p) => (p.labels || []).some((l) => l.name === 'preview')).sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0] ?? null;
+  } catch { /* GitHub not reachable: the dialog still explains the steps */ }
+  if (pr) bar.querySelector('.preview-text').innerHTML = `Preview of <a href="${pr.html_url}" target="_blank" rel="noopener"><strong>${escHtml(pr.title)}</strong></a> by ${escHtml(pr.user?.login)} – not live yet. The data is real: what you add here is added to the live site too.`;
+  bar.querySelector('[data-ok]').addEventListener('click', () => {
+    let dlg = document.getElementById('preview-ok');
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'preview-ok';
+      dlg.className = 'box';
+      dlg.style.cssText = 'max-width:520px;width:calc(100% - 32px)';
+      const url = pr ? pr.html_url : `https://github.com/${REPO}/pulls?q=is%3Aopen+label%3Apreview`;
+      dlg.innerHTML = `<h2 style="margin:0">Put it live</h2>
+        <p style="margin:0">Happy with it? Give your OK on GitHub – the site goes live by itself within a minute.</p>
+        <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px">
+          <li><strong>Quickest:</strong> open the pull request and add the comment <code>akkoord</code>.</li>
+          <li>Or: <em>Files changed → Review changes → Approve → Submit review</em>.</li>
+        </ol>
+        <p class="muted" style="margin:0;font-size:14px">Only the other developer can approve (not the one who made it). Not happy? Leave a comment on the pull request with what should change.</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn" type="button" data-close>Not yet</button>
+          <a class="btn btn-primary" href="${url}" target="_blank" rel="noopener">Open the pull request</a>
+        </div>`;
+      document.body.append(dlg);
+      dlg.querySelector('[data-close]').addEventListener('click', () => dlg.close());
+    }
+    dlg.showModal();
+  });
 }

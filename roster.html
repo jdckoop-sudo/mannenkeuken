@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Roster – Mannenkeuken</title>
+<title>Members – Mannenkeuken</title>
 <link rel="icon" href="img/icon-128.png?v=__V__" type="image/png" sizes="128x128">
 <link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
@@ -23,12 +23,14 @@
   th.prof, td.prof { min-width: 170px; }
   .prof-cell { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .prof-skill { text-align: right; min-width: 3.2ch; font-variant-numeric: tabular-nums; }
+  /* Class: own class badge in the class colour, like in the header */
+  .cls-cell { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 </style>
 </head>
 <body>
 <main>
   <div>
-    <h1>Roster</h1>
+    <h1>Members</h1>
     <p class="muted">Read live from the Guild Professions sheet. Click a column to sort.</p>
   </div>
   <form class="box" style="flex-direction: row; flex-wrap: wrap; align-items: flex-end" onsubmit="return false">
@@ -48,6 +50,7 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { professionLabel } from './js/proficons.js?v=__V__';
+import { classIcon, classColor } from './js/classicons.js?v=__V__';
 import { loadBlizzard, activityOf, ACTIVITY, statusLabel } from './js/players.js?v=__V__';
 renderHeader();
 
@@ -61,9 +64,9 @@ const prof = (p, s) => (p ? `<span class="prof-cell"><span>${professionLabel(p, 
 const cols = [
   ['player', 'Player', (m) => m.player, (m) => `<a href="player.html?name=${encodeURIComponent(m.player)}">${esc(m.player)}</a>`],
   ['character', 'Character', (m) => m.character, (m) => (m.character ? `<a href="character.html?name=${encodeURIComponent(m.character)}">${esc(m.character)}</a>` : '')],
-  ['race', 'Race', (m) => m.race, (m) => esc(m.race)],
-  ['cls', 'Class', (m) => m.cls, (m) => esc(m.cls)],
-  ['role', 'Role', (m) => m.role, (m) => esc(m.role)],
+  ['race', 'Race', (m) => m.race, (m) => (m.race ? `<span class="muted">${esc(m.race)}</span>` : '<span class="muted">—</span>')],
+  ['cls', 'Class', (m) => m.cls, (m) => (m.cls ? `<span class="cls-cell" style="color:${classColor(m.cls) || 'inherit'}">${classIcon(m.cls, 20)}${esc(m.cls)}</span>` : '<span class="muted">—</span>')],
+  ['role', 'Role', (m) => m.role, (m) => (m.role ? esc(m.role) : '<span class="muted">—</span>')],
   ['level', 'Level', (m) => n(m.level), (m) => esc(m.level), true, 'num'],
   ['lastSeen', 'Last seen', (m) => activity(m).ts, (m) => { const a = activity(m); return `<span class="activity" title="${esc(a.title)}"><span class="dot dot-${a.level}" aria-hidden="true"></span>${esc(a.label)}</span>`; }, true],
   ['prof1', 'Profession 1', (m) => n(m.skill1), (m) => prof(m.prof1, m.skill1), true, 'prof'],

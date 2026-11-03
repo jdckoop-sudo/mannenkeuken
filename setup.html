@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Addons &amp; Settings – Mannenkeuken</title>
+<title>Tips – Mannenkeuken</title>
 <link rel="icon" href="img/icon-128.png?v=__V__" type="image/png" sizes="128x128">
 <link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
@@ -18,10 +18,10 @@
 </head>
 <body>
 <main>
-  <div>
-    <h1>Addons &amp; Settings</h1>
+  <section class="page-head"><div>
+    <h1>Tips</h1>
     <p class="muted">Recommended addons, handy macros and game settings for WoW: Forever. Members can add their own tips.</p>
-  </div>
+  </div><button class="btn btn-primary" type="button" id="open-share">+ Share a tip</button></section>
 
   <div class="tabs" role="tablist">
     <button class="btn" role="tab" type="button" data-tab="addons" aria-selected="true">Addons</button>
@@ -32,10 +32,11 @@
   <div class="row">
     <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
       <section id="tab-addons" role="tabpanel" style="display: flex; flex-direction: column; gap: 16px">
-        <div class="notice">
-          New to addons? Install the CurseForge app, choose the <strong>"Forever"</strong> version of World of Warcraft and start with everything marked <strong>Must-have</strong> (plus what fits your role/class).
-          In-game: Esc → AddOns to turn them on/off, <code>/reload</code> after changes. Old Classic addons often don't work – always take the Forever version.
-        </div>
+        <details class="box">
+          <summary>New to addons? Start here</summary>
+          <p style="margin:0">Install the CurseForge app, choose the <strong>"Forever"</strong> version of World of Warcraft and start with everything marked <strong>Must-have</strong> (plus what fits your role/class).
+          In-game: Esc → AddOns to turn them on/off, <code>/reload</code> after changes. Old Classic addons often don't work – always take the Forever version.</p>
+        </details>
         <label style="max-width: 260px">Priority<select id="prio"><option value="">All</option></select></label>
         <div id="addons" style="display: flex; flex-direction: column; gap: 16px"><p class="muted">Loading…</p></div>
         <p class="muted" style="font-size: 13px">Logged-in members can add addons with the form and remove outdated ones.</p>
@@ -55,7 +56,7 @@
       </section>
     </div>
 
-    <form id="new" class="box" style="flex: 1 1 300px">
+    <form id="new" class="box" style="flex: 1 1 300px; border-top: 2px solid var(--gold)" hidden>
       <h2>Share a tip</h2>
       <p id="form-msg" class="muted"></p>
       <label>Category<select name="category"><option value="macro">Macro</option><option value="setting">Game setting</option><option value="addon">Addon</option></select></label>
@@ -67,7 +68,7 @@
       <label><span id="class-label">Class (optional)</span><input name="class" maxlength="40" placeholder="e.g. Warrior"></label>
       <label>Link (optional)<input name="link" type="url" placeholder="https://"></label>
       <label>Content – description, macro text or setting<textarea name="content" rows="6" maxlength="2000"></textarea></label>
-      <button class="btn btn-primary" type="submit">Share</button>
+      <div class="row"><button class="btn btn-primary" type="submit">Share</button><button class="btn" type="button" id="close-share">Cancel</button></div>
     </form>
   </div>
 </main>
@@ -171,6 +172,9 @@ document.getElementById('settings').innerHTML = G.settings.map(([title, items]) 
 
 // Member tips (Supabase)
 const form = document.getElementById('new');
+// "+ Share a tip" opens the form (it starts closed so the tips get the room)
+document.getElementById('open-share').addEventListener('click', () => { form.hidden = false; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+document.getElementById('close-share').addEventListener('click', () => { form.hidden = true; });
 const msg = document.getElementById('form-msg');
 if (!supabase) { msg.textContent = 'Not connected yet.'; form.querySelector('button').disabled = true; }
 else if (!user) { msg.textContent = 'Choose your player (top right) to share.'; form.querySelector('button').disabled = true; }

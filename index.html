@@ -8,70 +8,85 @@
 <link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
 <link rel="stylesheet" href="css/style.css?v=__V__">
-<script>const whTooltips = { colorLinks: true, iconizeLinks: true, renameLinks: false, iconSize: 'small' };</script>
+<script>const whTooltips = { colorLinks: false, iconizeLinks: false, renameLinks: false };</script>
 <script src="https://wow.zamimg.com/js/tooltips.js" async></script>
 </head>
 <body>
 <main>
-  <section class="box">
-    <span class="muted">Horde · Guild-found · WoW: Forever</span>
-    <h1>Mannenkeuken</h1>
-    <p class="muted">[Short guild intro / message of the day]</p>
-  </section>
+  <!-- Not logged in yet: one step, plus what you can do here -->
+  <div id="for-new" hidden style="display:flex;flex-direction:column;gap:24px">
+    <section class="page-head"><div>
+      <span class="muted">Horde · Guild-found · WoW: Forever</span>
+      <h1>Welcome to the Mannenkeuken</h1>
+      <p style="font-size:18px;max-width:680px">This is our guild hall. See who plays what, find someone who can craft your gear, trade items and join the next raid.</p>
+    </div></section>
+    <section class="box" style="flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 24px;border-top:2px solid var(--gold)">
+      <div style="display:flex;flex-direction:column;gap:6px;max-width:560px">
+        <h2>Start here: choose your player</h2>
+        <span class="muted">Pick your name and enter the guild code from Discord. That's all – once per device.</span>
+      </div>
+      <button class="btn btn-primary" type="button" id="start-pick" style="font-size:17px;padding:10px 24px">Choose your player</button>
+    </section>
+    <section style="display:flex;flex-direction:column;gap:14px" aria-label="What you can do here">
+      <h2>What you can do here</h2>
+      <div class="tiles">
+        <a class="tile" href="roster.html"><strong>Guild</strong><span class="muted">Who plays what, who can craft what, and who is leading.</span></a>
+        <a class="tile" href="market.html"><strong>Market</strong><span class="muted">Offer spare items or ask someone to craft for you.</span></a>
+        <a class="tile" href="events.html"><strong>Events</strong><span class="muted">Plan a dungeon or raid and see who joins.</span></a>
+        <a class="tile" href="bank.html"><strong>Bank</strong><span class="muted">We are saving gold for a guild bank. Chip in.</span></a>
+        <a class="tile" href="setup.html"><strong>Tips</strong><span class="muted">Addons, macros and game settings for WoW: Forever.</span></a>
+      </div>
+    </section>
+    <section class="box" style="flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 24px">
+      <div style="display:flex;flex-direction:column"><span class="muted" style="font-size:14px">Coming up</span><strong id="next-release" style="font-size:17px">–</strong></div>
+      <a href="events.html">Full schedule</a>
+    </section>
+  </div>
 
-  <div class="row">
-    <section class="box" style="flex: 1 1 380px" aria-label="My character">
+  <!-- Logged in: what matters to you -->
+  <div id="for-member" hidden style="display:flex;flex-direction:column;gap:22px">
+    <section class="page-head"><div>
+      <span class="muted">Horde · Guild-found · WoW: Forever</span>
+      <h1 id="hello">Welcome back</h1>
+      <p class="muted">[Short guild intro / message of the day]</p>
+    </div></section>
+
+    <section class="box" aria-label="My character" style="border-top:2px solid var(--gold)">
       <h2>My character</h2>
       <div id="me"><p class="muted">Loading…</p></div>
     </section>
-    <section class="box" style="flex: 1 1 380px" aria-label="Guild bank gold">
-      <h2>Guild bank gold</h2>
-      <div id="gold"><p class="muted">Loading…</p></div>
-      <a href="bank.html">Go to the guild bank</a>
+
+    <div class="grid" style="align-items:start">
+      <section class="box" id="for-me" aria-label="For you">
+        <h2>For you</h2>
+        <div id="for-me-empty" class="empty-state"><strong>Nothing for you right now</strong><p class="muted" style="font-size:14px">When someone tags you, or asks for something you can craft, it shows up here.</p></div>
+        <div id="for-me-list" hidden style="display:flex;flex-direction:column;gap:14px">
+          <div id="tagged-events-box" hidden><h3 style="margin:0 0 8px;font-size:16px">Tagged in events</h3><div id="tagged-events"></div></div>
+          <div id="tagged-box" hidden><h3 style="margin:0 0 8px;font-size:16px">Tagged on the market</h3><div id="tagged"></div></div>
+          <div id="craftable-box" hidden><h3 style="margin:0 0 8px;font-size:16px">Requests you can craft</h3><div id="craftable"></div></div>
+          <a href="market.html?tagged=1">Open the market</a>
+        </div>
+      </section>
+      <section class="box" aria-label="Next event">
+        <h2>Next event</h2>
+        <div id="upcoming"><p class="muted">Loading…</p></div>
+      </section>
+    </div>
+
+    <section class="box" aria-label="Guild at a glance">
+      <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between"><h2>Guild at a glance</h2><a href="overview.html">Guild overview</a></div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <a class="box stat" href="roster.html" style="text-decoration:none;color:inherit"><span class="muted">Members (Main)</span><strong id="stat-members">–</strong></a>
+        <div class="box stat"><span class="muted">Tank / Healer / DPS</span><strong id="stat-roles">–</strong></div>
+        <div class="box stat"><span class="muted">Average level</span><strong id="stat-level">–</strong></div>
+        <a class="box stat" href="market.html" style="text-decoration:none;color:inherit"><span class="muted">Open trade listings</span><strong id="stat-market">–</strong></a>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px"><span class="muted" style="font-size:14px">Guild bank gold</span><div id="gold"><p class="muted">Loading…</p></div><a href="bank.html">Go to the guild bank</a></div>
     </section>
-  </div>
-
-  <section class="box" id="for-me" aria-label="For you" hidden>
-    <h2>For you</h2>
-    <div class="grid">
-      <div id="tagged-events-box" hidden><h3 style="margin:0 0 8px;font-size:16px">Tagged in events</h3><div id="tagged-events"></div></div>
-      <div><h3 style="margin:0 0 8px;font-size:16px">Tagged on the market</h3><div id="tagged"></div></div>
-      <div><h3 style="margin:0 0 8px;font-size:16px">Requests you can craft</h3><div id="craftable"></div></div>
-    </div>
-    <a href="market.html?tagged=1">Open the trade market</a>
-  </section>
-
-  <section class="grid" aria-label="Key numbers">
-    <div class="box stat"><span class="muted">Members (Main)</span><strong id="stat-members">–</strong></div>
-    <div class="box stat"><span class="muted">Tank / Healer / DPS</span><strong id="stat-roles">–</strong></div>
-    <div class="box stat"><span class="muted">Average level</span><strong id="stat-level">–</strong></div>
-    <div class="box stat"><span class="muted">Open trade listings</span><strong id="stat-market">–</strong></div>
-  </section>
-
-  <section class="box" aria-label="Guild overview">
-    <h2>Guild overview</h2>
-    <div class="chart-filters">
-      <label>Group by<select id="ov-group">
-        <option value="role">Role</option><option value="cls">Class</option><option value="race">Race</option>
-        <option value="prof">Profession</option><option value="bracket">Level bracket</option></select></label>
-      <label>Show<select id="ov-measure">
-        <option value="n">Number of characters</option><option value="avg">Average level</option><option value="max">Highest level</option></select></label>
-      <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
-      <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
-    </div>
-    <p class="muted" id="ov-caption" style="margin:0;font-size:13px"></p>
-    <div id="overview" class="bars" aria-live="polite"><p class="muted">Loading…</p></div>
-    <div id="ov-tip" class="chart-tip" role="tooltip" hidden></div>
-  </section>
-
-  <div class="grid">
-    <section class="box"><h2>Upcoming events</h2><div id="upcoming"><p class="muted">Loading…</p></div><a href="events.html">View all</a></section>
-    <section class="box"><h2>WoW: Forever releases</h2><div id="releases"></div><a href="events.html">Full schedule</a></section>
-    <section class="box"><h2>Latest trade listings</h2><div id="latest"><p class="muted">Loading…</p></div><a href="market.html">Go to market</a></section>
   </div>
 </main>
 <script type="module">
-import { renderHeader } from './js/layout.js?v=__V__';
+import { renderHeader, openPicker } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { supabase, getProfile, mine } from './js/supabase.js?v=__V__';
 import { upcomingReleases, releaseWhen } from './js/releases.js?v=__V__';
@@ -81,15 +96,19 @@ import { loadItems, qualityColor, wowheadUrl, refreshTooltips } from './js/items
 import { questUrl } from './js/quests.js?v=__V__';
 import { findDungeon, dungeonUrl } from './js/dungeons.js?v=__V__';
 import { kindIcon } from './js/kindicons.js?v=__V__';
+import { classIcon, classColor } from './js/classicons.js?v=__V__';
+import { professionLabel } from './js/proficons.js?v=__V__';
 
 const user = await renderHeader();
 const membersPromise = loadMembers().catch(() => []);
+document.getElementById(user ? 'for-member' : 'for-new').hidden = false;
+document.getElementById('start-pick').addEventListener('click', openPicker);
+if (user) document.getElementById('hello').textContent = `Welcome back, ${user.player ?? 'adventurer'}`;
 
-// Releases (next 3)
-document.getElementById('releases').innerHTML = upcomingReleases().slice(0, 3)
-  .map((r) => `<p style="margin:0"><strong>${esc(releaseWhen(r))}</strong><br>${esc(r.title)}</p>`).join('') || '<p class="muted">Nothing announced.</p>';
+// Coming up (for new members): the next WoW: Forever release
+{ const r = upcomingReleases()[0]; document.getElementById('next-release').textContent = r ? `${r.title} · ${releaseWhen(r)}` : 'Nothing announced yet'; }
 
-// Key numbers + guild overview (from the sheet)
+// Key numbers (from the sheet); the chart moved to the Guild → Overview tab (overview.html)
 const all = await membersPromise;
 const mains = all.filter((m) => m.status === 'Main');
 const active = all.filter((m) => m.status !== 'Gestopt');
@@ -98,79 +117,6 @@ const levels = mains.map((m) => Number(m.level)).filter((n) => n > 0);
 document.getElementById('stat-members').textContent = mains.length;
 document.getElementById('stat-roles').textContent = `${roleCount('Tank')} / ${roleCount('Healer')} / ${roleCount('DPS')}`;
 document.getElementById('stat-level').textContent = levels.length ? Math.round(levels.reduce((a, b) => a + b, 0) / levels.length) : '–';
-
-// Guild overview: one bar chart, with filters (group by / measure / which characters)
-const PROF_KEYS = (m) => [m.prof1, m.prof2, ...[['Cooking', m.cooking], ['First Aid', m.firstAid], ['Fishing', m.fishing]].filter(([, v]) => Number(v) > 0).map(([k]) => k)];
-const skillOf = (m, prof) => ({ [m.prof1]: m.skill1, [m.prof2]: m.skill2, Cooking: m.cooking, 'First Aid': m.firstAid, Fishing: m.fishing })[prof];
-const BRACKETS = [[1, 9], [10, 19], [20, 29], [30, 39], [40, 49], [50, 59], [60, 60]];
-const bracketOf = (m) => { const l = Number(m.level); const b = BRACKETS.find(([lo, hi]) => l >= lo && l <= hi); return b ? (b[0] === b[1] ? `${b[0]}` : `${b[0]}–${b[1]}`) : null; };
-const KEY = { role: (m) => m.role, cls: (m) => m.cls, race: (m) => m.race, prof: PROF_KEYS, bracket: bracketOf };
-const ov = { group: document.getElementById('ov-group'), measure: document.getElementById('ov-measure'), who: document.getElementById('ov-who'), view: document.getElementById('ov-view') };
-const tip = document.getElementById('ov-tip');
-let ovRows = [];
-
-function overviewData() {
-  const isProf = ov.group.value === 'prof';
-  const list = ov.who.value === 'all' ? active : mains;
-  const g = {};
-  for (const m of list) for (const k of [].concat(KEY[ov.group.value](m))) {
-    if (!k) continue;
-    const e = (g[k] ??= { name: k, n: 0, vals: [] });
-    e.n += 1;
-    const v = Number(isProf ? skillOf(m, k) : m.level);
-    if (v > 0) e.vals.push(v);
-  }
-  const rows = Object.values(g).map((e) => ({ ...e, avg: e.vals.length ? Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length) : 0, max: e.vals.length ? Math.max(...e.vals) : 0 }));
-  const m = ov.measure.value;
-  const order = ov.group.value === 'bracket' ? (a, b) => parseInt(a.name, 10) - parseInt(b.name, 10) : (a, b) => b[m] - a[m] || a.name.localeCompare(b.name);
-  return rows.sort(order);
-}
-
-function drawOverview() {
-  const isProf = ov.group.value === 'prof';
-  const unit = isProf ? 'skill' : 'level';
-  // measure labels follow the group: professions measure skill, the rest level
-  [...ov.measure.options].forEach((o) => { o.textContent = { n: 'Number of characters', avg: `Average ${unit}`, max: `Highest ${unit}` }[o.value]; });
-  const m = ov.measure.value;
-  ovRows = overviewData();
-  const cap = isProf ? 300 : 60;
-  const max = m === 'n' ? Math.max(1, ...ovRows.map((r) => r.n)) : cap;
-  document.getElementById('ov-caption').textContent = `${ov.measure.selectedOptions[0].textContent} per ${ov.group.selectedOptions[0].textContent.toLowerCase()} · ${ov.who.value === 'all' ? 'Mains and Alts' : 'Main characters'} from the guild sheet${m === 'n' ? '' : ` · scale 0–${cap}`}`;
-  const el = document.getElementById('overview');
-  if (!all.length) { el.innerHTML = '<p class="muted">Could not read the sheet.</p>'; return; }
-  if (!ovRows.length) { el.innerHTML = '<p class="muted">Nothing to show yet.</p>'; return; }
-  if (ov.view.getAttribute('aria-pressed') === 'true') {
-    el.innerHTML = `<table class="simple-table"><thead><tr><th>${esc(ov.group.selectedOptions[0].textContent)}</th><th class="num">Characters</th><th class="num">Average ${unit}</th><th class="num">Highest ${unit}</th></tr></thead><tbody>
-      ${ovRows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${r.n}</td><td class="num">${r.avg || '–'}</td><td class="num">${r.max || '–'}</td></tr>`).join('')}</tbody></table>`;
-    return;
-  }
-  el.innerHTML = ovRows.map((r, i) => `<div class="bar-row" tabindex="0" data-i="${i}" aria-label="${esc(r.name)}: ${r[m]}">
-      <span class="bar-label">${esc(r.name)}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, (r[m] / max) * 100)}%"></div></div>
-      <span class="bar-value">${r[m] || '–'}</span></div>`).join('');
-}
-function showTip(row, x, y) {
-  const r = ovRows[row.dataset.i];
-  const unit = ov.group.value === 'prof' ? 'skill' : 'level';
-  tip.innerHTML = `<strong>${esc(r.name)}</strong><br>${r.n} character${r.n === 1 ? '' : 's'}<br>Average ${unit}: ${r.avg || '–'}<br>Highest ${unit}: ${r.max || '–'}`;
-  tip.hidden = false;
-  tip.style.left = `${Math.min(x + 14, window.innerWidth - tip.offsetWidth - 8)}px`;
-  tip.style.top = `${y + 14}px`;
-}
-const chart = document.getElementById('overview');
-chart.addEventListener('mousemove', (e) => { const row = e.target.closest('.bar-row'); if (row) showTip(row, e.clientX, e.clientY); else tip.hidden = true; });
-chart.addEventListener('mouseleave', () => { tip.hidden = true; });
-chart.addEventListener('focusin', (e) => { const row = e.target.closest('.bar-row'); if (row) { const b = row.getBoundingClientRect(); showTip(row, b.left + 160, b.top); } });
-chart.addEventListener('focusout', () => { tip.hidden = true; });
-[ov.group, ov.measure, ov.who].forEach((c) => c.addEventListener('change', drawOverview));
-ov.view.addEventListener('click', () => {
-  const on = ov.view.getAttribute('aria-pressed') !== 'true';
-  ov.view.setAttribute('aria-pressed', String(on));
-  ov.view.textContent = on ? 'Show as chart' : 'Show as table';
-  tip.hidden = true;
-  drawOverview();
-});
-drawOverview();
 
 // My character: profile (main + alts) matched with the sheet for level and professions
 async function drawMe() {
@@ -187,11 +133,11 @@ async function drawMe() {
     const row = find(c.character_name);
     const profs = row ? [[row.prof1, row.skill1], [row.prof2, row.skill2], ['Cooking', row.cooking], ['First Aid', row.firstAid], ['Fishing', row.fishing]].filter(([p, s]) => p && (s || s === 0) && s !== '') : [];
     return `<div style="border:1px solid var(--border);background:var(--panel);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline"><span class="badge">${label}</span><strong style="font-size:18px">${esc(c.character_name)}</strong>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline"><span class="badge">${label}</span>${classIcon(c.class, 24)}<strong style="font-size:18px;color:${classColor(c.class) || 'inherit'}">${esc(c.character_name)}</strong>
         <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · '))}</span></div>
-      ${row ? `<div class="stat-list">
-          <div><span>Level</span><strong>${esc(row.level || '–')}</strong></div>
-          ${profs.map(([p, s]) => `<div><span>${esc(p)}</span><strong>${esc(s)} / 300</strong></div>`).join('')}
+      ${row ? `<div class="chips">
+          <span class="chip">Level <strong>${esc(row.level || '–')}</strong></span>
+          ${profs.map(([p, s]) => `<span class="chip">${professionLabel(p, { size: 18 })} <strong>${esc(s)} / 300</strong></span>`).join('')}
         </div>
         ${row.recipes ? `<span class="muted" style="font-size:14px">Key recipes: ${esc(row.recipes)}</span>` : ''}
         ${row.notes ? `<span class="muted" style="font-size:14px">Notes: ${esc(row.notes)}</span>` : ''}
@@ -201,6 +147,7 @@ async function drawMe() {
   };
   box.innerHTML = card(profile, 'Main') + (alts ?? []).filter((a) => a.character_name).map((a) => card(a, 'Alt')).join('')
     + `<span style="font-size:14px"><a href="profile.html">Edit my profile</a>${profile.player_name ? ` · <a href="${playerUrl(profile.player_name)}">My player page & stats</a>` : ''}</span>`;
+  refreshTooltips();
 }
 drawMe();
 
@@ -221,7 +168,10 @@ async function drawForMe() {
   const { data: evs } = me ? await supabase.from('events').select('id,title,kind,starts_at,author_name,pinged').contains('pinged', [me]).gte('starts_at', new Date(Date.now() - 6 * 3600e3).toISOString()).order('starts_at') : { data: [] };
   const taggedEvents = evs ?? [];
   if (!tagged.length && !craftable.length && !taggedEvents.length) return;
-  document.getElementById('for-me').hidden = false;
+  document.getElementById('for-me-empty').hidden = true;
+  document.getElementById('for-me-list').hidden = false;
+  document.getElementById('tagged-box').hidden = !tagged.length;
+  document.getElementById('craftable-box').hidden = !craftable.length;
   document.getElementById('tagged-events-box').hidden = !taggedEvents.length;
   document.getElementById('tagged-events').innerHTML = taggedEvents.map((e) => `<p style="margin:0 0 6px"><a href="events.html#ev-${e.id}"><strong>${esc(e.title)}</strong></a> <span class="muted">(${new Date(e.starts_at).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by ${esc(e.author_name)})</span></p>`).join('');
   const line = (l) => `<strong>${esc(l.item)}</strong> ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span>`;
@@ -236,19 +186,9 @@ if (supabase) {
   const { data: bank } = await supabase.from('bank').select('*').eq('id', 1).maybeSingle();
   document.getElementById('gold').innerHTML = bank ? goldBar(bank.copper, bank.goal_copper) : '<p class="muted">Not set up yet.</p>';
 
-  const { data, count } = await supabase.from('listings').select('*', { count: 'exact' }).eq('status', 'open').order('created_at', { ascending: false }).limit(5);
+  const { count } = await supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'open');
   document.getElementById('stat-market').textContent = count ?? 0;
-  const itemsById = new Map((await loadItems()).map((i) => [i.id, i]));
-  const itemLink = (l) => {
-    if (!l.item_id) return `<strong>${esc(l.item)}</strong>`;
-    const it = itemsById.get(l.item_id);
-    return `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${it ? `color:${qualityColor(it.quality)}` : ''}">${esc(l.item)}</a>`;
-  };
-  document.getElementById('latest').innerHTML = (data ?? []).map((l) =>
-    `<p style="margin:0">${itemLink(l)} ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span></p>`
-  ).join('') || '<p class="muted">No listings yet.</p>';
-
-  const { data: ev } = await supabase.from('events').select('id,title,starts_at,kind,quest,quest_id,dungeon').gte('starts_at', new Date().toISOString()).order('starts_at').limit(4);
+  const { data: ev } = await supabase.from('events').select('id,title,starts_at,kind,quest,quest_id,dungeon').gte('starts_at', new Date().toISOString()).order('starts_at').limit(3);
   document.getElementById('upcoming').innerHTML = (ev ?? []).map((e) => {
     const d = new Date(e.starts_at);
     const dg = e.dungeon ? (findDungeon(e.dungeon) ?? { name: e.dungeon }) : null;
@@ -257,11 +197,12 @@ if (supabase) {
       : dg && dg.name.toLowerCase() !== String(e.title).toLowerCase() ? `<a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(dg.name)}</a>` : '';
     const title = dg && !extra ? `<a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : `<a href="events.html#ev-${e.id}">${esc(e.title)}</a>`;
     return `<p style="margin:0">${kindIcon(e.kind, 16)} ${title}${extra ? ` <span class="muted">·</span> ${extra}` : ''}<br><span class="muted" style="font-size:13px">${d.toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })} · <a href="events.html#ev-${e.id}">details</a></span></p>`;
-  }).join('') || '<p class="muted">No upcoming events.</p>';
+  }).join('') + (ev?.length ? '<a href="events.html">All events</a>' : '') || `<div class="empty-state"><strong>No events planned yet</strong>
+    <p class="muted" style="font-size:14px">${(() => { const r = upcomingReleases()[0]; return r ? `Next up: ${esc(r.title)} · ${esc(releaseWhen(r))}` : 'Plan a dungeon run or a guild night.'; })()}</p>
+    <a class="btn" href="events.html#new" style="margin-top:6px">Create an event</a></div>`;
   refreshTooltips();
 } else {
   document.getElementById('gold').innerHTML = '<p class="muted">Not connected yet.</p>';
-  document.getElementById('latest').innerHTML = '<p class="muted">Market not connected yet.</p>';
   document.getElementById('upcoming').innerHTML = '<p class="muted">Not connected yet.</p>';
 }
 </script>

@@ -54,8 +54,8 @@ a:hover { color: #fff; }
 .site-nav a.active { color: var(--gold-bright); border-bottom-color: var(--gold); background: rgba(217, 172, 69, .08); }
 /* The player (icon, name, switch button) always sits at the right-hand side of the header */
 .auth { flex: none; display: flex; gap: 12px; align-items: center; margin-left: auto; }
-/* Unless the screen is very wide: logo on the left and the player on the right, the menu on its own row below */
-@media (max-width: 1560px) {
+/* Unless the screen is narrow: logo on the left and the player on the right, the menu on its own row below */
+@media (max-width: 1100px) {
   .site-header { flex-wrap: wrap; }
   .brand { order: 1; }
   .auth { order: 2; }
@@ -64,6 +64,45 @@ a:hover { color: #fff; }
 @media (max-width: 1000px) {
   .site-nav a { padding: 10px 11px; }
 }
+/* Player menu (name + arrow): My profile, player page, developer mode, switch player */
+.user-menu-wrap { position: relative; display: inline-flex; }
+.user-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border-strong); background: var(--panel-2); color: var(--text); font: 600 15px var(--font-body); cursor: pointer; }
+.user-chip:hover, .user-chip[aria-expanded="true"] { border-color: var(--gold-dim); }
+.user-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; min-width: 230px; display: flex; flex-direction: column; padding: 6px; background: var(--panel-2); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, .6); }
+.user-menu[hidden] { display: none; }
+.user-menu a, .user-menu button { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 8px 12px; border: 0; border-radius: 6px; background: none; color: var(--text); font: 600 15px var(--font-body); text-decoration: none; text-align: left; cursor: pointer; }
+.user-menu a:hover, .user-menu button:hover, .user-menu a:focus-visible, .user-menu button:focus-visible { background: var(--panel-3); color: var(--gold-bright); }
+.user-menu .user-menu-dev { border-top: 1px solid var(--border); border-radius: 0; margin-top: 4px; padding-top: 10px; }
+.user-icon { display: inline-flex; }
+/* Tabs on top of the Guild pages (Members / Overview / Professions / Achievements) */
+.page-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: -6px; }
+.page-tabs a { padding: 10px 16px; min-height: 44px; display: inline-flex; align-items: center; color: var(--muted); font-weight: 600; text-decoration: none; border-bottom: 2px solid transparent; }
+.page-tabs a:hover { color: var(--text); }
+.page-tabs a.active { color: var(--gold-bright); border-bottom-color: var(--gold); }
+@media (max-width: 640px) { .page-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .page-tabs a { padding: 8px 12px; white-space: nowrap; } }
+/* Preview bar (only on /preview/) */
+.preview-bar { position: sticky; top: 0; z-index: 60; background: linear-gradient(90deg, #3b1416, #2a1d14); border-bottom: 2px solid var(--gold); box-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+.preview-inner { max-width: 1400px; margin: 0 auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.preview-tag { background: var(--gold); color: #16141d; font-weight: 800; letter-spacing: .08em; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
+.preview-text { flex: 1 1 320px; font-size: 14px; }
+.preview-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Shared bits of the calmer layout */
+form.box, section.box, details.box { scroll-margin-top: 72px; } /* forms that open by a button stay clear of the (preview) bar on top */
+.page-head { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; }
+.page-head > div { display: flex; flex-direction: column; gap: 6px; }
+.page-head p { margin: 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.tile { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); text-decoration: none; }
+.tile:hover { border-color: var(--gold-dim); color: var(--text); }
+.tile strong { color: var(--gold-bright); font-size: 17px; }
+.empty-state { border: 1px dashed var(--border-strong); border-radius: 8px; padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.empty-state p { margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); font-size: 14px; }
+.chip strong { color: var(--text); font-weight: 600; }
+details.box > summary { cursor: pointer; font-weight: 600; color: var(--muted); list-style-position: inside; min-height: 28px; }
+details.box[open] > summary { color: var(--gold-bright); margin-bottom: 4px; }
+details.box > summary h2 { display: inline; font-size: 18px; }
 /* Phone: logo, name and the player button on one compact row, the menu below */
 @media (max-width: 640px) {
   .site-header { padding: 8px 12px 4px; gap: 6px 10px; flex-wrap: wrap; }
