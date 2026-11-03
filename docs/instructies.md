@@ -1,6 +1,13 @@
 # Mannenkeuken – instructies voor Claude (Discord ↔ sheet ↔ dashboard)
 
-> **Dit bestand is de bron.** Het staat in de repo: `docs/instructies.md` (https://github.com/jdckoop-sudo/mannenkeuken/blob/main/docs/instructies.md). Na elke wijziging aan sync of dashboard werkt Claude dit bestand bij in dezelfde pull request. De projectinstructies in Claude hoeven dan alleen naar dit bestand te verwijzen.
+> **Dit bestand is de enige bron.** Het staat in de repo: `docs/instructies.md` (https://github.com/jdckoop-sudo/mannenkeuken/blob/main/docs/instructies.md). De projectinstructies in Claude (bij Jelle en Justin gelijk) verwijzen alleen hiernaar en worden nooit meer aangepast: **alles wat verandert, verandert hier**, in dezelfde pull request als de wijziging zelf.
+
+## Zo begin je (voor Claude, bij elk gesprek)
+1. Zorg dat je **de nieuwste versie van dit bestand** hebt (in de repo: eerst `git fetch` en `origin/main` lezen; in de projectkennis: de versie uit de GitHub-koppeling). Kun je het niet lezen, zeg dat en vraag om de repo te koppelen of de projectkennis te syncen – niet gokken.
+2. Vraag met wie je praat (Jelle of Justin) als dat niet duidelijk is.
+3. Doe *Bij de start van elk gesprek* (onder *Samenwerken*): wat heeft de ander gedaan sinds de laatste PR van deze persoon, en waar is hij nu mee bezig.
+4. Na 5 nov 2026: noem de punten onder *Na de launch (todo)*.
+5. Werk daarna volgens dit bestand. Bij tegenspraak met oudere teksten (projectdocumenten, eerdere gesprekken) gaat dit bestand voor.
 
 Dit project is voor onze WoW: Forever-guild **Mannenkeuken** (Horde, guild-found, ~10 vrienden). Het wordt gebruikt door Jelle en Justin, elk met hun eigen Claude. Antwoord in het **Nederlands**. Werk alleen in de Mannenkeuken-server, de guild-sheet, de repo en het Supabase-project hieronder. Alles gaat via **Claude in Chrome** (we zijn daar ingelogd op Discord, Google, GitHub en Supabase) en, voor de code, via de GitHub-repo. Er is géén Discord-bot.
 
