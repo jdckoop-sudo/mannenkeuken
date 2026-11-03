@@ -170,6 +170,14 @@ hr { border: none; border-top: 1px solid var(--border); }
 .prof-label a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--gold-dim); }
 .prof-label a:hover { color: var(--gold-bright); }
 
+.kind-icon { display: inline-block; flex: none; vertical-align: -3px; }
+/* Week agenda (Raids & Events) */
+.agenda-item { display: flex; flex-direction: column; gap: 4px; background: var(--panel-3); border: 1px solid var(--border-strong); border-radius: 4px; padding: 6px; font-size: 13px; }
+.agenda-item:hover { border-color: var(--gold-dim); }
+.agenda-title { display: flex; gap: 6px; align-items: flex-start; color: var(--text); text-decoration: none; }
+.agenda-place { padding-left: 22px; font-size: 12px; overflow-wrap: anywhere; }
+.agenda-release { flex-direction: row; align-items: flex-start; gap: 6px; border: 1px dashed var(--warn); color: var(--warn); background: transparent; }
+
 /* Phones */
 @media (max-width: 640px) {
   main { padding: 16px 12px; gap: 16px; }

@@ -66,6 +66,7 @@
     <div style="overflow-x: auto">
       <div id="week" style="display: grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); gap: 8px; min-width: 800px"></div>
     </div>
+    <div id="agenda-tip" class="chart-tip" role="tooltip" hidden></div>
   </section>
 
   <section class="box" aria-label="WoW: Forever releases">
@@ -86,6 +87,7 @@ import { loadPlayers, playerForUser, playerUrl } from './js/players.js?v=__V__';
 import { attachItemSearch, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { loadQuestSuggestions, questUrl as questLink } from './js/quests.js?v=__V__';
 import { loadDungeonSuggestions, findDungeon, dungeonUrl, dungeonInfo } from './js/dungeons.js?v=__V__';
+import { kindIcon } from './js/kindicons.js?v=__V__';
 
 const KIND = { dungeon: 'Dungeon', raid: 'Raid', quest: 'Quest help', guild: 'Guild night', other: 'Other' };
 const questSearchUrl = (q) => `https://www.wowhead.com/forever/search?q=${encodeURIComponent(q)}`;
@@ -153,12 +155,51 @@ function drawWeek() {
     const rel = releases.filter((r) => r.date && new Date(r.date).toDateString() === day.toDateString());
     html += `<div style="border:${day.toDateString() === todayKey ? '2px solid var(--gold)' : '1px solid var(--border)'};border-radius:6px;padding:10px;min-height:120px;display:flex;flex-direction:column;gap:8px">
       <strong style="font-size:14px">${fmtDay(day)}</strong>
-      ${rel.map((r) => `<span style="border:1px dashed var(--warn);color:var(--warn);border-radius:4px;padding:6px;font-size:13px"><strong>Release:</strong> ${esc(r.title)}</span>`).join('')}
-      ${items.map((e) => `<a href="#ev-${e.id}" style="background:var(--panel-3);border:1px solid var(--border-strong);border-radius:4px;padding:6px;font-size:13px;text-decoration:none">${e.kind === 'quest' ? 'Quest: ' : ''}${esc(e.title)} · ${fmtTime(new Date(e.starts_at))}</a>`).join('')}
+      ${rel.map((r) => `<span class="agenda-item agenda-release">${kindIcon('release', 16)}<span>${esc(r.title)}</span></span>`).join('')}
+      ${items.map((e) => agendaItem(e)).join('')}
     </div>`;
   }
   document.getElementById('week').innerHTML = html;
+  refreshTooltips();
 }
+
+// One event in the week agenda: type icon, title and time; quest or dungeon as a Wowhead link (hover).
+function eventPlace(e) {
+  if (e.quest_id) return `<a href="${questLink(e.quest_id)}" target="_blank" rel="noopener">${esc(e.quest)}</a>`;
+  if (e.quest) return `<span>${esc(e.quest)}</span>`;
+  if (e.dungeon) { const dg = findDungeon(e.dungeon) ?? { name: e.dungeon }; return `<a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(dg.name)}</a>`; }
+  return '';
+}
+function agendaItem(e) {
+  const place = eventPlace(e);
+  return `<div class="agenda-item" data-ev="${e.id}">
+    <a class="agenda-title" href="#ev-${e.id}">${kindIcon(e.kind, 16)}<span><strong>${fmtTime(new Date(e.starts_at))}</strong> ${esc(e.title)}</span></a>
+    ${place && !(e.dungeon && String(e.title).toLowerCase() === String(e.dungeon).toLowerCase()) ? `<span class="agenda-place">${place}</span>` : ''}
+  </div>`;
+}
+// Hover card for an agenda item (not over the Wowhead link: that shows Wowhead's own tooltip)
+const agendaTip = document.getElementById('agenda-tip');
+function agendaTipHtml(e) {
+  const s = signups.filter((x) => x.event_id === e.id && x.answer === 'yes');
+  const need = e.players_needed != null ? `${s.length} / ${e.players_needed} players`
+    : ['Tank', 'Healer', 'DPS'].map((r) => `${s.filter((x) => x.role === r).length}/${({ Tank: e.tanks_needed, Healer: e.healers_needed, DPS: e.dps_needed })[r] ?? 0} ${r}`).join(' · ');
+  const dg = e.dungeon && findDungeon(e.dungeon);
+  return `<strong>${esc(e.title)}</strong><br>${esc(KIND[e.kind] ?? 'Event')}${dg ? ` · ${esc(dungeonInfo(dg))}` : ''}
+    <br>${esc(fmtFull(new Date(e.starts_at)))}${e.min_level ? `<br>Min. level ${esc(e.min_level)}` : ''}
+    ${e.quest ? `<br>Quest: ${esc(e.quest)}` : ''}<br>Signed up: ${esc(need)}<br><span class="muted">by ${esc(e.author_name)}</span>`;
+}
+const weekEl = document.getElementById('week');
+weekEl.addEventListener('mousemove', (ev) => {
+  const item = ev.target.closest('.agenda-item[data-ev]');
+  if (!item || ev.target.closest('.agenda-place a')) { agendaTip.hidden = true; return; }
+  const e = events.find((x) => x.id === item.dataset.ev);
+  if (!e) return;
+  agendaTip.innerHTML = agendaTipHtml(e);
+  agendaTip.hidden = false;
+  agendaTip.style.left = `${Math.min(ev.clientX + 14, window.innerWidth - agendaTip.offsetWidth - 8)}px`;
+  agendaTip.style.top = `${Math.min(ev.clientY + 14, window.innerHeight - agendaTip.offsetHeight - 8)}px`;
+});
+weekEl.addEventListener('mouseleave', () => { agendaTip.hidden = true; });
 
 function drawEvents() {
   const upcoming = events.filter((e) => new Date(e.starts_at).getTime() > Date.now() - 6 * 3600e3);
@@ -199,7 +240,7 @@ function drawEvents() {
     return `<section class="box" id="ev-${e.id}">
       <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-start">
         <div style="display:flex;flex-direction:column;gap:6px">
-          <span class="badge">${esc(KIND[e.kind] ?? 'Event')}</span>
+          <span class="badge" style="display:inline-flex;gap:6px;align-items:center">${kindIcon(e.kind, 16)}${esc(KIND[e.kind] ?? 'Event')}</span>
           <h2 style="font-size:24px">${esc(e.title)}</h2>
           ${e.dungeon ? `<span>${esc(findDungeon(e.dungeon) ? dungeonInfo(findDungeon(e.dungeon)) : 'Dungeon')}: <a href="${dungeonUrl(findDungeon(e.dungeon) ?? { name: e.dungeon })}" target="_blank" rel="noopener" style="font-weight:600">${esc(e.dungeon)}</a></span>` : ''}
           ${e.quest ? (e.quest_id
