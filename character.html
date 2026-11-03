@@ -41,7 +41,7 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { professionLabel } from './js/proficons.js?v=__V__';
-import { loadCharacters, loadBlizzard, playerUrl } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, playerUrl, statusLabel } from './js/players.js?v=__V__';
 
 await renderHeader();
 const name = new URLSearchParams(location.search).get('name') || '';
@@ -53,7 +53,7 @@ if (!c) {
 } else {
   document.title = `${c.name} – Mannenkeuken`;
   document.getElementById('title').textContent = c.name;
-  document.getElementById('sub').innerHTML = `${esc(c.status)} of ${c.player ? `<a href="${playerUrl(c.player)}">${esc(c.player)}</a>` : 'unknown player'}`;
+  document.getElementById('sub').innerHTML = `${esc(statusLabel(c.status))} of ${c.player ? `<a href="${playerUrl(c.player)}">${esc(c.player)}</a>` : 'unknown player'}`;
   if (c.player) { const b = document.getElementById('back'); b.href = playerUrl(c.player); b.textContent = `← ${c.player}`; }
 
   // Rank within the guild (characters with a known level)
@@ -71,7 +71,7 @@ if (!c) {
       <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, ((p.skill ?? 0) / 300) * 100)}%"></div></div></div>`;
   }).join('') || '<p class="muted">No professions in the sheet yet.</p>';
 
-  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', c.status], ['Key recipes', c.recipes], ['Notes', c.notes], ['Sheet last updated', c.updated]]
+  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes], ['Sheet last updated', c.updated]]
     .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
   // Live data from the Blizzard API, when the update workflow has fetched this character
   const bz = (await loadBlizzard())?.characters?.[c.name.toLowerCase()];
