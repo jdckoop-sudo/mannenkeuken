@@ -142,7 +142,7 @@ function draw() {
     return `<tr class="${isMine ? 'mine' : ''}">
       <td>${l.item_id ? `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)}` : ''}">${esc(l.item)}</a>` : esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}${extra}${reserveUi}</td>
       <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}${res.length ? `<br><span class="muted" style="font-size:13px">${free} free</span>` : ''}</td>
-      <td>${isMine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
+      <td>${isMine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}</td>
       <td>${isMine && isDone ? `<button class="link-btn" data-reopen="${l.id}">Reopen</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : isMine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
   refreshTooltips();

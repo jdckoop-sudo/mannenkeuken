@@ -124,9 +124,9 @@ function startOfWeek(d) {
   x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); // Monday
   return x;
 }
-const fmtDay = (d) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-const fmtTime = (d) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-const fmtFull = (d) => `${d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtTime(d)}`;
+const fmtDay = (d) => d.toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', weekday: 'short', day: 'numeric', month: 'short' });
+const fmtTime = (d) => d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' });
+const fmtFull = (d) => `${d.toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', weekday: 'long', day: 'numeric', month: 'long' })} · ${fmtTime(d)}`;
 
 async function load() {
   if (!supabase) { document.getElementById('events').innerHTML = '<p class="muted">Not connected yet.</p>'; drawWeek(); return; }

@@ -70,7 +70,7 @@ if (!c) {
   // Live data from the Blizzard API, when the update workflow has fetched this character
   const bz = (await loadBlizzard())?.characters?.[c.name.toLowerCase()];
   if (bz?.status === 'ok') {
-    const when = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null);
+    const when = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', day: 'numeric', month: 'short', year: 'numeric' }) : null);
     document.getElementById('bz-details').innerHTML = [['Level', bz.level], ['Race', bz.race], ['Class', bz.class], ['Faction', bz.faction], ['Guild', bz.guild], ['Last login', when(bz.lastLogin)]]
       .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
     document.getElementById('bz-profs').innerHTML = (bz.professions ?? []).filter((p) => p.skill !== null).map((p) => `<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${esc(p.name)}</span><span class="muted">${esc(p.skill)} / ${esc(p.max)}</span></div>

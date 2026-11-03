@@ -235,7 +235,7 @@ async function drawForMe() {
   if (!tagged.length && !craftable.length && !taggedEvents.length) return;
   document.getElementById('for-me').hidden = false;
   document.getElementById('tagged-events-box').hidden = !taggedEvents.length;
-  document.getElementById('tagged-events').innerHTML = taggedEvents.map((e) => `<p style="margin:0 0 6px"><a href="events.html#ev-${e.id}"><strong>${esc(e.title)}</strong></a> <span class="muted">(${new Date(e.starts_at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by ${esc(e.author_name)})</span></p>`).join('');
+  document.getElementById('tagged-events').innerHTML = taggedEvents.map((e) => `<p style="margin:0 0 6px"><a href="events.html#ev-${e.id}"><strong>${esc(e.title)}</strong></a> <span class="muted">(${new Date(e.starts_at).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by ${esc(e.author_name)})</span></p>`).join('');
   const line = (l) => `<strong>${esc(l.item)}</strong> ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span>`;
   document.getElementById('tagged').innerHTML = tagged.map((l) => `<p style="margin:0 0 6px">${line(l)}${l.note ? `<br><span class="muted" style="font-size:13px">${esc(l.note)}</span>` : ''}</p>`).join('') || '<p class="muted">Nothing right now.</p>';
   document.getElementById('craftable').innerHTML = craftable.map(({ l, c, ok }) => `<p style="margin:0 0 6px">${line(l)}<br>
@@ -268,7 +268,7 @@ if (supabase) {
       : e.quest ? esc(e.quest)
       : dg && dg.name.toLowerCase() !== String(e.title).toLowerCase() ? `<a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(dg.name)}</a>` : '';
     const title = dg && !extra ? `<a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : `<a href="events.html#ev-${e.id}">${esc(e.title)}</a>`;
-    return `<p style="margin:0">${e.kind === 'quest' ? '<span class="badge">Quest help</span> ' : ''}${title}${extra ? ` <span class="muted">·</span> ${extra}` : ''}<br><span class="muted" style="font-size:13px">${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} · <a href="events.html#ev-${e.id}">details</a></span></p>`;
+    return `<p style="margin:0">${e.kind === 'quest' ? '<span class="badge">Quest help</span> ' : ''}${title}${extra ? ` <span class="muted">·</span> ${extra}` : ''}<br><span class="muted" style="font-size:13px">${d.toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })} · <a href="events.html#ev-${e.id}">details</a></span></p>`;
   }).join('') || '<p class="muted">No upcoming events.</p>';
   refreshTooltips();
 } else {
