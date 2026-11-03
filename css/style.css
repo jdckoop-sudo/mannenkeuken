@@ -46,10 +46,8 @@ a:hover { color: #fff; }
 }
 .brand { flex: none; display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: .06em; text-decoration: none; color: var(--gold-bright); text-shadow: 0 1px 0 #000; }
 .brand:hover { color: #fff; }
-/* Own emblem: a gold shield with a dark centre */
-.brand-logo { position: relative; width: 32px; height: 38px; background: linear-gradient(160deg, var(--gold-bright), var(--gold-dim)); clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); }
-.brand-logo::after { content: ''; position: absolute; inset: 3px; background: linear-gradient(#2a1d1c, #120e10); clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); }
-.brand-logo::before { content: ''; position: absolute; left: 50%; top: 9px; width: 8px; height: 8px; margin-left: -4px; background: var(--gold); transform: rotate(45deg); z-index: 1; }
+/* Own emblem: the guild seal (img/logo-mark.svg; full seal with the name: img/logo.svg) */
+.brand-logo { flex: none; width: 40px; height: 40px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
 .site-nav { flex: 1 1 auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .site-nav a { padding: 10px 14px; border-radius: 4px; text-decoration: none; color: var(--muted); font-weight: 600; white-space: nowrap; border-bottom: 2px solid transparent; }
 .site-nav a:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
