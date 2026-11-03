@@ -44,10 +44,10 @@ if (!target) {
   document.getElementById('sub').textContent = p?.discord_name ? `Discord: ${p.discord_name}` : 'Discord name not linked yet';
 
   const s = statsFor(chars.filter((c) => c.status !== 'Gestopt'));
-  const tile = (label, value) => `<div class="box stat"><span class="muted">${label}</span><strong>${esc(value ?? '–')}</strong></div>`;
+  const tile = (label, value, sub) => `<div class="box stat"><span class="muted">${label}</span><strong${typeof value === 'string' && !/^[#\d–]/.test(value) ? ' class="stat-text"' : ''}>${esc(value ?? '–')}</strong>${sub ? `<span class="stat-sub">${esc(sub)}</span>` : ''}</div>`;
   document.getElementById('stats').innerHTML = tile('Characters', s.characters) + tile('Player level (all characters)', s.totalLevel || '–')
     + tile('Highest character level', s.highestLevel) + tile('Total profession skill', s.totalSkill || '–')
-    + tile('Best profession', s.bestProfession ? `${s.bestProfession.name} ${s.bestProfession.skill}` : '–');
+    + tile('Best profession', s.bestProfession ? s.bestProfession.name : '–', s.bestProfession ? `Skill ${s.bestProfession.skill} / 300` : '');
 
   document.getElementById('chars').innerHTML = chars.map((c) => `
     <a class="box" href="${characterUrl(c.name)}" style="text-decoration:none">

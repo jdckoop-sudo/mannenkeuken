@@ -54,7 +54,7 @@ if (!c) {
   const ranked = characters.filter((x) => x.level > 0 && x.status !== 'Gestopt').sort((a, b) => b.level - a.level);
   const rank = c.level > 0 ? ranked.findIndex((x) => x === c) + 1 : null;
   const skills = c.profs.filter((p) => p.skill !== null);
-  const tile = (label, value) => `<div class="box stat"><span class="muted">${label}</span><strong>${esc(value ?? '–')}</strong></div>`;
+  const tile = (label, value, sub) => `<div class="box stat"><span class="muted">${label}</span><strong${typeof value === 'string' && !/^[#\d–]/.test(value) ? ' class="stat-text"' : ''}>${esc(value ?? '–')}</strong>${sub ? `<span class="stat-sub">${esc(sub)}</span>` : ''}</div>`;
   document.getElementById('stats').innerHTML = tile('Level', c.level) + tile('Level rank in the guild', rank ? `#${rank} of ${ranked.length}` : '–')
     + tile('Professions', c.profs.length || '–') + tile('Total profession skill', skills.reduce((a, p) => a + p.skill, 0) || '–');
 

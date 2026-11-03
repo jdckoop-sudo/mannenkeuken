@@ -83,7 +83,30 @@ h2 { margin: 0; font-size: 20px; }
 }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
-.stat strong { font-family: var(--font-display); font-size: 32px; color: var(--gold-bright); }
+.stat { min-width: 0; gap: 6px; }
+.stat strong { font-family: var(--font-display); font-size: clamp(24px, 3.2vw, 32px); line-height: 1.15; color: var(--gold-bright); overflow-wrap: anywhere; }
+/* Text values (a profession, a name) are smaller than numbers so they fit the tile */
+.stat strong.stat-text { font-size: clamp(17px, 2vw, 22px); letter-spacing: .02em; }
+.stat .stat-sub { font-size: 14px; color: var(--muted); }
+/* Key-number tiles: two per row on phones instead of one */
+.grid:has(> .stat) { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+/* Bar chart (guild overview): label · bar · value */
+.chart-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.chart-filters label { flex: 1 1 170px; }
+.chart-filters .btn { flex: none; }
+.bars { display: flex; flex-direction: column; gap: 2px; }
+.bar-row { display: grid; grid-template-columns: minmax(90px, 160px) 1fr 56px; gap: 12px; align-items: center; padding: 3px 0; border-radius: 4px; }
+.bar-row:hover .bar, .bar-row:focus .bar { background: var(--gold-bright); }
+.bar-row:focus { outline: 1px solid var(--gold-dim); outline-offset: 2px; }
+.bar-label { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { height: 16px; }
+.bar { height: 100%; min-width: 2px; background: var(--gold); border-radius: 0 4px 4px 0; transition: width .25s; }
+.bar-value { font-size: 14px; text-align: right; font-weight: 600; color: var(--text); }
+.chart-tip { position: fixed; z-index: 20; pointer-events: none; max-width: 220px; background: var(--panel-3); border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px 10px; font-size: 13px; color: var(--text); box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.simple-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.simple-table th, .simple-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.simple-table .num { text-align: right; }
 
 /* Buttons */
 .btn {
@@ -141,3 +164,19 @@ tbody tr:hover { background: rgba(255, 255, 255, .03); }
 .good { color: var(--good); }
 .warn { color: var(--warn); }
 hr { border: none; border-top: 1px solid var(--border); }
+
+/* Phones */
+@media (max-width: 640px) {
+  main { padding: 16px 12px; gap: 16px; }
+  .box { padding: 14px; gap: 10px; }
+  h1 { font-size: 26px; }
+  h2 { font-size: 18px; }
+  .grid { grid-template-columns: 1fr; gap: 12px; }
+  .grid:has(> .stat) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat strong { font-size: 24px; }
+  .stat strong.stat-text { font-size: 16px; }
+  .bar-row { grid-template-columns: minmax(70px, 34%) 1fr 40px; gap: 8px; }
+  .chart-filters label { flex-basis: calc(50% - 6px); }
+  .chart-filters .btn { flex: 1 1 100%; }
+  th, td { padding: 8px; }
+}
