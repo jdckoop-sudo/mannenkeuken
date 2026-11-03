@@ -1,0 +1,43 @@
+# Manual only: try to read a character from the Blizzard (Battle.net) API with our client.
+# Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. Writes nothing and changes nothing on the site.
+name: Test Blizzard API
+on:
+  workflow_dispatch:
+    inputs:
+      character:
+        description: 'Character name (e.g. Markrutte)'
+        required: true
+        default: 'Markrutte'
+      realm:
+        description: 'Realm name (e.g. Outland); for WoW: Forever the ruleset or whatever replaces the realm'
+        required: true
+        default: 'Outland'
+      region:
+        description: 'Region'
+        required: true
+        default: 'eu'
+        type: choice
+        options: [eu, us, kr, tw]
+      namespaces:
+        description: 'Extra namespaces to try, comma separated (optional)'
+        required: false
+        default: ''
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Ask the Blizzard API
+        run: node tools/blizzard-test.mjs
+        env:
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          CHARACTER: ${{ inputs.character }}
+          REALM: ${{ inputs.realm }}
+          REGION: ${{ inputs.region }}
+          NAMESPACES: ${{ inputs.namespaces }}

@@ -21,6 +21,7 @@ Twee vaste taken:
 | Dashboard (live) | https://jdckoop-sudo.github.io/mannenkeuken/ |
 | GitHub-repo | https://github.com/jdckoop-sudo/mannenkeuken (Jelle = eigenaar, Justin = collaborator) |
 | Supabase-project | `mannenkeuken` (Europa) – SQL Editor: https://supabase.com/dashboard/project/uvnmgyhnqlibnvpivhdf/sql/new |
+| Blizzard-API (experiment) | developer-client op https://develop.battle.net; de geheimen `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan alleen als GitHub Actions-secrets (Claude typt ze nooit in en vraagt er nooit naar). Testen: Actions → *Test Blizzard API* → Run workflow (`tools/blizzard-test.mjs`), of lokaal met `node --env-file=<privé .env buiten de OneDrive-map> tools/blizzard-test.mjs <character> <realm> [regio]` (zie `.env.example`; `.env`-bestanden staan in `.gitignore`; Claude leest zo'n bestand nooit uit) |
 
 ### Sheet
 - **Members**: kopregel 4, spelers vanaf regel 5. Kolommen: A Player (echte naam), B Character, C Race, D Class, E Role, F Level, G Profession 1, H Skill 1, I Profession 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated, P Status (Main / Alt / Gestopt), Q Notes (opmerkingen, bijv. "Druid als back-up"). Een alt = een extra regel met Status = Alt.
@@ -136,4 +137,5 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag d
 - Yvo (Skynal): race leeg (Skyborne kan geen Priest). Bij de volgende sync vragen: Troll, Undead of Blood Elf.
 - Guildbank: nog niet gekocht (sparen voor 100 gold).
 - Nieuwe Forever-dungeons (Wowhead-id's) toevoegen aan `js/dungeons.js` zodra bekend.
+- Blizzard-API: het testscript werkt met gewone (retail) WoW (getest op 3 nov 2026: level, class, race, laatste login en beroepen komen terug). Na de launch (4/5 nov 2026) testen of WoW: Forever in de API zit (andere namespace? "ruleset" in plaats van realm?). Werkt het, dan kunnen level en beroepen automatisch uit de API komen in plaats van met de hand in de sheet. Tot die tijd gebruikt de site de API nergens voor.
 - De oude Discord-app/-provider in Supabase wordt niet meer gebruikt; mag uit.
