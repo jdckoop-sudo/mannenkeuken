@@ -2,8 +2,8 @@
 // tradeable-only list in data/tradeable-items.json; both refreshed daily by the "Update items" GitHub workflow).
 
 const QUALITY = ['Poor', 'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Artifact', 'Heirloom'];
-// Darker variants of the in-game colours so they stay readable on white.
-const COLOR = ['#6b7280', '#1f2937', '#1a7f00', '#0058b0', '#7e2fc0', '#b45309', '#8a6d1f', '#007a99'];
+// The usual item-quality colours, tuned to stay readable on the dark theme.
+const COLOR = ['#9d9d9d', '#ffffff', '#1eff00', '#4aa3ff', '#c26bff', '#ff8000', '#e6cc80', '#00ccff'];
 
 const itemsPromises = {};
 const mapItems = (d) => (d.items ?? []).map(([id, name, quality, ilvl, stack]) => ({ id, name, quality, ilvl, stack, lower: name.toLowerCase() }));
@@ -64,15 +64,15 @@ export function attachItemSearch(input, onPick, opts = {}) {
   const baseMeta = opts.meta ?? ((it) => (it.ilvl ? `ilvl ${it.ilvl}` : ''));
   const metaOf = (it) => (it.extra ? 'added by the guild' : baseMeta(it));
   const baseColor = opts.color ?? ((it) => qualityColor(it.quality));
-  const colorOf = (it) => (it.extra ? '#1f2937' : baseColor(it));
+  const colorOf = (it) => (it.extra ? 'var(--text)' : baseColor(it));
   searchCount += 1;
   const list = document.createElement('ul');
   list.id = `${input.name || 'item'}-suggestions-${searchCount}`;
   list.setAttribute('role', 'listbox');
   list.hidden = true;
-  list.style.cssText = 'list-style:none;margin:4px 0 0;padding:4px;border:2px solid #9ca3af;border-radius:6px;background:#fff;max-height:320px;overflow:auto;position:absolute;left:0;right:0;z-index:10';
+  list.style.cssText = 'list-style:none;margin:4px 0 0;padding:4px;border:1px solid var(--gold-dim);border-radius:6px;background:var(--panel-2);box-shadow:0 8px 24px rgba(0,0,0,.6);max-height:320px;overflow:auto;position:absolute;left:0;right:0;z-index:10';
   const wrap = document.createElement('div');
-  wrap.style.position = 'relative';
+  wrap.className = 'combo';
   input.replaceWith(wrap);
   wrap.append(input, list);
   input.setAttribute('role', 'combobox');
@@ -93,13 +93,13 @@ export function attachItemSearch(input, onPick, opts = {}) {
       li.id = `${list.id}-${i}`;
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', String(i === active));
-      li.style.cssText = `padding:10px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:12px;${i === active ? 'background:#e5e7eb;' : ''}`;
+      li.style.cssText = `padding:10px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:12px;${i === active ? 'background:var(--panel-3);' : ''}`;
       const name = document.createElement('span');
       name.textContent = it.name;
       name.style.cssText = `color:${colorOf(it)};font-weight:600`;
       const meta = document.createElement('span');
       meta.textContent = metaOf(it);
-      meta.style.cssText = 'color:#4b5563;font-size:13px;white-space:nowrap';
+      meta.style.cssText = 'color:var(--muted);font-size:13px;white-space:nowrap';
       li.append(name, meta);
       li.addEventListener('mousedown', (e) => { e.preventDefault(); choose(it); });
       list.append(li);
