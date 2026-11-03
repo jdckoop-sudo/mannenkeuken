@@ -59,7 +59,7 @@
   </div>
 </main>
 <script type="module">
-import { renderHeader } from './js/layout.js?v=__V__';
+import { renderHeader, isDevMode } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember, mine } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
@@ -69,6 +69,7 @@ import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V_
 const PROFESSIONS = ['Alchemy', 'Blacksmithing', 'Enchanting', 'Engineering', 'Herbalism', 'Leatherworking', 'Mining', 'Skinning', 'Tailoring', 'Cooking', 'First Aid', 'Fishing'];
 
 const user = await renderHeader();
+const devMode = isDevMode(user); // developers may delete anyone's listing
 const form = document.getElementById('new');
 const msg = document.getElementById('form-msg');
 let listings = [];
@@ -143,7 +144,7 @@ function draw() {
       <td>${l.item_id ? `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)}` : ''}">${esc(l.item)}</a>` : esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}${extra}${reserveUi}</td>
       <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}${res.length ? `<br><span class="muted" style="font-size:13px">${free} free</span>` : ''}</td>
       <td>${isMine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}</td>
-      <td>${isMine && isDone ? `<button class="link-btn" data-reopen="${l.id}">Reopen</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : isMine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
+      <td>${isMine && isDone ? `<button class="link-btn" data-reopen="${l.id}">Reopen</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : isMine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : devMode ? `<button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}" title="Developer mode">Delete (dev)</button>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
   refreshTooltips();
 }
