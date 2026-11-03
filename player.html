@@ -44,6 +44,8 @@ if (!target) {
     .sort((a, b) => (a.kind === 'Main' ? -1 : 1) - (b.kind === 'Main' ? -1 : 1) || (b.level ?? 0) - (a.level ?? 0));
   document.title = `${target} – Mannenkeuken`;
   document.getElementById('title').textContent = target;
+  // Player colour from css/style.css (--player-<name>); unknown players keep the normal heading colour.
+  document.getElementById('title').style.color = `var(--player-${target.toLowerCase().replace(/[^a-z0-9]/g, '')}, inherit)`;
   document.getElementById('sub').textContent = p?.discord_name ? `Discord: ${p.discord_name}` : 'Discord name not linked yet';
 
   const s = statsFor(chars.filter((c) => c.status !== 'Gestopt'));

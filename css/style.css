@@ -23,6 +23,19 @@
   --good: #5fd06a;
   --warn: #f0a23b;
   --bad: #ef6b6b;
+  /* One colour per player (same colours as column A of the guild sheet, see docs/instructies.md) */
+  --player-jelle: #6fb7ff;
+  --player-justin: #ff8f5e;
+  --player-bas: #7ddc7d;
+  --player-rawas: #e58ae0;
+  --player-jermo: #b49cff;
+  --player-jacco: #4fd8cf;
+  --player-laurens: #ff6f91;
+  --player-mike: #ff5c5c;
+  --player-murn: #c6e35a;
+  --player-yvo: #f7b2d9;
+  --player-mees: #d2a679;
+  --player-ian: #9ab8c8;
   --font-display: 'Cinzel', Georgia, 'Times New Roman', serif;
   --font-body: 'Segoe UI', system-ui, -apple-system, 'Open Sans', Arial, sans-serif;
 }
@@ -274,3 +287,18 @@ body::before {
   body::before { width: 78vw; right: -6vw; bottom: 1vh; }
 }
 
+/* Player colours: every link to a player page gets that player's colour, so alts are easy to match to their player.
+   The doubled [href] beats page rules such as '.prof-table .player'. New player: add a --player-… colour above and a line here. */
+a[href="player.html?name=Jelle"][href] { color: var(--player-jelle); }
+a[href="player.html?name=Justin"][href] { color: var(--player-justin); }
+a[href="player.html?name=Bas"][href] { color: var(--player-bas); }
+a[href="player.html?name=Rawas"][href] { color: var(--player-rawas); }
+a[href="player.html?name=Jermo"][href] { color: var(--player-jermo); }
+a[href="player.html?name=Jacco"][href] { color: var(--player-jacco); }
+a[href="player.html?name=Laurens"][href] { color: var(--player-laurens); }
+a[href="player.html?name=Mike"][href] { color: var(--player-mike); }
+a[href="player.html?name=Murn"][href] { color: var(--player-murn); }
+a[href="player.html?name=Yvo"][href] { color: var(--player-yvo); }
+a[href="player.html?name=Mees"][href] { color: var(--player-mees); }
+a[href="player.html?name=Ian"][href] { color: var(--player-ian); }
+a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
