@@ -123,7 +123,20 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag d
 ---
 
 ## Samenwerken: elkaars werk nooit overschrijven
-Jelle en Justin werken elk met hun eigen Claude in dezelfde repo. Elke Claude volgt deze regels:
+Jelle en Justin werken elk met hun eigen Claude in dezelfde repo.
+
+### Bij de start van elk gesprek (Claude doet dit vanzelf)
+1. Vraag met wie je praat (Jelle of Justin) als dat niet duidelijk is.
+2. `git fetch` en geef een **korte samenvatting van wat de ander heeft gedaan sinds de laatste PR van deze persoon**: gemergede PR's van de ander (branch `tinus/…` = Justin, `jelle/…` = Jelle) met titel en het stukje *Voor de ander*. Bijv. `gh pr list --state merged --limit 30 --json number,title,headRefName,mergedAt,body` en filteren op de branchnaam.
+3. Noem ook de **open draft-PR's van de ander** (`[bezig] …`): daar is hij nu mee bezig; niet aan dezelfde bestanden werken zonder overleg.
+4. Na 5 nov 2026: noem de punten onder *Na de launch (todo)*.
+
+### Tijdens het werk: laten zien waar je mee bezig bent
+- Zodra je ergens aan begint: branch maken, eerste commit pushen en meteen een **draft-PR** openen met titel `[bezig] <onderwerp>`. Zo ziet de ander live op GitHub (en via `gh pr list`) waar je mee bezig bent.
+- Klaar: `[bezig]` uit de titel, PR "ready for review" zetten, rebasen en mergen.
+- Elke PR-beschrijving bevat: **Wat** (wat er veranderd is), **Waarom**, en **Voor de ander** (waar de ander op moet letten: andere bestanden, database-wijziging, iets om te testen). Die beschrijvingen samen zijn het logboek.
+
+### Regels
 1. **Begin altijd vanaf de nieuwste `main`**: `git fetch` en een nieuwe branch vanaf `origin/main` (nooit verder bouwen op een oude lokale kopie).
 2. **Kijk eerst wat de ander doet**: `gh pr list` (open PR's) en `git log origin/main -10` (laatste wijzigingen). Heeft de ander een open PR of branch die dezelfde bestanden raakt: niet daarin werken, eerst overleggen of wachten.
 3. **Jelle en Justin doen allebei alles** – er is geen eigen terrein. Werk je in iets wat de ander als laatste heeft aangepast (zie `git log` per bestand), houd zijn aanpak aan en schrijf in de PR-tekst wat je hebt veranderd.
@@ -136,10 +149,10 @@ Jelle en Justin werken elk met hun eigen Claude in dezelfde repo. Elke Claude vo
 10. **Even in Discord melden** waar je mee bezig bent, zeker bij grotere wijzigingen.
 
 ### Wie doet wat
-**Allebei alles**: sync, sheet en sheet-script, Supabase, guildcode, dashboard, stijl én de Blizzard-koppeling. Iedereen kan alles lokaal testen, ook de Blizzard-scripts (met een eigen dev-client, zie *Vaste gegevens*). Afstemmen gaat via *Nu bezig* hieronder en een berichtje in Discord, niet via vaste taken.
+**Allebei alles**: sync, sheet en sheet-script, Supabase, guildcode, dashboard, stijl én de Blizzard-koppeling. Iedereen kan alles lokaal testen, ook de Blizzard-scripts (met een eigen dev-client, zie *Vaste gegevens*). Afstemmen gaat via de `[bezig]`-draft-PR's en een berichtje in Discord, niet via vaste taken.
 
-### Nu bezig (bijwerken als je ergens aan begint of klaar bent)
-- **Justin**: op het platform tonen wanneer de laatste Blizzard-update was (gesprek 3 nov).
+### Nu bezig
+Kijk op GitHub naar de open draft-PR's met `[bezig]` in de titel (dat is altijd actueel). Bekend op 3 nov: Justin werkt aan "laatste Blizzard-update tonen op het platform".
 
 ---
 
@@ -155,7 +168,7 @@ Jelle en Justin werken elk met hun eigen Claude in dezelfde repo. Elke Claude vo
 
 ## Na de launch (todo) – Claude: noem deze punten bij de eerste sync of update na 5 nov 2026
 1. **Blizzard-koppeling aanzetten** (Jelle of Justin): realm-slug opzoeken, `data/blizzard-config.json` op `profile-forever-eu` + realm zetten, **Update characters** met de hand draaien en controleren, dan het schema aanzetten in `update-characters.yml`. Afgesproken: **elke 10–15 minuten** (een update kost ±110 calls, de limiet is 36.000 per uur). Blizzard ververst een character pas na uitloggen, dus vaker heeft geen zin. Een update-knop of Discord-`/update` is daarom **niet nodig** (besproken op 3 nov).
-2. **Recepten-hover bij spelers**: in `tools/update-characters.mjs` (Jelle of Justin; afstemmen via *Nu bezig*) per beroep ook `known_recipes` uit de Blizzard-professions bewaren in `data/blizzard-characters.json`. Daarna op Professions, Roster, characterpagina en bij "Requests you can craft" een hover tonen met wat iemand echt kan maken (Wowhead-links).
+2. **Recepten-hover bij spelers**: in `tools/update-characters.mjs` (Jelle of Justin; afstemmen via een `[bezig]`-draft-PR) per beroep ook `known_recipes` uit de Blizzard-professions bewaren in `data/blizzard-characters.json`. Daarna op Professions, Roster, characterpagina en bij "Requests you can craft" een hover tonen met wat iemand echt kan maken (Wowhead-links).
 3. **Welk is leidend bij verschil sheet ↔ Blizzard** (level, beroepen) afspreken met Justin en inbouwen.
 4. **Laatste login openbaar?** Beslissen: tonen, weglaten, of repo privé (de repo is openbaar, `data/blizzard-characters.json` dus ook).
 5. **Home-intro** ("[Short guild intro / message of the day]"): voorstel = tot de launch een aftelklok, daarna een door leden aanpasbare *Message of the day* + het eerstvolgende event met "Sign up". Nog niet gekozen.
