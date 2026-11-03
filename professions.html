@@ -18,6 +18,11 @@
     <p class="muted">Who can craft what – guild-found, so we make everything ourselves (Mains and Alts)</p>
   </div>
   <div class="grid" id="cards" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr))"><p class="muted">Loading…</p></div>
+  <section aria-labelledby="sec-h" id="sec-wrap" hidden>
+    <h2 id="sec-h" style="margin-bottom:2px">Secondary professions</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:14px">Cooking, First Aid and Fishing – every character can learn all 3.</p>
+    <div class="grid" id="sec-cards" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))"></div>
+  </section>
   <section class="box" aria-labelledby="rose-h" style="border-top:2px solid var(--gold)">
     <h2 id="rose-h">Guild skill per profession</h2>
     <p class="muted" style="margin:0;font-size:14px">Each slice is one profession. The bigger the slice, the more skill the guild has in it (all characters added together), as a share of the total. Small or missing slices are where we are behind. Hover or tap a slice or a row.</p>
@@ -55,9 +60,10 @@ loadMembers().then((members) => {
       (byProf[p] ??= []).push({ name: m.character, player: m.player, cls: m.cls, level: Number(m.level) || 0, skill: Number(s) || 0 });
     }
   }
-  const names = [...Object.keys(byProf).filter((p) => !SECONDARY.includes(p)).sort((a, b) => byProf[b].length - byProf[a].length || a.localeCompare(b)), ...SECONDARY.filter((p) => byProf[p])];
+  const mainNames = Object.keys(byProf).filter((p) => !SECONDARY.includes(p)).sort((a, b) => byProf[b].length - byProf[a].length || a.localeCompare(b));
+  const secNames = SECONDARY.filter((p) => byProf[p]);
   // Per profession: character → player → level (highest first), skill alongside
-  document.getElementById('cards').innerHTML = names.map((p) => `
+  const card = (p) => `
     <section class="box">
       <div><h2>${professionLabel(p, { size: 28 })}</h2><p class="muted" style="font-size:13px;margin-top:2px">${byProf[p].length} character${byProf[p].length === 1 ? '' : 's'}</p></div>
       <table class="prof-table"><thead><tr><th>Character</th><th>Player</th><th class="num">Lvl</th><th class="num">Skill</th></tr></thead><tbody>
@@ -67,7 +73,11 @@ loadMembers().then((members) => {
         <td class="num"><strong>${c.level || '–'}</strong></td>
         <td class="num"><span class="muted">${c.skill} / ${MAX}</span></td></tr>`).join('')}
       </tbody></table>
-    </section>`).join('') || '<p class="muted">No professions in the sheet yet.</p>';
+    </section>`;
+  // Main professions first; Cooking, First Aid and Fishing in their own row of 3 below
+  document.getElementById('cards').innerHTML = mainNames.map(card).join('') || (secNames.length ? '' : '<p class="muted">No professions in the sheet yet.</p>');
+  document.getElementById('sec-cards').innerHTML = secNames.map(card).join('');
+  document.getElementById('sec-wrap').hidden = !secNames.length;
 
   // Two rose charts: main professions (max. 2 per character) and secondary (everyone can learn all 3)
   const MAIN = ['Mining', 'Engineering', 'Blacksmithing', 'Skinning', 'Enchanting', 'Leatherworking', 'Tailoring', 'Herbalism', 'Alchemy'];
