@@ -1,0 +1,8 @@
+{
+  "_comment": "Settings for tools/update-characters.mjs. Today: regular (retail) WoW. At the WoW: Forever launch: set namespace to profile-forever-eu, realm to the slug of our PvE realm (see /data/wow/realm/index?namespace=dynamic-forever-eu) and check nameFormat (encode | hyphen | nospace).",
+  "region": "eu",
+  "namespace": "profile-eu",
+  "realm": "outland",
+  "nameFormat": "encode",
+  "delayMs": 150
+}

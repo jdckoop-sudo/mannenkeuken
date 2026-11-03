@@ -25,11 +25,17 @@
       <p class="muted" id="where" style="font-size:13px;margin:0"></p>
     </section>
   </div>
+  <section class="box" id="blizzard" hidden>
+    <h2>From the game</h2>
+    <div class="stat-list" id="bz-details"></div>
+    <div id="bz-profs" style="display:flex;flex-direction:column;gap:10px"></div>
+    <p class="muted" id="bz-note" style="font-size:13px;margin:0"></p>
+  </section>
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
-import { loadCharacters, playerUrl } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, playerUrl } from './js/players.js?v=__V__';
 
 await renderHeader();
 const name = new URLSearchParams(location.search).get('name') || '';
@@ -61,6 +67,17 @@ if (!c) {
 
   document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', c.status], ['Key recipes', c.recipes], ['Notes', c.notes], ['Sheet last updated', c.updated]]
     .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
+  // Live data from the Blizzard API, when the update workflow has fetched this character
+  const bz = (await loadBlizzard())?.characters?.[c.name.toLowerCase()];
+  if (bz?.status === 'ok') {
+    const when = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null);
+    document.getElementById('bz-details').innerHTML = [['Level', bz.level], ['Race', bz.race], ['Class', bz.class], ['Faction', bz.faction], ['Guild', bz.guild], ['Last login', when(bz.lastLogin)]]
+      .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
+    document.getElementById('bz-profs').innerHTML = (bz.professions ?? []).filter((p) => p.skill !== null).map((p) => `<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${esc(p.name)}</span><span class="muted">${esc(p.skill)} / ${esc(p.max)}</span></div>
+      <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, p.max ? (p.skill / p.max) * 100 : 0)}%"></div></div></div>`).join('');
+    document.getElementById('bz-note').textContent = `Read from the Blizzard API, last checked ${when(bz.fetched) ?? 'recently'}. It updates after the player logs out.`;
+    document.getElementById('blizzard').hidden = false;
+  }
   document.getElementById('where').textContent = c.inSheet ? (c.onSite ? 'In the guild sheet and on the dashboard.' : 'From the guild sheet.') : 'Added on the dashboard – not in the guild sheet yet (it is added at the next guild sync).';
 }
 </script>
