@@ -58,7 +58,8 @@ export const qualityName = (q) => QUALITY[q] ?? '';
 
 // Turns <input> into a combobox. onPick(item|null) is called when an item is chosen or the text no longer matches it.
 let searchCount = 0;
-// opts (optional, for other lists such as quests): { load, meta(it), color(it) }
+// opts (optional, for other lists such as quests): { load, meta(it), color(it), link(it) }
+// link(it) = Wowhead URL of a suggestion: the name then becomes a link, so Wowhead's hover tooltip (icon + stats) works in the list.
 export function attachItemSearch(input, onPick, opts = {}) {
   const load = opts.load ?? loadItemSuggestions;
   const baseMeta = opts.meta ?? ((it) => (it.ilvl ? `ilvl ${it.ilvl}` : ''));
@@ -94,9 +95,11 @@ export function attachItemSearch(input, onPick, opts = {}) {
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', String(i === active));
       li.style.cssText = `padding:10px;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;gap:12px;${i === active ? 'background:var(--panel-3);' : ''}`;
-      const name = document.createElement('span');
+      const url = it.id && !it.extra ? opts.link?.(it) : null;
+      const name = document.createElement(url ? 'a' : 'span');
       name.textContent = it.name;
-      name.style.cssText = `color:${colorOf(it)};font-weight:600`;
+      name.style.cssText = `color:${colorOf(it)};font-weight:600;text-decoration:none`;
+      if (url) { name.href = url; name.rel = 'noopener'; name.addEventListener('click', (e) => e.preventDefault()); } // hover only: picking happens on mousedown
       const meta = document.createElement('span');
       meta.textContent = metaOf(it);
       meta.style.cssText = 'color:var(--muted);font-size:13px;white-space:nowrap';
@@ -105,6 +108,7 @@ export function attachItemSearch(input, onPick, opts = {}) {
       list.append(li);
     });
     if (active >= 0) input.setAttribute('aria-activedescendant', `${list.id}-${active}`);
+    if (opts.link) refreshTooltips();
     list.hidden = matches.length === 0;
     input.setAttribute('aria-expanded', String(!list.hidden));
   }

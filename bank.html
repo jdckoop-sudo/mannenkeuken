@@ -245,7 +245,7 @@ document.querySelectorAll('.item-form').forEach((f) => {
       hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
       refreshTooltips();
     } else hint.textContent = '';
-  });
+  }, { link: (it) => wowheadUrl(it.id) });
 });
 loadItems().then((list) => { itemsById = new Map(list.map((i) => [i.id, i])); draw(); });
 
