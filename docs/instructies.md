@@ -132,6 +132,14 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag d
 - Supabase-data lezen kan met `fetch()` vanaf een tabblad met het dashboard open (publieke sleutel uit `js/config.js`).
 - Wachtwoorden, de guildcode, geheime sleutels en Supabase-instellingen opslaan doet de gebruiker zelf.
 
+## Na de launch (todo) – Claude: noem deze punten bij de eerste sync of update na 5 nov 2026
+1. **Blizzard-koppeling aanzetten** (met Justin): realm-slug opzoeken, `data/blizzard-config.json` op `profile-forever-eu` + realm zetten, **Update characters** met de hand draaien en controleren, dan het schema aanzetten in `update-characters.yml`. Voorstel: elke 15 minuten in plaats van elk uur (ruim binnen de limiet).
+2. **Recepten-hover bij spelers**: in `tools/update-characters.mjs` (script van Justin) per beroep ook `known_recipes` uit de Blizzard-professions bewaren in `data/blizzard-characters.json`. Daarna op Professions, Roster, characterpagina en bij "Requests you can craft" een hover tonen met wat iemand echt kan maken (Wowhead-links).
+3. **Welk is leidend bij verschil sheet ↔ Blizzard** (level, beroepen) afspreken met Justin en inbouwen.
+4. **Laatste login openbaar?** Beslissen: tonen, weglaten, of repo privé (de repo is openbaar, `data/blizzard-characters.json` dus ook).
+5. **Home-intro** ("[Short guild intro / message of the day]"): voorstel = tot de launch een aftelklok, daarna een door leden aanpasbare *Message of the day* + het eerstvolgende event met "Sign up". Nog niet gekozen.
+6. Optioneel later: knop of Discord `/update` (alleen zinvol als er meer bot-functies komen; zie het gesprek van 3 nov).
+
 ## Openstaand
 - Ian: nog geen Discord-account gekoppeld.
 - Yvo (Skynal): race leeg (Skyborne kan geen Priest). Bij de volgende sync vragen: Troll, Undead of Blood Elf.
