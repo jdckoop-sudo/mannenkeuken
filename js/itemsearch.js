@@ -9,7 +9,7 @@ let itemsPromise = null;
 export function loadItems() {
   itemsPromise ??= fetch('data/items.json?v=__V__')
     .then((r) => (r.ok ? r.json() : { items: [] }))
-    .then((d) => (d.items ?? []).map(([id, name, quality, ilvl]) => ({ id, name, quality, ilvl, lower: name.toLowerCase() })))
+    .then((d) => (d.items ?? []).map(([id, name, quality, ilvl, stack]) => ({ id, name, quality, ilvl, stack, lower: name.toLowerCase() })))
     .catch(() => []);
   return itemsPromise;
 }

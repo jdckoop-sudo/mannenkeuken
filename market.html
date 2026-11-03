@@ -24,7 +24,7 @@
       </fieldset>
       <label for="item-input">Item</label>
       <div><input id="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"><p id="item-hint" class="muted" style="font-size:13px;margin:6px 0 0"></p></div>
-      <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
+      <label>Quantity<input name="quantity" type="number" min="1" value="1"><span id="qty-note" class="muted" style="font-size:13px"></span></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <label style="flex:1 1 140px">Crafted with (optional)<select name="profession"><option value="">–</option></select></label>
         <label style="flex:0 1 110px">Skill needed<input name="min_skill" type="number" min="1" max="300" placeholder="e.g. 75"></label>
@@ -44,6 +44,7 @@
           <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-tagged"> Tagged me</label>
           <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-craft"> I can craft</label>
           <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-mine"> My listings</label>
+          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-done"> My finished listings</label>
           <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-res"> My reservations</label>
         </div>
       </div>
@@ -79,8 +80,17 @@ let pickedItem = null;
 let editingId = null;
 let itemsById = new Map();
 const hint = document.getElementById('item-hint');
+// Items that can't be stacked (weapons, armor, ...) are always quantity 1.
+function limitQuantity(it) {
+  const single = it?.stack === 1;
+  if (single) form.quantity.value = 1;
+  if (single) form.quantity.max = 1; else form.quantity.removeAttribute('max');
+  form.quantity.readOnly = single;
+  document.getElementById('qty-note').textContent = single ? "This item can't be stacked, so the quantity is 1." : '';
+}
 const search = attachItemSearch(document.getElementById('item-input'), (it) => {
   pickedItem = it;
+  limitQuantity(it);
   if (it) {
     hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
     refreshTooltips();
@@ -94,7 +104,7 @@ else if (!(await isGuildMember())) { msg.textContent = 'Choose your player with 
 
 async function load() {
   if (!supabase) { document.getElementById('rows').innerHTML = '<tr><td colspan="7">Not connected yet.</td></tr>'; return; }
-  const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });
+  const { data } = await supabase.from('listings').select('*').order('created_at', { ascending: false }); // open ones for everyone, finished ones only shown to their owner
   listings = data ?? [];
   const ids = listings.map((l) => l.id);
   reservations = ids.length ? (await supabase.from('listing_reservations').select('*').in('listing_id', ids).order('created_at')).data ?? [] : [];
@@ -109,7 +119,9 @@ function draw() {
   const craft = document.getElementById('f-craft').checked;
   const onlyMine = document.getElementById('f-mine').checked;
   const myRes = document.getElementById('f-res').checked;
-  const list = listings.filter((l) => (!f || l.kind === f)
+  const finished = document.getElementById('f-done').checked;
+  const list = listings.filter((l) => (finished ? l.status === 'done' && mine(user, l.user_id) : l.status === 'open')
+    && (!f || l.kind === f)
     && (!q || `${l.item} ${l.note ?? ''} ${l.author_name} ${(l.pinged ?? []).join(' ')}`.toLowerCase().includes(q))
     && (!prof || l.profession === prof)
     && (!tagged || (me && (l.pinged ?? []).includes(me)))
@@ -118,22 +130,24 @@ function draw() {
     && (!myRes || reservations.some((r) => r.listing_id === l.id && mine(user, r.user_id))));
   document.getElementById('rows').innerHTML = list.map((l) => {
     const isMine = mine(user, l.user_id);
+    const isDone = l.status === 'done';
     const res = reservations.filter((r) => r.listing_id === l.id);
     const free = l.quantity - reservedCount(res);
-    const reserveUi = l.kind === 'offer' ? reservationsHtml(res, user) + (user && !isMine ? reserveFormHtml(l.id, myChars, free) : '') : '';
+    const reserveUi = l.kind === 'offer' && !isDone ? reservationsHtml(res, user) + (user && !isMine ? reserveFormHtml(l.id, myChars, free) : '') : '';
     const crafters = canCraft(l);
     const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${crafters.length ? ` <span style="font-size:13px;color:#1a7f00">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
+      + (isDone ? '<br><span class="badge">Finished</span>' : '')
       + ((l.pinged ?? []).length ? `<br><span class="muted" style="font-size:13px">Tagged: ${l.pinged.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</span>` : '');
     return `<tr class="${isMine ? 'mine' : ''}">
       <td>${l.item_id ? `<a href="${wowheadUrl(l.item_id)}" target="_blank" rel="noopener" style="font-weight:600;${itemsById.get(l.item_id) ? `color:${qualityColor(itemsById.get(l.item_id).quality)}` : ''}">${esc(l.item)}</a>` : esc(l.item)}${l.note ? `<br><span class="muted">${esc(l.note)}</span>` : ''}${extra}${reserveUi}</td>
       <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}${res.length ? `<br><span class="muted" style="font-size:13px">${free} free</span>` : ''}</td>
       <td>${isMine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString()}</td>
-      <td>${isMine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
+      <td>${isMine && isDone ? `<button class="link-btn" data-reopen="${l.id}">Reopen</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : isMine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
   refreshTooltips();
 }
 
-['filter', 'f-q', 'f-prof', 'f-tagged', 'f-craft', 'f-mine', 'f-res'].forEach((id) => document.getElementById(id).addEventListener('input', draw));
+['filter', 'f-q', 'f-prof', 'f-tagged', 'f-craft', 'f-mine', 'f-done', 'f-res'].forEach((id) => document.getElementById(id).addEventListener('input', draw));
 
 // Which of my characters can craft this listing (profession + enough skill)?
 function canCraft(l) {
@@ -157,6 +171,7 @@ function startEdit(l) {
   form.min_skill.value = l.min_skill ?? '';
   drawPingList(l.pinged ?? []);
   pickedItem = l.item_id ? itemsById.get(l.item_id) ?? null : null;
+  limitQuantity(pickedItem);
   hint.textContent = '';
   document.getElementById('form-title').textContent = 'Edit listing';
   document.getElementById('submit-btn').textContent = 'Save changes';
@@ -166,7 +181,7 @@ function startEdit(l) {
 }
 function stopEdit() {
   editingId = null;
-  form.reset(); pickedItem = null; hint.textContent = ''; search.reset(); drawPingList();
+  form.reset(); pickedItem = null; limitQuantity(null); hint.textContent = ''; search.reset(); drawPingList();
   document.getElementById('form-title').textContent = 'New listing';
   document.getElementById('submit-btn').textContent = 'Post listing';
   document.getElementById('cancel-edit').hidden = true;
@@ -192,8 +207,13 @@ document.getElementById('rows').addEventListener('click', async (e) => {
   load();
 });
 document.getElementById('rows').addEventListener('click', async (e) => {
-  const { edit, done, del, name } = e.target.dataset;
+  const { edit, done, del, reopen, name } = e.target.dataset;
   if (edit) { startEdit(listings.find((l) => l.id === edit)); return; }
+  if (reopen) {
+    await supabase.from('listings').update({ status: 'open' }).eq('id', reopen);
+    load();
+    return;
+  }
   if (done) {
     if (!confirm(`Are you sure you want to mark "${name}" as done? It will disappear from the market.`)) return;
     await supabase.from('listings').update({ status: 'done' }).eq('id', done);
@@ -211,7 +231,7 @@ form.addEventListener('submit', async (e) => {
   const d = new FormData(form);
   const fields = {
     kind: d.get('kind'), item: d.get('item'), item_id: pickedItem && pickedItem.name === d.get('item') ? pickedItem.id : null,
-    quantity: Number(d.get('quantity')) || 1, note: d.get('note'),
+    quantity: pickedItem && pickedItem.name === d.get('item') && pickedItem.stack === 1 ? 1 : Number(d.get('quantity')) || 1, note: d.get('note'),
     profession: d.get('profession') || null, min_skill: d.get('min_skill') ? Number(d.get('min_skill')) : null,
     pinged: d.getAll('pinged'),
   };
