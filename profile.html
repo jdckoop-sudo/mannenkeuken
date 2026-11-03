@@ -73,8 +73,8 @@ if (!canEdit) {
 } else {
   let profile = await getProfile(user);
   profileOwner = profile?.user_id ?? null;
-  const { characters, players } = await loadCharacters();
-  me = playerForUser(user, players);
+  const { characters } = await loadCharacters();
+  me = playerForUser(user);
   if (me) document.getElementById('player-link').innerHTML = `You are <strong>${esc(me)}</strong> in the guild sheet · <a href="${playerUrl(me)}">View your player page & stats</a>`;
 
   // 1. No main yet? Take the Main from the guild sheet (= the Discord roles) and save it.

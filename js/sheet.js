@@ -18,26 +18,6 @@ export async function loadMembers() {
     }));
 }
 
-// Reads the "Addons" tab. Columns: A Category, B Addon, C What it does, D Priority, E For whom, F Link, G Note.
-export async function loadAddons() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Addons&range=A5:G200&headers=0`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Sheet not reachable');
-  return parseCsv(await res.text())
-    .filter((r) => r[1] && r[1].trim())
-    .map((r) => ({ category: r[0], name: r[1], what: r[2], priority: r[3], who: r[4], link: addonLink(r[5], r[1]), linkLabel: r[5], note: r[6] }));
-}
-
-// The CSV export only has the link text, not the URL behind it, so we rebuild a sensible URL.
-function addonLink(text, name) {
-  const t = (text || '').trim();
-  if (/^https?:\/\//i.test(t)) return t;
-  if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(t)) return `https://${t}`;
-  if (/curseforge/i.test(t)) return `https://www.curseforge.com/wow/search?search=${encodeURIComponent(name)}`;
-  if (/github/i.test(t)) return `https://github.com/search?q=${encodeURIComponent(name)}&type=repositories`;
-  return '';
-}
-
 function parseCsv(text) {
   const rows = []; let row = []; let field = ''; let quoted = false;
   for (let i = 0; i < text.length; i++) {

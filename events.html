@@ -104,7 +104,7 @@ const anyPlayers = (e) => e.players_needed != null;
 
 // Tag list: all players except me
 loadPlayers().then((players) => {
-  me = playerForUser(user, players);
+  me = playerForUser(user);
   document.getElementById('ping-list').innerHTML = players.map((p) => p.player_name).filter((p) => p && p !== me).sort().map((p) =>
     `<label style="flex-direction:row;align-items:center;gap:6px;font-size:14px"><input type="checkbox" name="pinged" value="${esc(p)}"> ${esc(p)}</label>`).join('') || '<span class="muted">No players yet.</span>';
   drawEvents();

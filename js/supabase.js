@@ -33,13 +33,7 @@ export function mine(user, uid) {
 }
 
 export function displayName(user) {
-  const m = user?.user_metadata ?? {};
-  return user?.player || m.custom_claims?.global_name || m.full_name || m.name || 'Member';
-}
-
-export function avatarUrl(user) {
-  const m = user?.user_metadata ?? {};
-  return m.avatar_url || m.picture || '';
+  return user?.player || 'Member';
 }
 
 // The player's saved profile (main character) from any of their browsers, or null.
