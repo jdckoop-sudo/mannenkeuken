@@ -48,7 +48,7 @@ export async function renderHeader() {
       nameEl.style.color = classColor(cls);
     };
     try { showClass(localStorage.getItem(cacheKey)); } catch { /* storage not available */ }
-    // Developer mode: click the class icon 5 times (within 3 seconds) – only for the developers.
+    // Developer mode: click the class icon 5 times (within 3 seconds) to switch it on (opens dev.html) or off – only for the developers.
     if (DEVS.includes(user.player)) {
       const icon = auth.querySelector('.user-icon');
       let clicks = [];
@@ -56,7 +56,17 @@ export async function renderHeader() {
       icon.addEventListener('click', () => {
         const now = Date.now();
         clicks = [...clicks.filter((t) => now - t < 3000), now];
-        if (clicks.length >= 5) location.href = 'dev.html';
+        if (clicks.length < 5) return;
+        clicks = [];
+        if (isDevMode(user)) {
+          // On → off (stay on this page; on dev.html itself go to Home, because opening dev.html switches it on)
+          if (!confirm('Switch developer mode off?')) return;
+          setDevMode(false);
+          if (location.pathname.endsWith('dev.html')) location.href = 'index.html'; else location.reload();
+        } else {
+          setDevMode(true);
+          location.href = 'dev.html';
+        }
       });
     }
     if (isDevMode(user)) {
