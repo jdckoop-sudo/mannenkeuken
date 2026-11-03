@@ -8,7 +8,7 @@
 <link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
 <link rel="stylesheet" href="css/style.css?v=__V__">
-<script>const whTooltips = { colorLinks: true, iconizeLinks: true, renameLinks: false, iconSize: 'small' };</script>
+<script>const whTooltips = { colorLinks: true, iconizeLinks: false, renameLinks: false, iconSize: 'small' };</script>
 <script src="https://wow.zamimg.com/js/tooltips.js" async></script>
 </head>
 <body>
@@ -135,9 +135,9 @@ async function drawMe() {
     return `<div style="border:1px solid var(--border);background:var(--panel);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline"><span class="badge">${label}</span>${classIcon(c.class, 24)}<strong style="font-size:18px;color:${classColor(c.class) || 'inherit'}">${esc(c.character_name)}</strong>
         <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · '))}</span></div>
-      ${row ? `<div class="stat-list">
-          <div><span>Level</span><strong>${esc(row.level || '–')}</strong></div>
-          ${profs.map(([p, s]) => `<div><span>${professionLabel(p, { size: 18 })}</span><strong>${esc(s)} / 300</strong></div>`).join('')}
+      ${row ? `<div class="chips">
+          <span class="chip">Level <strong>${esc(row.level || '–')}</strong></span>
+          ${profs.map(([p, s]) => `<span class="chip">${professionLabel(p, { size: 18 })} <strong>${esc(s)} / 300</strong></span>`).join('')}
         </div>
         ${row.recipes ? `<span class="muted" style="font-size:14px">Key recipes: ${esc(row.recipes)}</span>` : ''}
         ${row.notes ? `<span class="muted" style="font-size:14px">Notes: ${esc(row.notes)}</span>` : ''}

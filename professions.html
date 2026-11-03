@@ -17,7 +17,7 @@
     <h1>Professions</h1>
     <p class="muted">Who can craft what – guild-found, so we make everything ourselves (Mains and Alts)</p>
   </div>
-  <div class="grid" id="cards"><p class="muted">Loading…</p></div>
+  <div class="grid" id="cards" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr))"><p class="muted">Loading…</p></div>
   <section class="box" aria-labelledby="rose-h" style="border-top:2px solid var(--gold)">
     <h2 id="rose-h">Guild skill per profession</h2>
     <p class="muted" style="margin:0;font-size:14px">Each slice is one profession. The bigger the slice, the more skill the guild has in it (all characters added together), as a share of the total. Small or missing slices are where we are behind. Hover or tap a slice or a row.</p>
@@ -27,6 +27,7 @@
 <style>
   .prof-table { width: 100%; font-size: 14px; }
   .prof-table th, .prof-table td { padding: 5px 6px; }
+  .prof-table td.num, .prof-table td:nth-child(2) { white-space: nowrap; }
   .prof-table td.num, .prof-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .prof-table .char { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; }
   .prof-table .char:hover { text-decoration: underline; }
