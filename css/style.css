@@ -46,8 +46,8 @@ a:hover { color: #fff; }
 }
 .brand { flex: none; display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: .06em; text-decoration: none; color: var(--gold-bright); text-shadow: 0 1px 0 #000; }
 .brand:hover { color: #fff; }
-/* Own emblem: the guild seal (img/logo-mark.svg; full seal with the name: img/logo.svg) */
-.brand-logo { flex: none; width: 40px; height: 40px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+/* Own emblem: the guild logo without the name banner (img/logo-mark.png; full logo with the name: img/logo.png / logo.webp) */
+.brand-logo { flex: none; width: 48px; height: 48px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
 .site-nav { flex: 1 1 auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .site-nav a { padding: 10px 14px; border-radius: 4px; text-decoration: none; color: var(--muted); font-weight: 600; white-space: nowrap; border-bottom: 2px solid transparent; }
 .site-nav a:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
@@ -208,7 +208,7 @@ hr { border: none; border-top: 1px solid var(--border); }
 body::before {
   content: ''; position: fixed; z-index: -1; pointer-events: none;
   width: min(95vmin, 900px); aspect-ratio: 1; right: -20vmin; bottom: -24vmin;
-  background: url('../img/logo-mark.svg') center / contain no-repeat;
+  background: url('../img/logo.webp') center / contain no-repeat;
   opacity: .12;
   -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 72%);
   mask-image: radial-gradient(circle, #000 45%, transparent 72%);
