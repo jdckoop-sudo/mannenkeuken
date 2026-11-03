@@ -1,23 +1,29 @@
-// Item search with suggestions while typing (WoW: Forever item list in data/items.json,
-// refreshed daily by the "Update items" GitHub workflow).
+// Item search with suggestions while typing (WoW: Forever item list in data/items.json, and the
+// tradeable-only list in data/tradeable-items.json; both refreshed daily by the "Update items" GitHub workflow).
 
 const QUALITY = ['Poor', 'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Artifact', 'Heirloom'];
 // Darker variants of the in-game colours so they stay readable on white.
 const COLOR = ['#6b7280', '#1f2937', '#1a7f00', '#0058b0', '#7e2fc0', '#b45309', '#8a6d1f', '#007a99'];
 
-let itemsPromise = null;
-export function loadItems() {
-  itemsPromise ??= fetch('data/items.json?v=__V__')
-    .then((r) => (r.ok ? r.json() : { items: [] }))
-    .then((d) => (d.items ?? []).map(([id, name, quality, ilvl, stack]) => ({ id, name, quality, ilvl, stack, lower: name.toLowerCase() })))
-    .catch(() => []);
-  return itemsPromise;
+const itemsPromises = {};
+const mapItems = (d) => (d.items ?? []).map(([id, name, quality, ilvl, stack]) => ({ id, name, quality, ilvl, stack, lower: name.toLowerCase() }));
+// All in-game items (default) or only the ones that can be traded between players ({ tradeable: true }).
+// If the tradeable list is not there yet (it is built by the workflow), the full list is used instead.
+export function loadItems({ tradeable = false } = {}) {
+  const key = tradeable ? 'tradeable' : 'all';
+  itemsPromises[key] ??= (async () => {
+    const get = (file) => fetch(`data/${file}?v=__V__`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const d = (tradeable ? await get('tradeable-items.json') : null) ?? await get('items.json');
+    return d ? mapItems(d) : [];
+  })();
+  return itemsPromises[key];
 }
 
 // Item names the guild typed that are not in the list yet (new in Forever): suggested too, as plain text.
-let suggestPromise = null;
-function loadItemSuggestions() {
-  suggestPromise ??= Promise.all([loadItems(), import('./supabase.js?v=__V__').then(async ({ supabase }) => {
+const suggestPromises = {};
+function loadItemSuggestions(opts = {}) {
+  const key = opts.tradeable ? 'tradeable' : 'all';
+  suggestPromises[key] ??= Promise.all([loadItems(opts), import('./supabase.js?v=__V__').then(async ({ supabase }) => {
     if (!supabase) return [];
     const [a, b] = await Promise.all([
       supabase.from('listings').select('item').is('item_id', null).limit(1000),
@@ -25,8 +31,10 @@ function loadItemSuggestions() {
     ]);
     return [...(a.data ?? []), ...(b.data ?? [])].map((r) => r.item);
   }).catch(() => [])]).then(([items, typed]) => withTyped(items, typed));
-  return suggestPromise;
+  return suggestPromises[key];
 }
+// Suggestions for the Trade Market: only tradeable items (plus names the guild typed).
+export const loadTradeableSuggestions = () => loadItemSuggestions({ tradeable: true });
 
 // Adds typed names that are not in the official list (case-insensitive), marked extra.
 export function withTyped(list, names) {
