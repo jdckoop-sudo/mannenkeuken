@@ -23,7 +23,7 @@
         <label><input type="radio" name="kind" value="request"> Request</label>
       </fieldset>
       <label for="item-input">Item</label>
-      <p class="muted" style="font-size:13px;margin:-6px 0 0">Suggestions only show items that can be traded (no soulbound or quest items).</p>
+      <p class="muted" style="font-size:13px;margin:-6px 0 0">Pick an item from the suggestions. Only items that can be traded are listed (no soulbound or quest items).</p>
       <div><input id="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"><p id="item-hint" class="muted" style="font-size:13px;margin:6px 0 0"></p></div>
       <label>Quantity<input name="quantity" type="number" min="1" value="1"><span id="qty-note" class="muted" style="font-size:13px"></span></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -62,7 +62,7 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember, mine } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
-import { attachItemSearch, loadItems, loadTradeableSuggestions, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
+import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from './js/reserve.js?v=__V__';
 import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
 
@@ -95,8 +95,8 @@ const search = attachItemSearch(document.getElementById('item-input'), (it) => {
   if (it) {
     hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
     refreshTooltips();
-  } else hint.textContent = 'Not in the list? You can still post it as typed (hidden items appear once someone finds them).';
-}, { load: loadTradeableSuggestions });
+  } else hint.textContent = '';
+}, { load: () => loadItems({ tradeable: true }) }); // only items from the official tradeable list, no free text
 loadItems().then((items) => { itemsById = new Map(items.map((i) => [i.id, i])); draw(); });
 
 if (!supabase) { msg.textContent = 'Market not connected yet.'; form.querySelector('button').disabled = true; }
@@ -230,9 +230,15 @@ document.getElementById('rows').addEventListener('click', async (e) => {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const d = new FormData(form);
+  // Only an item picked from the suggestions can be posted (no free text).
+  if (!pickedItem || pickedItem.name !== d.get('item')) {
+    msg.textContent = 'Pick an item from the suggestions list to post it.';
+    document.getElementById('item-input').focus();
+    return;
+  }
   const fields = {
-    kind: d.get('kind'), item: d.get('item'), item_id: pickedItem && pickedItem.name === d.get('item') ? pickedItem.id : null,
-    quantity: pickedItem && pickedItem.name === d.get('item') && pickedItem.stack === 1 ? 1 : Number(d.get('quantity')) || 1, note: d.get('note'),
+    kind: d.get('kind'), item: d.get('item'), item_id: pickedItem.id,
+    quantity: pickedItem.stack === 1 ? 1 : Number(d.get('quantity')) || 1, note: d.get('note'),
     profession: d.get('profession') || null, min_skill: d.get('min_skill') ? Number(d.get('min_skill')) : null,
     pinged: d.getAll('pinged'),
   };

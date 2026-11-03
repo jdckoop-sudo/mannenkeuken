@@ -20,10 +20,9 @@ export function loadItems({ tradeable = false } = {}) {
 }
 
 // Item names the guild typed that are not in the list yet (new in Forever): suggested too, as plain text.
-const suggestPromises = {};
-function loadItemSuggestions(opts = {}) {
-  const key = opts.tradeable ? 'tradeable' : 'all';
-  suggestPromises[key] ??= Promise.all([loadItems(opts), import('./supabase.js?v=__V__').then(async ({ supabase }) => {
+let suggestPromise = null;
+function loadItemSuggestions() {
+  suggestPromise ??= Promise.all([loadItems(), import('./supabase.js?v=__V__').then(async ({ supabase }) => {
     if (!supabase) return [];
     const [a, b] = await Promise.all([
       supabase.from('listings').select('item').is('item_id', null).limit(1000),
@@ -31,10 +30,8 @@ function loadItemSuggestions(opts = {}) {
     ]);
     return [...(a.data ?? []), ...(b.data ?? [])].map((r) => r.item);
   }).catch(() => [])]).then(([items, typed]) => withTyped(items, typed));
-  return suggestPromises[key];
+  return suggestPromise;
 }
-// Suggestions for the Trade Market: only tradeable items (plus names the guild typed).
-export const loadTradeableSuggestions = () => loadItemSuggestions({ tradeable: true });
 
 // Adds typed names that are not in the official list (case-insensitive), marked extra.
 export function withTyped(list, names) {
