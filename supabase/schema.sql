@@ -487,6 +487,9 @@ drop policy if exists "write devs" on public.dev_tickets;
 create policy "read devs" on public.dev_tickets for select to authenticated using (public.is_dev());
 create policy "write devs" on public.dev_tickets for all to authenticated using (public.is_dev()) with check (public.is_dev());
 
+-- Urgency of a ticket: 4 = Urgent, 3 = High, 2 = Normal, 1 = Low (highest first on the board).
+alter table public.dev_tickets add column if not exists urgency smallint not null default 2 check (urgency between 1 and 4);
+
 -- The first ideas (fixed ids, so running this file again adds nothing twice and keeps your changes).
 insert into public.dev_tickets (id, title, area, created_by, created_at, body) values
 ('6f1d2a10-0001-4c3e-9a51-000000000001', $q$Achievements: bigger and more fun$q$, $q$Achievements$q$, $q$Justin$q$, now() - interval '3 minutes', $q$Nothing concrete yet – collect thoughts here first.
