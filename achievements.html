@@ -13,17 +13,24 @@
     <p class="muted">Guild records from the guild sheet: highest characters, players (all characters together) and professions. Characters marked "Gestopt" don't count.</p>
   </div>
   <div class="grid">
-    <section class="box"><h2>Highest character level</h2><ol id="chars" class="board"></ol></section>
-    <section class="box"><h2>Player level (all characters)</h2><ol id="players" class="board"></ol></section>
-    <section class="box"><h2>Total profession skill per player</h2><ol id="skillers" class="board"></ol></section>
+    <section class="box"><div><h2>Highest level</h2><p class="muted sub">Single characters</p></div><ol id="chars" class="board"></ol></section>
+    <section class="box"><div><h2>Player level</h2><p class="muted sub">All characters added together</p></div><ol id="players" class="board"></ol></section>
+    <section class="box"><div><h2>Profession skill</h2><p class="muted sub">Total per player</p></div><ol id="skillers" class="board"></ol></section>
   </div>
   <h2>Best per profession</h2>
   <div class="grid" id="profs"><p class="muted">Loading…</p></div>
 </main>
 <style>
-  .board { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 6px; }
-  .board li::marker { font-weight: 700; }
-  .board li:first-child { font-weight: 700; }
+  .sub { font-size: 13px; margin-top: 2px; }
+  /* Ranked list: rank | name | value, so every row lines up */
+  .board { list-style: none; margin: 0; padding: 0; counter-reset: rank; display: flex; flex-direction: column; }
+  .board li { counter-increment: rank; display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--border); }
+  .board li:first-child { border-top: none; }
+  .board li::before { content: counter(rank); text-align: right; color: var(--gold); font-family: var(--font-display); font-weight: 700; }
+  .board li:first-child .who-name > a { font-weight: 700; }
+  .board .val { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
+  .board li.empty { display: block; }
+  .board li.empty::before { content: none; }
 </style>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
@@ -34,19 +41,20 @@ await renderHeader();
 const { characters } = await loadCharacters();
 const active = characters.filter((c) => c.status !== 'Gestopt' && c.hasName);
 const top = 10;
-const who = (c) => `<a href="${characterUrl(c.name)}">${esc(c.name)}</a>${c.player ? ` <span class="muted">(<a href="${playerUrl(c.player)}">${esc(c.player)}</a>)</span>` : ''}`;
-const empty = '<li class="muted" style="list-style:none;margin-left:-24px">No data yet.</li>';
+const who = (c) => `<span class="who-name"><a href="${characterUrl(c.name)}">${esc(c.name)}</a>${c.player ? `<span class="who-sub"><a href="${playerUrl(c.player)}">${esc(c.player)}</a></span>` : ''}</span>`;
+const empty = '<li class="muted empty">No data yet.</li>';
+const row = (who, val) => `<li><span class="who">${who}</span><span class="val">${val}</span></li>`;
 
 document.getElementById('chars').innerHTML = active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).slice(0, top)
-  .map((c) => `<li>${who(c)} – level ${c.level}</li>`).join('') || empty;
+  .map((c) => row(who(c), `level ${c.level}`)).join('') || empty;
 
 const byPlayer = {};
 for (const c of characters.filter((x) => x.status !== 'Gestopt' && x.player)) (byPlayer[c.player] ??= []).push(c);
 const playerStats = Object.entries(byPlayer).map(([p, cs]) => ({ p, ...statsFor(cs) }));
 document.getElementById('players').innerHTML = playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel).slice(0, top)
-  .map((s) => `<li><a href="${playerUrl(s.p)}">${esc(s.p)}</a> – ${s.totalLevel} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span></li>`).join('') || empty;
+  .map((s) => row(`<a href="${playerUrl(s.p)}">${esc(s.p)}</a> <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, s.totalLevel)).join('') || empty;
 document.getElementById('skillers').innerHTML = playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).slice(0, top)
-  .map((s) => `<li><a href="${playerUrl(s.p)}">${esc(s.p)}</a> – ${s.totalSkill}</li>`).join('') || empty;
+  .map((s) => row(`<a href="${playerUrl(s.p)}">${esc(s.p)}</a>`, s.totalSkill)).join('') || empty;
 
 // Best per profession (top 3)
 const profNames = [...new Set(active.flatMap((c) => c.profs.map((p) => p.name)))]
@@ -54,7 +62,7 @@ const profNames = [...new Set(active.flatMap((c) => c.profs.map((p) => p.name)))
 document.getElementById('profs').innerHTML = profNames.map((pn) => {
   const rows = active.map((c) => ({ c, skill: c.profs.find((p) => p.name === pn)?.skill })).filter((r) => r.skill !== null && r.skill !== undefined)
     .sort((a, b) => b.skill - a.skill).slice(0, 3);
-  return `<section class="box"><h2>${esc(pn)}</h2><ol class="board">${rows.map((r) => `<li>${who(r.c)} – ${r.skill}</li>`).join('') || empty}</ol></section>`;
+  return `<section class="box"><h2>${esc(pn)}</h2><ol class="board">${rows.map((r) => row(who(r.c), r.skill)).join('') || empty}</ol></section>`;
 }).join('') || '<p class="muted">No professions yet.</p>';
 </script>
 </body>

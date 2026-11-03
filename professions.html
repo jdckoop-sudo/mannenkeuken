@@ -32,9 +32,9 @@ loadMembers().then((members) => {
   const names = [...Object.keys(byProf).filter((p) => !SECONDARY.includes(p)).sort(), ...SECONDARY.filter((p) => byProf[p])];
   document.getElementById('cards').innerHTML = names.map((p) => `
     <section class="box">
-      <h2 style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">${esc(p)} <span class="muted" style="font-size:14px;font-weight:400">${new Set(byProf[p].map((c) => c.player)).size} player${new Set(byProf[p].map((c) => c.player)).size === 1 ? '' : 's'}</span></h2>
+      <div><h2>${esc(p)}</h2><p class="muted" style="font-size:13px;margin-top:2px">${new Set(byProf[p].map((c) => c.player)).size} player${new Set(byProf[p].map((c) => c.player)).size === 1 ? '' : 's'}</p></div>
       ${byProf[p].sort((a, b) => b.skill - a.skill).map((c) => `
-        <div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${esc(c.name)} <span class="muted">(${esc(c.player)})</span></span><span class="muted">${c.skill} / ${MAX}</span></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:14px"><span class="who-name"><span>${esc(c.name)}</span>${c.player && c.player !== c.name ? `<span class="who-sub">${esc(c.player)}</span>` : ''}</span><span class="muted">${c.skill} / ${MAX}</span></div>
         <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, (c.skill / MAX) * 100)}%"></div></div></div>`).join('')}
     </section>`).join('') || '<p class="muted">No professions in the sheet yet.</p>';
 }).catch(() => {
