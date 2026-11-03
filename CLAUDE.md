@@ -1,6 +1,6 @@
 # Instructions for Claude (both Jelle's and Tinus's)
 
-This repo is the Mannenkeuken guild dashboard. Read README.md first. The working instructions (guild sync + dashboard, in Dutch) are in `docs/instructies.md`: follow them, and update that file in the same pull request whenever sync or dashboard behaviour changes.
+This repo is the Mannenkeuken guild dashboard. Read README.md first. The working instructions (guild sync + dashboard, in Dutch) are in `docs/instructies.md`: follow them, and update that file in the same pull request whenever sync or dashboard behaviour changes. At the start of every conversation: summarise what the other person merged since this person's last PR, and list the other's open `[bezig]` draft PRs. When you start work: open a draft PR titled `[bezig] …` right away; every PR body has *Wat*, *Waarom* and *Voor de ander*.
 
 - Site copy is in **English**. Talk to Jelle/Tinus in **Dutch**.
 - Plain static HTML/CSS/JS served by GitHub Pages. No frameworks, no build step, no npm.
