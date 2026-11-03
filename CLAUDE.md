@@ -18,6 +18,7 @@ This repo is the Mannenkeuken guild dashboard. Read README.md first. The working
 - Dates and times are always shown in Dutch time, 24-hour clock: `toLocale…String('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', … })`.
 - Every delete / "mark as done" action asks `confirm('Are you sure …?')` first.
 - Items link to Wowhead Forever (`wowheadUrl(id)` in `js/itemsearch.js`); pages showing items load Wowhead's `tooltips.js` for hover tooltips and call `refreshTooltips()` after rendering.
+- Activity (last login): use `activityOf(lastLogin)` and `ACTIVITY` from `js/players.js` (active / quiet / inactive / unknown) and the `.activity` + `.dot-*` styles; don't make your own thresholds. The data comes from `loadBlizzard()`.
 - Characters come from two places: the guild sheet (leading for level and professions) and the site (`profiles` = main, `alts`). `js/players.js` merges them (`loadCharacters()`); use it instead of reading one source. `players` maps sheet player name ↔ Discord name (kept up to date by the guild sync).
 - Shared things (bank items, bank gold, addons, players) may be edited by any member (guild code); personal things (profiles, alts, listings, reservations, sign-ups) only by their owner.
 - Reservations (bank + market) always store who reserved (`reserved_by`) and for which character.
