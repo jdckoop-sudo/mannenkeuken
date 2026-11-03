@@ -43,9 +43,9 @@
     </section>
 
     <div class="dev-tabs" role="tablist">
-      <button class="btn" type="button" role="tab" data-tab="ideas" aria-selected="true">Ideas <span class="tab-count" id="count-idea"></span></button>
+      <button class="btn" type="button" role="tab" data-tab="changes" aria-selected="true">Changes</button>
       <button class="btn" type="button" role="tab" data-tab="fixes" aria-selected="false">Fixes <span class="tab-count" id="count-fix"></span></button>
-      <button class="btn" type="button" role="tab" data-tab="changes" aria-selected="false">Changes</button>
+      <button class="btn" type="button" role="tab" data-tab="ideas" aria-selected="false">Ideas <span class="tab-count" id="count-idea"></span></button>
       <button class="btn" type="button" role="tab" data-tab="checks" aria-selected="false">Checks</button>
       <button class="btn" type="button" id="dev-off" style="margin-left:auto">Switch developer mode off</button>
     </div>
@@ -189,7 +189,7 @@ document.getElementById('dev-off').addEventListener('click', () => {
   location.href = 'index.html';
 });
 
-// Tabs (Ideas, Fixes, Changes, Checks); dev.html#fixes etc. opens a tab directly
+// Tabs (Changes, Fixes, Ideas, Checks); dev.html#fixes etc. opens a tab directly
 function showTab(tab) {
   const b = document.querySelector(`.dev-tabs [data-tab="${tab}"]`);
   if (!b) return;
@@ -477,7 +477,7 @@ for (const [kind, host] of Object.entries(hosts)) {
   });
 }
 loadTickets();
-showTab(['ideas', 'fixes', 'changes', 'checks'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'ideas');
+showTab(['changes', 'fixes', 'ideas', 'checks'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'changes');
 
 function loadChecksTab() {
   if (checksLoaded) return;
