@@ -1,6 +1,16 @@
 import { supabase, getUser, displayName, getProfile, joinGuild, logout } from './supabase.js?v=__V__';
 import { classIcon, classColor } from './classicons.js?v=__V__';
 
+// Players who can open developer mode (dev.html). Same names as public.is_dev() in supabase/schema.sql.
+export const DEVS = ['Jelle', 'Justin'];
+// Developer mode is on after opening dev.html (5 clicks on the class icon) until it is switched off there.
+export function isDevMode(user) {
+  try { return !!user && DEVS.includes(user.player) && localStorage.getItem('mk-dev-mode') === '1'; } catch { return false; }
+}
+export function setDevMode(on) {
+  try { on ? localStorage.setItem('mk-dev-mode', '1') : localStorage.removeItem('mk-dev-mode'); } catch { /* storage not available */ }
+}
+
 const pages = [
   ['index.html', 'Home'],
   ['roster.html', 'Roster'],
@@ -38,6 +48,28 @@ export async function renderHeader() {
       nameEl.style.color = classColor(cls);
     };
     try { showClass(localStorage.getItem(cacheKey)); } catch { /* storage not available */ }
+    // Developer mode: click the class icon 5 times (within 3 seconds) – only for the developers.
+    if (DEVS.includes(user.player)) {
+      const icon = auth.querySelector('.user-icon');
+      let clicks = [];
+      icon.style.cursor = 'pointer';
+      icon.addEventListener('click', () => {
+        const now = Date.now();
+        clicks = [...clicks.filter((t) => now - t < 3000), now];
+        if (clicks.length >= 5) location.href = 'dev.html';
+      });
+    }
+    if (isDevMode(user)) {
+      auth.insertAdjacentHTML('afterbegin', '<a class="dev-badge" href="dev.html" title="Developer mode is on">DEV</a>');
+    }
+    // Open "To do for you" messages for this developer: a red dot that links to developer mode (also when it is off).
+    if (DEVS.includes(user.player)) {
+      supabase.from('dev_messages').select('id', { count: 'exact', head: true }).eq('to_player', user.player).is('done_at', null)
+        .then(({ count }) => {
+          if (!count) return;
+          auth.insertAdjacentHTML('afterbegin', `<a class="dev-todo" href="dev.html" title="${count} thing${count === 1 ? '' : 's'} to do for you">${count}</a>`);
+        }).catch(() => {});
+    }
     getProfile(user).then((p) => {
       showClass(p?.class);
       try { p?.class ? localStorage.setItem(cacheKey, p.class) : localStorage.removeItem(cacheKey); } catch { /* storage not available */ }

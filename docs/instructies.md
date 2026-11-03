@@ -155,6 +155,13 @@ Jelle en Justin werken elk met hun eigen Claude in dezelfde repo.
 9. **Dit bestand** (`docs/instructies.md`) bijwerken in dezelfde PR als de wijziging. Raakt je wijziging een afspraak van de ander, laat die dan staan en voeg toe in plaats van te vervangen.
 10. **Even in Discord melden** waar je mee bezig bent, zeker bij grotere wijzigingen.
 
+### Developer mode (alleen Jelle en Justin)
+- **Openen**: 5× snel klikken op je class-icoontje rechtsboven → `dev.html`. Dan staat developer mode aan in die browser (rood **DEV**-label rechtsboven); uitzetten met de knop op de pagina.
+- **To do for you**: meldingen van de een aan de ander (tabel `dev_messages`), bijv. "vervang je projectinstructies". Ze blijven staan tot de ontvanger op **Done** klikt. Open meldingen geven een rood getal rechtsboven, ook als developer mode uit staat. Claude mag zo'n melding aanmaken als iets dat de ander *zelf* moet doen (instellingen, geheimen, projectinstructies).
+- **Changes**: alle gemergede PR's per dag (strook per dag, filter op dag/persoon/tekst) met *Wat / Waarom / Voor de ander*, plus de open `[bezig]`-PR's.
+- **Checks**: status van de GitHub-workflows, de databronnen (sheet, Supabase, item-/questlijst, Blizzard-bestand) en een **checklist** (`dev_checks`: OK / Broken / Needs a look). Claude zet na een update wat nog getest moet worden op de checklist als *Needs a look*, en wat hij op de live site heeft gecontroleerd als *OK*.
+- **Extra rechten** in developer mode: listings van alle spelers verwijderen op de Trade Market (database: `is_dev()`).
+
 ### Wie doet wat
 **Allebei alles**: sync, sheet en sheet-script, Supabase, guildcode, dashboard, stijl én de Blizzard-koppeling. Iedereen kan alles lokaal testen, ook de Blizzard-scripts (met een eigen dev-client, zie *Vaste gegevens*). Afstemmen gaat via de `[bezig]`-draft-PR's en een berichtje in Discord, niet via vaste taken.
 

@@ -377,3 +377,44 @@ drop policy if exists "read all" on public.gold_donations;
 drop policy if exists "write members" on public.gold_donations;
 create policy "read all" on public.gold_donations for select using (true);
 create policy "write members" on public.gold_donations for all to authenticated using (public.is_member()) with check (public.is_member());
+
+-- 2026-11-03: developer mode (dev.html, opened by clicking the class icon 5 times; only for Jelle and Justin).
+create or replace function public.is_dev() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.members where user_id = auth.uid() and player_name in ('Jelle', 'Justin')) $$;
+grant execute on function public.is_dev() to anon, authenticated;
+
+-- Checklist: which updates work, which are broken, what still needs a look.
+create table if not exists public.dev_checks (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(title) <= 120),
+  area text check (char_length(area) <= 40),
+  status text not null default 'check' check (status in ('ok', 'broken', 'check')),
+  note text check (char_length(note) <= 500),
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+alter table public.dev_checks enable row level security;
+drop policy if exists "read all" on public.dev_checks;
+drop policy if exists "write devs" on public.dev_checks;
+create policy "read all" on public.dev_checks for select using (true);
+create policy "write devs" on public.dev_checks for all to authenticated using (public.is_dev()) with check (public.is_dev());
+-- Developers (Jelle, Justin) may delete any listing in developer mode (the reservations on it go with it).
+drop policy if exists "delete dev" on public.listings;
+create policy "delete dev" on public.listings for delete to authenticated using (public.is_dev());
+
+-- Messages between the developers ("To do for you" in developer mode): stays until the receiver clicks Done.
+create table if not exists public.dev_messages (
+  id uuid primary key default gen_random_uuid(),
+  to_player text not null check (to_player in ('Jelle', 'Justin')),
+  from_player text,
+  text text not null check (char_length(text) <= 1000),
+  done_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.dev_messages enable row level security;
+drop policy if exists "read devs" on public.dev_messages;
+drop policy if exists "write devs" on public.dev_messages;
+create policy "read devs" on public.dev_messages for select to authenticated using (public.is_dev());
+create policy "write devs" on public.dev_messages for all to authenticated using (public.is_dev()) with check (public.is_dev());

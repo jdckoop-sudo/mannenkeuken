@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Developer mode – Mannenkeuken</title>
+<link rel="stylesheet" href="css/style.css?v=__V__">
+</head>
+<body>
+<main>
+  <div>
+    <h1>Developer mode</h1>
+    <p class="muted">What changed on the dashboard, and what works. Only for Jelle and Justin – opened by clicking your class icon 5 times.</p>
+  </div>
+
+  <div id="locked" class="notice" hidden></div>
+
+  <div id="dev" hidden style="display:flex;flex-direction:column;gap:24px">
+    <section class="box" id="todo-box">
+      <h2>To do for you</h2>
+      <p class="muted" style="margin:0;font-size:14px">Messages from the other developer: something you need to do. Click <em>Done</em> when it's done.</p>
+      <div id="todo"><p class="muted">Loading…</p></div>
+      <details>
+        <summary style="cursor:pointer">Send a message</summary>
+        <form id="new-msg" class="chart-filters" style="margin-top:8px">
+          <label style="flex:0 1 140px">To<select name="to" id="msg-to"></select></label>
+          <label style="flex:3 1 300px">Message<input name="text" required maxlength="1000" placeholder="e.g. Please replace your Claude project instructions"></label>
+          <button class="btn btn-primary" type="submit">Send</button>
+        </form>
+      </details>
+      <details>
+        <summary style="cursor:pointer">Sent and done</summary>
+        <div id="msg-history" style="margin-top:8px"></div>
+      </details>
+      <p id="msg-msg" class="muted" style="font-size:13px;margin:0"></p>
+    </section>
+
+    <div class="dev-tabs" role="tablist">
+      <button class="btn" type="button" role="tab" data-tab="changes" aria-selected="true">Changes</button>
+      <button class="btn" type="button" role="tab" data-tab="checks" aria-selected="false">Checks</button>
+      <button class="btn" type="button" id="dev-off" style="margin-left:auto">Switch developer mode off</button>
+    </div>
+    <p class="muted" style="margin:0;font-size:14px">Developer mode is <strong>on</strong> in this browser: you see a DEV badge in the header and can delete any listing on the Trade Market.</p>
+
+    <!-- Changes: merged pull requests, per day -->
+    <section id="tab-changes" class="dev-panel">
+      <section class="box" id="in-progress-box">
+        <h2>In progress</h2>
+        <p class="muted" style="margin:0;font-size:14px">Open pull requests – drafts titled <code>[bezig]</code> are being worked on now.</p>
+        <div id="in-progress"><p class="muted">Loading…</p></div>
+      </section>
+
+      <section class="box">
+        <h2>Changes per day</h2>
+        <div class="chart-filters">
+          <label>Day<select id="f-day"><option value="">All days</option></select></label>
+          <label>Who<select id="f-who"><option value="">Everyone</option><option>Jelle</option><option>Justin</option></select></label>
+          <label>Search<input id="f-q" type="search" placeholder="Title or text"></label>
+        </div>
+        <div id="days-strip" class="dev-strip" aria-label="Changes per day"></div>
+        <div id="changes"><p class="muted">Loading…</p></div>
+        <p class="muted" style="font-size:12px;margin:0">From the merged pull requests on GitHub (the public API allows 60 requests per hour; the page keeps results for 5 minutes).</p>
+      </section>
+    </section>
+
+    <!-- Checks: workflows, data sources and our own checklist -->
+    <section id="tab-checks" class="dev-panel" hidden>
+      <section class="box">
+        <h2>Automatic updates (GitHub Actions)</h2>
+        <div id="workflows"><p class="muted">Loading…</p></div>
+      </section>
+
+      <section class="box">
+        <h2>Data sources</h2>
+        <div id="sources"><p class="muted">Checking…</p></div>
+      </section>
+
+      <section class="box">
+        <h2>Checklist</h2>
+        <p class="muted" style="margin:0;font-size:14px">What works, what is broken and what still needs a look. Click a status to change it.</p>
+        <div class="chart-filters">
+          <label>Show<select id="f-status"><option value="">All</option><option value="broken">Broken</option><option value="check">Needs a look</option><option value="ok">OK</option></select></label>
+        </div>
+        <div id="checks"><p class="muted">Loading…</p></div>
+        <form id="new-check" class="chart-filters" style="margin-top:4px">
+          <label style="flex:2 1 260px">New item<input name="title" required maxlength="120" placeholder="e.g. Trade Market reserve on phone"></label>
+          <label>Area<input name="area" maxlength="40" placeholder="e.g. Market"></label>
+          <label>Status<select name="status"><option value="check">Needs a look</option><option value="ok">OK</option><option value="broken">Broken</option></select></label>
+          <button class="btn btn-primary" type="submit">Add</button>
+        </form>
+        <p id="check-msg" class="muted" style="font-size:13px;margin:0"></p>
+      </section>
+    </section>
+  </div>
+</main>
+<style>
+  .dev-tabs { display: flex; gap: 8px; }
+  .dev-tabs [aria-selected="true"] { border-color: var(--gold); color: #fff; background: rgba(217, 172, 69, .12); }
+  .dev-panel { display: flex; flex-direction: column; gap: 24px; }
+  .dev-panel[hidden] { display: none; }
+  .dev-strip { display: flex; gap: 4px; align-items: flex-end; overflow-x: auto; padding: 4px 0 2px; min-height: 64px; }
+  .dev-day { flex: none; width: 34px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 0; cursor: pointer; color: var(--muted); font: inherit; font-size: 11px; }
+  .dev-day .stack { width: 18px; display: flex; flex-direction: column-reverse; gap: 2px; }
+  .dev-day .seg { height: 6px; border-radius: 2px; background: var(--gold); }
+  .dev-day .seg.justin { background: var(--crimson-bright); }
+  .dev-day[aria-pressed="true"] { color: var(--gold-bright); font-weight: 700; }
+  .dev-legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
+  .dev-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .dev-dayhead { font-family: var(--font-display); color: var(--gold-bright); margin: 12px 0 4px; font-size: 16px; }
+  .dev-change { display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .dev-change time { color: var(--muted); font-size: 13px; padding-top: 2px; }
+  .dev-who { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--gold-dim); color: var(--gold-bright); margin-right: 6px; }
+  .dev-who.justin { border-color: var(--crimson-bright); color: var(--text); }
+  .dev-change details { margin-top: 4px; font-size: 14px; }
+  .dev-change summary { cursor: pointer; color: var(--muted); }
+  .dev-section { margin: 6px 0 0; white-space: pre-wrap; }
+  .dev-section strong { color: var(--gold-bright); }
+  .dev-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; background: none; cursor: default; font-family: inherit; }
+  button.status { cursor: pointer; }
+  .status.ok { color: var(--good); }
+  .status.broken { color: var(--bad); }
+  .status.check { color: var(--warn); }
+  @media (max-width: 640px) {
+    .dev-row { grid-template-columns: 1fr; gap: 4px; }
+    .dev-change { grid-template-columns: 1fr; gap: 2px; }
+  }
+</style>
+<script type="module">
+import { renderHeader, DEVS, isDevMode, setDevMode } from './js/layout.js?v=__V__';
+import { supabase, displayName } from './js/supabase.js?v=__V__';
+import { esc, loadMembers } from './js/sheet.js?v=__V__';
+import { loadBlizzard } from './js/players.js?v=__V__';
+
+const REPO = 'jdckoop-sudo/mannenkeuken';
+const TZ = { timeZone: 'Europe/Amsterdam' };
+const user = await renderHeader();
+const isDev = !!user && DEVS.includes(user.player);
+if (!isDev) {
+  const locked = document.getElementById('locked');
+  locked.hidden = false;
+  locked.innerHTML = 'Developer mode is only for Jelle and Justin. <a href="index.html">Back to Home</a>';
+  throw new Error('not a developer');
+}
+document.getElementById('dev').hidden = false;
+// Opening this page switches developer mode on (DEV badge in the header; extra powers such as deleting any listing).
+if (!isDevMode(user)) { setDevMode(true); location.reload(); }
+document.getElementById('dev-off').addEventListener('click', () => {
+  if (!confirm('Are you sure you want to switch developer mode off?')) return;
+  setDevMode(false);
+  location.href = 'index.html';
+});
+
+// Tabs
+document.querySelectorAll('.dev-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.dev-tabs [data-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+  document.getElementById('tab-changes').hidden = b.dataset.tab !== 'changes';
+  document.getElementById('tab-checks').hidden = b.dataset.tab !== 'checks';
+  if (b.dataset.tab === 'checks') loadChecksTab();
+}));
+
+// GitHub (public API, cached 5 minutes per browser tab)
+async function gh(path) {
+  const key = `mk-gh:${path}`;
+  try {
+    const hit = JSON.parse(sessionStorage.getItem(key) ?? 'null');
+    if (hit && Date.now() - hit.t < 5 * 60e3) return hit.d;
+  } catch { /* storage not available */ }
+  const res = await fetch(`https://api.github.com/repos/${REPO}/${path}`, { headers: { Accept: 'application/vnd.github+json' } });
+  if (!res.ok) throw new Error(res.status === 403 ? 'GitHub limit reached – try again in a while.' : `GitHub: ${res.status}`);
+  const d = await res.json();
+  try { sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), d })); } catch { /* storage full or not available */ }
+  return d;
+}
+const who = (pr) => (pr.head?.ref?.startsWith('tinus/') ? 'Justin' : pr.head?.ref?.startsWith('jelle/') ? 'Jelle' : pr.user?.login ?? '?');
+const dayKey = (iso) => new Date(iso).toLocaleDateString('en-CA', TZ); // 2026-11-03
+const dayLabel = (key) => new Date(`${key}T12:00:00Z`).toLocaleDateString('en-GB', { ...TZ, weekday: 'short', day: 'numeric', month: 'short' });
+const timeOf = (iso) => new Date(iso).toLocaleTimeString('en-GB', { ...TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' });
+
+// PR body → the sections Wat / Waarom / Voor de ander (or the first lines when they are missing)
+function sections(body) {
+  const text = String(body ?? '').split(/\n🤖|\nhttps:\/\/claude\.ai/)[0].trim();
+  const parts = [];
+  for (const name of ['Wat', 'Waarom', 'Voor de ander']) {
+    const m = text.match(new RegExp(`\\*\\*${name}\\*\\*:?\\s*([\\s\\S]*?)(?=\\n\\*\\*(?:Wat|Waarom|Voor de ander)\\*\\*|$)`));
+    if (m && m[1].trim()) parts.push([name, m[1].trim()]);
+  }
+  return parts.length ? parts : (text ? [['Details', text.slice(0, 900)]] : []);
+}
+
+let merged = [];
+async function loadChanges() {
+  try {
+    const [open, p1, p2] = await Promise.all([
+      gh('pulls?state=open&per_page=50'),
+      gh('pulls?state=closed&sort=updated&direction=desc&per_page=100&page=1'),
+      gh('pulls?state=closed&sort=updated&direction=desc&per_page=100&page=2'),
+    ]);
+    document.getElementById('in-progress').innerHTML = open.map((pr) => `<p style="margin:0">
+      <span class="dev-who ${who(pr).toLowerCase()}">${esc(who(pr))}</span>${pr.draft ? '<span class="status check" style="margin-right:6px">Draft</span>' : ''}
+      <a href="${pr.html_url}" target="_blank" rel="noopener">${esc(pr.title)}</a> <span class="muted" style="font-size:13px">#${pr.number} · since ${esc(dayLabel(dayKey(pr.created_at)))}</span></p>`).join('')
+      || '<p class="muted">Nobody is working on anything right now.</p>';
+    merged = [...p1, ...p2].filter((pr) => pr.merged_at).sort((a, b) => b.merged_at.localeCompare(a.merged_at));
+    const days = [...new Set(merged.map((pr) => dayKey(pr.merged_at)))];
+    document.getElementById('f-day').innerHTML = '<option value="">All days</option>' + days.map((d) => `<option value="${d}">${esc(dayLabel(d))} (${merged.filter((p) => dayKey(p.merged_at) === d).length})</option>`).join('');
+    drawChanges();
+  } catch (e) {
+    document.getElementById('changes').innerHTML = `<p class="muted">${esc(e.message)}</p>`;
+    document.getElementById('in-progress').innerHTML = '';
+  }
+}
+function drawChanges() {
+  const day = document.getElementById('f-day').value;
+  const person = document.getElementById('f-who').value;
+  const q = document.getElementById('f-q').value.toLowerCase();
+  const list = merged.filter((pr) => (!person || who(pr) === person) && (!q || `${pr.title} ${pr.body ?? ''}`.toLowerCase().includes(q)));
+
+  // Strip: one column per day (last 21 days), a block per change, coloured by who made it
+  const today = new Date();
+  const strip = [];
+  for (let i = 20; i >= 0; i--) {
+    const d = new Date(today.getTime() - i * 864e5).toLocaleDateString('en-CA', TZ);
+    const of = list.filter((pr) => dayKey(pr.merged_at) === d);
+    strip.push(`<button class="dev-day" type="button" data-day="${d}" aria-pressed="${d === day}" title="${esc(dayLabel(d))}: ${of.length} change${of.length === 1 ? '' : 's'}">
+      <span class="stack">${of.map((pr) => `<span class="seg ${who(pr).toLowerCase()}"></span>`).join('')}</span>
+      <span>${new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { ...TZ, day: 'numeric' })}</span></button>`);
+  }
+  document.getElementById('days-strip').innerHTML = strip.join('')
+    + '<div class="dev-legend" style="margin-left:12px;align-self:center"><span><i style="background:var(--gold)"></i>Jelle</span><span><i style="background:var(--crimson-bright)"></i>Justin</span></div>';
+
+  const shown = day ? list.filter((pr) => dayKey(pr.merged_at) === day) : list;
+  let html = ''; let current = '';
+  for (const pr of shown) {
+    const d = dayKey(pr.merged_at);
+    if (d !== current) { current = d; html += `<h3 class="dev-dayhead">${esc(dayLabel(d))}</h3>`; }
+    const parts = sections(pr.body);
+    html += `<div class="dev-change"><time>${timeOf(pr.merged_at)}</time><div>
+      <span class="dev-who ${who(pr).toLowerCase()}">${esc(who(pr))}</span><a href="${pr.html_url}" target="_blank" rel="noopener">${esc(pr.title)}</a> <span class="muted" style="font-size:13px">#${pr.number}</span>
+      ${parts.length ? `<details${day ? ' open' : ''}><summary>Details</summary>${parts.map(([k, v]) => `<p class="dev-section"><strong>${esc(k)}:</strong> ${esc(v)}</p>`).join('')}</details>` : ''}
+    </div></div>`;
+  }
+  document.getElementById('changes').innerHTML = html || '<p class="muted">No changes for this selection.</p>';
+}
+['f-day', 'f-who', 'f-q'].forEach((id) => document.getElementById(id).addEventListener('input', drawChanges));
+document.getElementById('days-strip').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-day]');
+  if (!b) return;
+  const sel = document.getElementById('f-day');
+  sel.value = sel.value === b.dataset.day ? '' : b.dataset.day;
+  if (sel.value && ![...sel.options].some((o) => o.value === sel.value)) sel.value = '';
+  drawChanges();
+});
+loadChanges();
+
+// ---------- To do for you (dev_messages) ----------
+const other = DEVS.find((d) => d !== user.player) ?? DEVS[0];
+document.getElementById('msg-to').innerHTML = DEVS.map((d) => `<option ${d === other ? 'selected' : ''}>${esc(d)}</option>`).join('');
+let messages = [];
+async function loadMessages() {
+  const { data, error } = await supabase.from('dev_messages').select('*').order('created_at', { ascending: false }).limit(100);
+  messages = data ?? [];
+  const open = messages.filter((m) => m.to_player === user.player && !m.done_at);
+  document.getElementById('todo').innerHTML = error ? `<p class="muted">Could not load: ${esc(error.message)}</p>`
+    : open.map((m) => `<div class="dev-row"><span>${badge('check')}</span>
+        <span>${esc(m.text)}<br><span class="muted" style="font-size:12px">from ${esc(m.from_player ?? '?')} · ${esc(ago(m.created_at))}</span></span>
+        <span><button class="btn" type="button" data-done-msg="${m.id}">Done</button></span></div>`).join('')
+      || '<p class="muted">Nothing to do. 🎉</p>';
+  const rest = messages.filter((m) => !(m.to_player === user.player && !m.done_at));
+  document.getElementById('msg-history').innerHTML = rest.map((m) => `<p style="margin:0 0 6px;font-size:14px">${m.done_at ? badge('ok') : badge('check')}
+      <strong>${esc(m.from_player ?? '?')} → ${esc(m.to_player)}</strong>: ${esc(m.text)}
+      <span class="muted" style="font-size:12px">· ${esc(ago(m.created_at))}${m.done_at ? ` · done ${esc(ago(m.done_at))}` : ' · not done yet'}</span>
+      ${m.from_player === user.player ? ` · <button class="link-btn" type="button" data-del-msg="${m.id}">Remove</button>` : ''}</p>`).join('')
+    || '<p class="muted">Nothing yet.</p>';
+}
+document.getElementById('todo-box').addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  let res;
+  if (b.dataset.doneMsg) {
+    if (!confirm('Are you sure this is done? The message disappears from your list.')) return;
+    res = await supabase.from('dev_messages').update({ done_at: new Date().toISOString() }).eq('id', b.dataset.doneMsg);
+  } else if (b.dataset.delMsg) {
+    if (!confirm('Are you sure you want to remove this message?')) return;
+    res = await supabase.from('dev_messages').delete().eq('id', b.dataset.delMsg);
+  } else return;
+  document.getElementById('msg-msg').textContent = res.error ? `Could not save: ${res.error.message}` : '';
+  loadMessages();
+});
+document.getElementById('new-msg').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const d = new FormData(e.target);
+  const { error } = await supabase.from('dev_messages').insert({ to_player: d.get('to'), from_player: user.player, text: d.get('text') });
+  document.getElementById('msg-msg').textContent = error ? `Could not send: ${error.message}` : `Sent to ${d.get('to')}.`;
+  if (!error) { e.target.reset(); document.getElementById('msg-to').value = other; loadMessages(); }
+});
+
+// ---------- Checks ----------
+const STATUS = { ok: ['✓', 'OK'], broken: ['✗', 'Broken'], check: ['!', 'Needs a look'] };
+const badge = (s, attrs = '') => `<${attrs ? 'button type="button"' : 'span'} class="status ${s}" ${attrs}><span aria-hidden="true">${STATUS[s][0]}</span>${STATUS[s][1]}</${attrs ? 'button' : 'span'}>`;
+const ago = (iso) => `${new Date(iso).toLocaleDateString('en-GB', { ...TZ, day: 'numeric', month: 'short' })} ${timeOf(iso)}`;
+let checksLoaded = false;
+loadMessages();
+function loadChecksTab() {
+  if (checksLoaded) return;
+  checksLoaded = true;
+  loadWorkflows(); loadSources(); loadChecks();
+}
+
+async function loadWorkflows() {
+  const el = document.getElementById('workflows');
+  try {
+    const [{ workflows }, { workflow_runs: runs }] = await Promise.all([gh('actions/workflows'), gh('actions/runs?per_page=60')]);
+    el.innerHTML = workflows.map((w) => {
+      const last = runs.find((r) => r.workflow_id === w.id);
+      const s = !last ? 'check' : last.status !== 'completed' ? 'check' : last.conclusion === 'success' ? 'ok' : 'broken';
+      const text = !last ? 'Not run recently' : last.status !== 'completed' ? 'Running now' : `${last.conclusion} · ${ago(last.updated_at)}`;
+      return `<div class="dev-row"><span>${badge(s)}</span><span><strong>${esc(w.name)}</strong><br><span class="muted" style="font-size:13px">${esc(text)}${last ? ` · <a href="${last.html_url}" target="_blank" rel="noopener">run</a>` : ''}</span></span><span class="muted" style="font-size:13px">${w.state === 'active' ? '' : esc(w.state)}</span></div>`;
+    }).join('') || '<p class="muted">No workflows.</p>';
+  } catch (e) { el.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
+}
+
+async function loadSources() {
+  const el = document.getElementById('sources');
+  const row = (s, name, text) => `<div class="dev-row"><span>${badge(s)}</span><span><strong>${esc(name)}</strong><br><span class="muted" style="font-size:13px">${esc(text)}</span></span><span></span></div>`;
+  const json = (p) => fetch(`${p}?v=__V__`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const [members, items, tradeable, quests, bz, db] = await Promise.all([
+    loadMembers().catch(() => null), json('data/items.json'), json('data/tradeable-items.json'), json('data/quests.json'), loadBlizzard(),
+    supabase ? supabase.from('players').select('player_name', { count: 'exact', head: true }) : null,
+  ]);
+  const old = (d, days) => d && (Date.now() - new Date(d).getTime()) / 864e5 > days;
+  el.innerHTML = [
+    row(members?.length ? 'ok' : 'broken', 'Guild sheet', members ? `${members.length} rows read` : 'Could not read the sheet'),
+    row(db && !db.error ? 'ok' : 'broken', 'Supabase', db && !db.error ? `${db.count ?? '?'} players in the database` : `Error: ${db?.error?.message ?? 'not connected'}`),
+    row(items ? (old(items.updated, 2) ? 'check' : 'ok') : 'broken', 'Item list (items.json)', items ? `${items.items?.length ?? 0} items · build ${items.build} · updated ${items.updated}` : 'Missing'),
+    row(tradeable ? 'ok' : 'check', 'Tradeable items (tradeable-items.json)', tradeable ? `${tradeable.items?.length ?? 0} items` : 'Missing – the Trade Market falls back to the full list'),
+    row(quests ? (old(quests.updated, 2) ? 'check' : 'ok') : 'broken', 'Quest list (quests.json)', quests ? `${quests.quests?.length ?? 0} quests · updated ${quests.updated}` : 'Missing'),
+    row(bz ? (old(bz.updated ?? bz.generated, 1) ? 'check' : 'ok') : 'check', 'Blizzard characters (blizzard-characters.json)', bz ? `Updated ${bz.updated ?? bz.generated ?? '?'}` : 'Not there yet (expected until after the launch)'),
+  ].join('');
+}
+
+let checks = [];
+async function loadChecks() {
+  const { data, error } = await supabase.from('dev_checks').select('*').order('updated_at', { ascending: false });
+  checks = data ?? [];
+  if (error) document.getElementById('check-msg').textContent = `Could not load: ${error.message}`;
+  drawChecks();
+}
+function drawChecks() {
+  const f = document.getElementById('f-status').value;
+  const order = { broken: 0, check: 1, ok: 2 };
+  const list = checks.filter((c) => !f || c.status === f).sort((a, b) => order[a.status] - order[b.status] || b.updated_at.localeCompare(a.updated_at));
+  const counts = Object.fromEntries(Object.keys(STATUS).map((s) => [s, checks.filter((c) => c.status === s).length]));
+  document.getElementById('checks').innerHTML = `<p class="muted" style="margin:0 0 4px;font-size:13px">${counts.broken} broken · ${counts.check} need a look · ${counts.ok} OK</p>`
+    + (list.map((c) => `<div class="dev-row">
+      <span>${badge(c.status, `data-cycle="${c.id}" title="Change status"`)}</span>
+      <span><strong>${esc(c.title)}</strong>${c.area ? ` <span class="muted" style="font-size:13px">· ${esc(c.area)}</span>` : ''}
+        ${c.note ? `<br><span class="muted" style="font-size:13px">${esc(c.note)}</span>` : ''}
+        <br><span class="muted" style="font-size:12px">${esc(c.updated_by ?? '')} · ${esc(ago(c.updated_at))}</span></span>
+      <span style="display:flex;gap:8px"><button class="link-btn" type="button" data-note="${c.id}">Note</button><button class="link-btn" type="button" data-del="${c.id}">Remove</button></span>
+    </div>`).join('') || '<p class="muted">Nothing here.</p>');
+}
+document.getElementById('f-status').addEventListener('input', drawChecks);
+document.getElementById('checks').addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const c = checks.find((x) => x.id === (b.dataset.cycle || b.dataset.note || b.dataset.del));
+  if (!c) return;
+  const stamp = { updated_by: displayName(user), updated_at: new Date().toISOString() };
+  let res;
+  if (b.dataset.cycle) {
+    const next = { check: 'ok', ok: 'broken', broken: 'check' }[c.status];
+    res = await supabase.from('dev_checks').update({ status: next, ...stamp }).eq('id', c.id);
+  } else if (b.dataset.note) {
+    const note = prompt(`Note for "${c.title}"`, c.note ?? '');
+    if (note === null) return;
+    res = await supabase.from('dev_checks').update({ note: note.slice(0, 500) || null, ...stamp }).eq('id', c.id);
+  } else {
+    if (!confirm(`Are you sure you want to remove "${c.title}" from the checklist?`)) return;
+    res = await supabase.from('dev_checks').delete().eq('id', c.id);
+  }
+  document.getElementById('check-msg').textContent = res.error ? `Could not save: ${res.error.message}` : '';
+  loadChecks();
+});
+document.getElementById('new-check').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const d = new FormData(e.target);
+  const { error } = await supabase.from('dev_checks').insert({ title: d.get('title'), area: d.get('area') || null, status: d.get('status'), updated_by: displayName(user) });
+  document.getElementById('check-msg').textContent = error ? `Could not add: ${error.message}` : 'Added.';
+  if (!error) { e.target.reset(); loadChecks(); }
+});
+</script>
+</body>
+</html>
