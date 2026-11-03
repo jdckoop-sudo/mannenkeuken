@@ -204,15 +204,14 @@ hr { border: none; border-top: 1px solid var(--border); }
   #week > div { min-height: 0 !important; }
 }
 
-/* Guild seal as a faint watermark: enlarged, sharp, low opacity, fixed in the bottom-right corner, fading into the background. Panels sit on top of it. */
+/* Guild logo as a faint watermark: the whole logo (banner included), fixed in the bottom-right corner. Panels sit on top of it. */
 body::before {
   content: ''; position: fixed; z-index: -1; pointer-events: none;
-  width: min(95vmin, 900px); aspect-ratio: 1; right: -20vmin; bottom: -24vmin;
+  width: min(62vmin, 600px); aspect-ratio: 728 / 800; right: 2vw; bottom: 2vh;
   background: url('../img/logo.webp') center / contain no-repeat;
   opacity: .12;
-  -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 72%);
-  mask-image: radial-gradient(circle, #000 45%, transparent 72%);
 }
 @media (max-width: 700px) {
-  body::before { width: 120vw; right: -45vw; bottom: -30vw; }
+  body::before { width: 78vw; right: -6vw; bottom: 1vh; }
 }
+
