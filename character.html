@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Character – Mannenkeuken</title>
 <link rel="stylesheet" href="css/style.css?v=__V__">
+<script>const whTooltips = { colorLinks: false, iconizeLinks: false, renameLinks: false };</script>
+<script src="https://wow.zamimg.com/js/tooltips.js" async></script>
 </head>
 <body>
 <main>
@@ -35,6 +37,7 @@
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
+import { professionLabel } from './js/proficons.js?v=__V__';
 import { loadCharacters, loadBlizzard, playerUrl } from './js/players.js?v=__V__';
 
 await renderHeader();
@@ -61,7 +64,7 @@ if (!c) {
   document.getElementById('profs').innerHTML = c.profs.map((p) => {
     // best in the guild for this profession?
     const best = Math.max(...characters.flatMap((x) => x.profs.filter((q) => q.name === p.name && q.skill !== null).map((q) => q.skill)), 0);
-    return `<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${esc(p.name)}${p.skill && p.skill === best ? ' <span class="badge">Guild best</span>' : ''}</span><span class="muted">${esc(p.skill ?? '–')} / 300</span></div>
+    return `<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${professionLabel(p.name, { size: 20 })}${p.skill && p.skill === best ? ' <span class="badge">Guild best</span>' : ''}</span><span class="muted">${esc(p.skill ?? '–')} / 300</span></div>
       <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, ((p.skill ?? 0) / 300) * 100)}%"></div></div></div>`;
   }).join('') || '<p class="muted">No professions in the sheet yet.</p>';
 

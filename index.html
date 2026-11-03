@@ -142,7 +142,7 @@ function drawOverview() {
   }
   el.innerHTML = ovRows.map((r, i) => `<div class="bar-row" tabindex="0" data-i="${i}" aria-label="${esc(r.name)}: ${r[m]}">
       <span class="bar-label">${esc(r.name)}</span>
-      <div class="bar-track"><div class="bar" style="width:${Math.max(0, (r[m] / max) * 100)}%"></div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, (r[m] / max) * 100)}%"></div></div>
       <span class="bar-value">${r[m] || '–'}</span></div>`).join('');
 }
 function showTip(row, x, y) {
