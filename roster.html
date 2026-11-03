@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Roster – Mannenkeuken</title>
 <link rel="stylesheet" href="css/style.css?v=__V__">
+<script>const whTooltips = { colorLinks: false, iconizeLinks: false, renameLinks: false };</script>
+<script src="https://wow.zamimg.com/js/tooltips.js" async></script>
 <style>
   th button { all: unset; cursor: pointer; font-weight: 700; display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
   th button:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
@@ -32,10 +34,11 @@
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
+import { professionLabel } from './js/proficons.js?v=__V__';
 renderHeader();
 
 const n = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
-const prof = (p, s) => (p ? `${esc(p)}${s ? ` (${esc(s)})` : ''}` : '');
+const prof = (p, s) => (p ? `${professionLabel(p, { size: 18 })}${s ? ` <span class="muted">(${esc(s)})</span>` : ''}` : '');
 // key, label, value used for sorting, cell html, numeric?
 const cols = [
   ['player', 'Player', (m) => m.player, (m) => `<a href="player.html?name=${encodeURIComponent(m.player)}">${esc(m.player)}</a>`],
