@@ -13,7 +13,16 @@
 <style>
   th button { all: unset; cursor: pointer; font-weight: 700; display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
   th button:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
-  td.num { text-align: right; }
+  /* One line per row: columns keep their natural width and the table scrolls sideways instead of squeezing text (a long note made one row 370px high) */
+  .table-wrap th, .table-wrap td { white-space: nowrap; vertical-align: middle; }
+  .table-wrap tbody tr { height: 50px; } /* rows with and without data are equally high */
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  /* Free text (key recipes, notes) may wrap, in a column that is wide enough */
+  th.wrap, td.wrap { white-space: normal; min-width: 300px; max-width: 360px; }
+  /* Profession and its skill: name left, "(1)" always at the right edge of the cell */
+  th.prof, td.prof { min-width: 170px; }
+  .prof-cell { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .prof-skill { text-align: right; min-width: 3.2ch; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -41,22 +50,22 @@ import { professionLabel } from './js/proficons.js?v=__V__';
 renderHeader();
 
 const n = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
-const prof = (p, s) => (p ? `${professionLabel(p, { size: 18 })}${s ? ` <span class="muted">(${esc(s)})</span>` : ''}` : '');
-// key, label, value used for sorting, cell html, numeric?
+const prof = (p, s) => (p ? `<span class="prof-cell"><span>${professionLabel(p, { size: 18 })}</span>${s ? `<span class="prof-skill muted">(${esc(s)})</span>` : ''}</span>` : '');
+// key, label, value used for sorting, cell html, numeric sort?, css class of the column (num = right aligned, prof = profession + skill, wrap = free text)
 const cols = [
   ['player', 'Player', (m) => m.player, (m) => `<a href="player.html?name=${encodeURIComponent(m.player)}">${esc(m.player)}</a>`],
   ['character', 'Character', (m) => m.character, (m) => (m.character ? `<a href="character.html?name=${encodeURIComponent(m.character)}">${esc(m.character)}</a>` : '')],
   ['race', 'Race', (m) => m.race, (m) => esc(m.race)],
   ['cls', 'Class', (m) => m.cls, (m) => esc(m.cls)],
   ['role', 'Role', (m) => m.role, (m) => esc(m.role)],
-  ['level', 'Level', (m) => n(m.level), (m) => esc(m.level), true],
-  ['prof1', 'Profession 1', (m) => n(m.skill1), (m) => prof(m.prof1, m.skill1), true],
-  ['prof2', 'Profession 2', (m) => n(m.skill2), (m) => prof(m.prof2, m.skill2), true],
-  ['cooking', 'Cooking', (m) => n(m.cooking), (m) => esc(m.cooking), true],
-  ['firstAid', 'First Aid', (m) => n(m.firstAid), (m) => esc(m.firstAid), true],
-  ['fishing', 'Fishing', (m) => n(m.fishing), (m) => esc(m.fishing), true],
-  ['recipes', 'Key recipes', (m) => m.recipes, (m) => esc(m.recipes)],
-  ['notes', 'Notes', (m) => m.notes, (m) => esc(m.notes)],
+  ['level', 'Level', (m) => n(m.level), (m) => esc(m.level), true, 'num'],
+  ['prof1', 'Profession 1', (m) => n(m.skill1), (m) => prof(m.prof1, m.skill1), true, 'prof'],
+  ['prof2', 'Profession 2', (m) => n(m.skill2), (m) => prof(m.prof2, m.skill2), true, 'prof'],
+  ['cooking', 'Cooking', (m) => n(m.cooking), (m) => esc(m.cooking), true, 'num'],
+  ['firstAid', 'First Aid', (m) => n(m.firstAid), (m) => esc(m.firstAid), true, 'num'],
+  ['fishing', 'Fishing', (m) => n(m.fishing), (m) => esc(m.fishing), true, 'num'],
+  ['recipes', 'Key recipes', (m) => m.recipes, (m) => esc(m.recipes), false, 'wrap'],
+  ['notes', 'Notes', (m) => m.notes, (m) => esc(m.notes), false, 'wrap'],
   ['status', 'Status', (m) => m.status, (m) => esc(m.status)],
   ['updated', 'Last updated', (m) => m.updated?.split('-').reverse().join(''), (m) => esc(m.updated)],
 ];
@@ -66,11 +75,11 @@ let sortKey = null;
 let sortDir = 1; // 1 = low → high, -1 = high → low
 
 function drawHead() {
-  document.getElementById('head').innerHTML = cols.map(([key, label]) => {
+  document.getElementById('head').innerHTML = cols.map(([key, label, , , , cls]) => {
     const active = key === sortKey;
     const arrow = active ? (sortDir === 1 ? '▲' : '▼') : '';
     const aria = active ? (sortDir === 1 ? 'ascending' : 'descending') : 'none';
-    return `<th aria-sort="${aria}"><button type="button" data-key="${key}">${label}<span aria-hidden="true">${arrow}</span></button></th>`;
+    return `<th class="${cls ?? ''}" aria-sort="${aria}"><button type="button" data-key="${key}">${label}<span aria-hidden="true">${arrow}</span></button></th>`;
   }).join('');
 }
 
@@ -90,7 +99,7 @@ function draw() {
       return (col[4] ? x - y : String(x).localeCompare(String(y))) * sortDir;
     });
   }
-  document.getElementById('rows').innerHTML = list.map((m) => `<tr>${cols.map((c) => `<td class="${c[4] ? 'num' : ''}">${c[3](m)}</td>`).join('')}</tr>`).join('')
+  document.getElementById('rows').innerHTML = list.map((m) => `<tr>${cols.map((c) => `<td class="${c[5] ?? ''}">${c[3](m)}</td>`).join('')}</tr>`).join('')
     || `<tr><td colspan="${cols.length}">No players found.</td></tr>`;
   drawHead();
 }
