@@ -21,7 +21,7 @@ Twee vaste taken:
 | Dashboard (live) | https://jdckoop-sudo.github.io/mannenkeuken/ |
 | GitHub-repo | https://github.com/jdckoop-sudo/mannenkeuken (Jelle = eigenaar, Justin = collaborator) |
 | Supabase-project | `mannenkeuken` (Europa) – SQL Editor: https://supabase.com/dashboard/project/uvnmgyhnqlibnvpivhdf/sql/new |
-| Blizzard-API (experiment) | developer-client op https://develop.battle.net; de geheimen `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan alleen als GitHub Actions-secrets (Claude typt ze nooit in en vraagt er nooit naar). Iedereen met repo-toegang kan de workflows starten met Justins client; een eigen dev-client op Battle.net is alleen nodig om **lokaal** te testen (geeft anders geen data). Testen: Actions → *Test Blizzard API* → Run workflow (`tools/blizzard-test.mjs`), of lokaal met `node --env-file=<privé .env buiten de OneDrive-map> tools/blizzard-test.mjs <character> <realm> [regio]` (zie `.env.example`; `.env`-bestanden staan in `.gitignore`; Claude leest zo'n bestand nooit uit). Alle characters ophalen naar `data/blizzard-characters.json`: Actions → *Update characters* (alleen handmatig; `tools/update-characters.mjs`; instellingen in `data/blizzard-config.json`). De characterpagina toont die gegevens onder "From the game" zodra het bestand bestaat |
+| Blizzard-API (experiment) | developer-client op https://develop.battle.net; de geheimen `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan alleen als GitHub Actions-secrets (Claude typt ze nooit in en vraagt er nooit naar). Iedereen met repo-toegang kan de workflows starten met de client in GitHub. Om de scripts **lokaal** te draaien heeft ieder een eigen dev-client op Battle.net (zonder client geen data); zelf aanmaken op develop.battle.net → API Access → Create Client, en ID + secret zelf in een privé `.env` buiten de projectmap zetten. Testen: Actions → *Test Blizzard API* → Run workflow (`tools/blizzard-test.mjs`), of lokaal met `node --env-file=<privé .env buiten de OneDrive-map> tools/blizzard-test.mjs <character> <realm> [regio]` (zie `.env.example`; `.env`-bestanden staan in `.gitignore`; Claude leest zo'n bestand nooit uit). Alle characters ophalen naar `data/blizzard-characters.json`: Actions → *Update characters* (alleen handmatig; `tools/update-characters.mjs`; instellingen in `data/blizzard-config.json`). De characterpagina toont die gegevens onder "From the game" zodra het bestand bestaat |
 
 ### Sheet
 - **Members**: kopregel 4, spelers vanaf regel 5. Kolommen: A Player (echte naam), B Character, C Race, D Class, E Role, F Level, G Profession 1, H Skill 1, I Profession 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated, P Status (Main / Alt / Gestopt), Q Notes (opmerkingen, bijv. "Druid als back-up"). Een alt = een extra regel met Status = Alt.
@@ -37,7 +37,7 @@ Gegevens: de **sheet** is leidend voor level, beroepen en notes. De rest staat i
 ### Inloggen op het dashboard (geen Discord-login meer)
 - Rechtsboven **"Choose your player"**: je kiest je naam uit de lijst (`players`) en vult de **guildcode** in. Eén keer per browser; daarna onthouden. **"Switch player"** om te wisselen.
 - Techniek: anonieme Supabase-login (Auth → *Allow anonymous sign-ins* staat aan) + functie `join_guild(code, speler)` → tabel `members`. Een speler kan meerdere browsers hebben (telefoon + pc); "eigen" rijen = rijen van dezelfde speler (`same_player`), gedeelde dingen = iedereen met de code (`is_member`). Max. 10 foute codes per uur.
-- **De guildcode** staat alleen versleuteld in `private.settings`. Alleen Jelle zet of verandert hem, zelf, in de SQL Editor (Claude typt hem nooit in en vraagt er nooit naar):
+- **De guildcode** staat alleen versleuteld in `private.settings`. Jelle of Justin zet of verandert hem, zelf, in de SQL Editor (Claude typt hem nooit in en vraagt er nooit naar):
   ```sql
   insert into private.settings (key, value)
   values ('guild_code_hash', extensions.crypt('NIEUWE-CODE', extensions.gen_salt('bf')))
@@ -126,7 +126,7 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag d
 Jelle en Justin werken elk met hun eigen Claude in dezelfde repo. Elke Claude volgt deze regels:
 1. **Begin altijd vanaf de nieuwste `main`**: `git fetch` en een nieuwe branch vanaf `origin/main` (nooit verder bouwen op een oude lokale kopie).
 2. **Kijk eerst wat de ander doet**: `gh pr list` (open PR's) en `git log origin/main -10` (laatste wijzigingen). Heeft de ander een open PR of branch die dezelfde bestanden raakt: niet daarin werken, eerst overleggen of wachten.
-3. **Niet in elkaars gebied werken zonder overleg** (zie *Wie doet wat*). Moet het toch: kleine wijziging, en in de PR-tekst vermelden wat je in het gebied van de ander hebt aangepast.
+3. **Jelle en Justin doen allebei alles** – er is geen eigen terrein. Werk je in iets wat de ander als laatste heeft aangepast (zie `git log` per bestand), houd zijn aanpak aan en schrijf in de PR-tekst wat je hebt veranderd.
 4. **Nooit direct naar `main` pushen en nooit `main` force-pushen.** Force-pushen mag alleen op je eigen branch.
 5. **Vlak voor het mergen opnieuw rebasen op `origin/main`.** Bij conflicten **beide wijzigingen behouden**: nooit een heel bestand "van jezelf" laten winnen. Na de rebase opnieuw controleren (syntax, live site).
 6. **Merge geeft "Base branch was modified"** → opnieuw rebasen en mergen; nooit forceren.
@@ -136,13 +136,9 @@ Jelle en Justin werken elk met hun eigen Claude in dezelfde repo. Elke Claude vo
 10. **Even in Discord melden** waar je mee bezig bent, zeker bij grotere wijzigingen.
 
 ### Wie doet wat
-| Gebied | Wie | Bestanden |
-|---|---|---|
-| Blizzard-koppeling (scripts, config, workflows, "From the game") | **Justin** | `tools/blizzard-test.mjs`, `tools/update-characters.mjs`, `data/blizzard-config.json`, `.github/workflows/blizzard-test.yml`, `update-characters.yml`, `loadBlizzard()` |
-| Guild-sync (Discord ↔ sheet ↔ dashboard), sheet-script, Supabase-instellingen, guildcode | **Jelle** | sheet, Apps Script, Supabase |
-| Dashboardpagina's en stijl | **samen** – vooraf melden wie welke pagina oppakt | `*.html`, `css/style.css`, `js/*` |
+**Allebei alles**: sync, sheet en sheet-script, Supabase, guildcode, dashboard, stijl én de Blizzard-koppeling. Iedereen kan alles lokaal testen, ook de Blizzard-scripts (met een eigen dev-client, zie *Vaste gegevens*). Afstemmen gaat via *Nu bezig* hieronder en een berichtje in Discord, niet via vaste taken.
 
-### Nu bezig
+### Nu bezig (bijwerken als je ergens aan begint of klaar bent)
 - **Justin**: op het platform tonen wanneer de laatste Blizzard-update was (gesprek 3 nov).
 
 ---
@@ -158,12 +154,12 @@ Jelle en Justin werken elk met hun eigen Claude in dezelfde repo. Elke Claude vo
 - Wachtwoorden, de guildcode, geheime sleutels en Supabase-instellingen opslaan doet de gebruiker zelf.
 
 ## Na de launch (todo) – Claude: noem deze punten bij de eerste sync of update na 5 nov 2026
-1. **Blizzard-koppeling aanzetten** (Justin): realm-slug opzoeken, `data/blizzard-config.json` op `profile-forever-eu` + realm zetten, **Update characters** met de hand draaien en controleren, dan het schema aanzetten in `update-characters.yml`. Afgesproken: **elke 10–15 minuten** (een update kost ±110 calls, de limiet is 36.000 per uur). Blizzard ververst een character pas na uitloggen, dus vaker heeft geen zin. Een update-knop of Discord-`/update` is daarom **niet nodig** (besproken op 3 nov).
-2. **Recepten-hover bij spelers**: in `tools/update-characters.mjs` (script van Justin; hij doet of keurt deze wijziging) per beroep ook `known_recipes` uit de Blizzard-professions bewaren in `data/blizzard-characters.json`. Daarna op Professions, Roster, characterpagina en bij "Requests you can craft" een hover tonen met wat iemand echt kan maken (Wowhead-links).
+1. **Blizzard-koppeling aanzetten** (Jelle of Justin): realm-slug opzoeken, `data/blizzard-config.json` op `profile-forever-eu` + realm zetten, **Update characters** met de hand draaien en controleren, dan het schema aanzetten in `update-characters.yml`. Afgesproken: **elke 10–15 minuten** (een update kost ±110 calls, de limiet is 36.000 per uur). Blizzard ververst een character pas na uitloggen, dus vaker heeft geen zin. Een update-knop of Discord-`/update` is daarom **niet nodig** (besproken op 3 nov).
+2. **Recepten-hover bij spelers**: in `tools/update-characters.mjs` (Jelle of Justin; afstemmen via *Nu bezig*) per beroep ook `known_recipes` uit de Blizzard-professions bewaren in `data/blizzard-characters.json`. Daarna op Professions, Roster, characterpagina en bij "Requests you can craft" een hover tonen met wat iemand echt kan maken (Wowhead-links).
 3. **Welk is leidend bij verschil sheet ↔ Blizzard** (level, beroepen) afspreken met Justin en inbouwen.
 4. **Laatste login openbaar?** Beslissen: tonen, weglaten, of repo privé (de repo is openbaar, `data/blizzard-characters.json` dus ook).
 5. **Home-intro** ("[Short guild intro / message of the day]"): voorstel = tot de launch een aftelklok, daarna een door leden aanpasbare *Message of the day* + het eerstvolgende event met "Sign up". Nog niet gekozen.
-6. **Laatste update tonen** op het platform (Justin is ermee bezig): controleren dat het na de launch klopt.
+6. **Laatste update tonen** op het platform (Justin was ermee bezig op 3 nov): controleren dat het na de launch klopt.
 7. Optioneel later: een Discord-bot, alleen als er meer bot-functies komen (bijv. melding bij level 60, events aankondigen).
 
 ## Openstaand
