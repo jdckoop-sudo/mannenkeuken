@@ -96,7 +96,7 @@ const search = attachItemSearch(document.getElementById('item-input'), (it) => {
     hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
     refreshTooltips();
   } else hint.textContent = '';
-}, { load: () => loadItems({ tradeable: true }) }); // only items from the official tradeable list, no free text
+}, { load: () => loadItems({ tradeable: true }), link: (it) => wowheadUrl(it.id) }); // only items from the official tradeable list, no free text
 loadItems().then((items) => { itemsById = new Map(items.map((i) => [i.id, i])); draw(); });
 
 if (!supabase) { msg.textContent = 'Market not connected yet.'; form.querySelector('button').disabled = true; }
