@@ -5,7 +5,7 @@ This repo is the Mannenkeuken guild dashboard. Read README.md first. The working
 - Site copy is in **English**, everywhere (labels, notes, placeholders, addon texts in the database). Talk to Jelle/Tinus in **Dutch**. The sheet's Status value "Gestopt" stays Dutch in the data (the sync compares with it) but is shown as "Quit" with `statusLabel()` from `js/players.js`: never show a raw sheet value without checking it. Addon priorities are Must-have / Recommended / Optional / Alternative.
 - Plain static HTML/CSS/JS served by GitHub Pages. No frameworks, no build step, no npm.
   Supabase is loaded from `https://esm.sh/@supabase/supabase-js@2` as an ES module.
-- Every page: `<link rel="stylesheet" href="css/style.css">` and a module script that calls `renderHeader()` from `js/layout.js`. New page → add it to the `pages` list in `js/layout.js`.
+- Every page: `<link rel="stylesheet" href="css/style.css">` and a module script that calls `renderHeader()` from `js/layout.js`. New page → add it to the `pages` list in `js/layout.js` (six menu places; a page that belongs to a place goes in its third element so the place lights up) or, for a Guild page, to `GUILD_TABS`. Profile, player page, developer mode and switch player live in the menu under the player's name.
 - Escape all user/sheet text with `esc()` from `js/sheet.js` before putting it in HTML.
 - Database changes: edit `supabase/schema.sql` (idempotent: `if not exists`, drop/create policies) and tell the user to run it in the Supabase SQL Editor. Keep Row Level Security on every table: read for all, write only own rows (`user_id = auth.uid()`).
 - Never commit secrets (service_role key, Discord Client Secret, the guild code). The anon key in `js/config.js` is fine.

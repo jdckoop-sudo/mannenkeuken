@@ -18,34 +18,105 @@
     <p class="muted">Who can craft what – guild-found, so we make everything ourselves (Mains and Alts)</p>
   </div>
   <div class="grid" id="cards"><p class="muted">Loading…</p></div>
+  <section class="box" aria-labelledby="rose-h" style="border-top:2px solid var(--gold)">
+    <h2 id="rose-h">Guild skill per profession</h2>
+    <p class="muted" style="margin:0;font-size:14px">Each slice is one profession. The bigger the slice, the more skill the guild has in it (all characters added together), as a share of the total. Small or missing slices are where we are behind. Hover or tap a slice or a row.</p>
+    <div class="grid" id="roses" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:24px"></div>
+  </section>
 </main>
+<style>
+  .prof-table { width: 100%; font-size: 14px; }
+  .prof-table th, .prof-table td { padding: 5px 6px; }
+  .prof-table td.num, .prof-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .prof-table .char { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; }
+  .prof-table .char:hover { text-decoration: underline; }
+  .prof-table .player { color: var(--muted); }
+  .rose svg { width: 100%; max-width: 400px; height: auto; }
+  .rose .wedge { cursor: pointer; transition: fill-opacity .15s; }
+  .rose tr[data-p] { cursor: default; }
+  .rose tr.on td { background: var(--panel-2); }
+</style>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
-import { professionLabel } from './js/proficons.js?v=__V__';
+import { professionLabel, professionIcon } from './js/proficons.js?v=__V__';
+import { classIcon, classColor } from './js/classicons.js?v=__V__';
+import { playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
+import { refreshTooltips } from './js/itemsearch.js?v=__V__';
 renderHeader();
 
 const MAX = 300;
-const SECONDARY = ['Cooking', 'First Aid', 'Fishing'];
 loadMembers().then((members) => {
   const byProf = {};
   for (const m of members.filter((x) => x.status !== 'Gestopt')) {
     for (const [p, s] of [[m.prof1, m.skill1], [m.prof2, m.skill2], ['Cooking', m.cooking], ['First Aid', m.firstAid], ['Fishing', m.fishing]]) {
       if (!p || (SECONDARY.includes(p) && (s === '' || s == null))) continue;
-      (byProf[p] ??= []).push({ name: m.character || m.player, player: m.player, skill: Number(s) || 0 });
+      (byProf[p] ??= []).push({ name: m.character, player: m.player, cls: m.cls, level: Number(m.level) || 0, skill: Number(s) || 0 });
     }
   }
-  const names = [...Object.keys(byProf).filter((p) => !SECONDARY.includes(p)).sort(), ...SECONDARY.filter((p) => byProf[p])];
+  const names = [...Object.keys(byProf).filter((p) => !SECONDARY.includes(p)).sort((a, b) => byProf[b].length - byProf[a].length || a.localeCompare(b)), ...SECONDARY.filter((p) => byProf[p])];
+  // Per profession: character → player → level (highest first), skill alongside
   document.getElementById('cards').innerHTML = names.map((p) => `
     <section class="box">
-      <div><h2>${professionLabel(p, { size: 28 })}</h2><p class="muted" style="font-size:13px;margin-top:2px">${new Set(byProf[p].map((c) => c.player)).size} player${new Set(byProf[p].map((c) => c.player)).size === 1 ? '' : 's'}</p></div>
-      ${byProf[p].sort((a, b) => b.skill - a.skill).map((c) => `
-        <div><div style="display:flex;justify-content:space-between;font-size:14px"><span class="who-name"><span>${esc(c.name)}</span>${c.player && c.player !== c.name ? `<span class="who-sub">${esc(c.player)}</span>` : ''}</span><span class="muted">${c.skill} / ${MAX}</span></div>
-        <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, (c.skill / MAX) * 100)}%"></div></div></div>`).join('')}
+      <div><h2>${professionLabel(p, { size: 28 })}</h2><p class="muted" style="font-size:13px;margin-top:2px">${byProf[p].length} character${byProf[p].length === 1 ? '' : 's'}</p></div>
+      <table class="prof-table"><thead><tr><th>Character</th><th>Player</th><th class="num">Lvl</th><th class="num">Skill</th></tr></thead><tbody>
+      ${byProf[p].sort((a, b) => b.level - a.level || b.skill - a.skill || String(a.name).localeCompare(String(b.name))).map((c) => `<tr>
+        <td>${c.name ? `<a class="char" href="${characterUrl(c.name)}" style="color:${classColor(c.cls) || 'inherit'}">${classIcon(c.cls, 18)}${esc(c.name)}</a>` : '<span class="muted">(no name yet)</span>'}</td>
+        <td><a class="player" href="${playerUrl(c.player)}">${esc(c.player)}</a></td>
+        <td class="num"><strong>${c.level || '–'}</strong></td>
+        <td class="num"><span class="muted">${c.skill} / ${MAX}</span></td></tr>`).join('')}
+      </tbody></table>
     </section>`).join('') || '<p class="muted">No professions in the sheet yet.</p>';
+
+  // Two rose charts: main professions (max. 2 per character) and secondary (everyone can learn all 3)
+  const MAIN = ['Mining', 'Engineering', 'Blacksmithing', 'Skinning', 'Enchanting', 'Leatherworking', 'Tailoring', 'Herbalism', 'Alchemy'];
+  const extra = Object.keys(byProf).filter((p) => !SECONDARY.includes(p) && !MAIN.includes(p));
+  document.getElementById('roses').innerHTML = rose('main', 'Main professions', 'Max. 2 per character', [...MAIN, ...extra], byProf)
+    + rose('sec', 'Secondary professions', 'Every character can learn all 3', SECONDARY, byProf);
+  for (const el of document.querySelectorAll('.rose')) {
+    const pick = (p) => {
+      el.querySelectorAll('.wedge').forEach((w) => w.setAttribute('fill-opacity', !p ? '0.6' : (w.dataset.p === p ? '0.95' : '0.3')));
+      el.querySelectorAll('tr[data-p]').forEach((r) => r.classList.toggle('on', r.dataset.p === p));
+      el.querySelectorAll('.rose-pct').forEach((t) => t.setAttribute('fill', t.dataset.p === p ? 'var(--gold-bright)' : (t.dataset.none ? 'var(--bad)' : 'var(--text)')));
+    };
+    el.addEventListener('mouseover', (e) => { const t = e.target.closest('[data-p]'); if (t) pick(t.dataset.p); });
+    el.addEventListener('click', (e) => { const t = e.target.closest('[data-p]'); if (t) pick(t.dataset.p); });
+    el.addEventListener('mouseleave', () => pick(null));
+  }
+  refreshTooltips();
 }).catch(() => {
   document.getElementById('cards').innerHTML = '<p class="muted">Could not read the sheet.</p>';
 });
+
+function rose(key, title, sub, list, byProf) {
+  const CX = 200, CY = 180, R = 120, n = list.length, step = Math.PI * 2 / n;
+  const info = list.map((p) => { const cs = byProf[p] ?? []; return { p, chars: cs.length, total: cs.reduce((t, c) => t + c.skill, 0) }; });
+  const sum = info.reduce((t, d) => t + d.total, 0) || 1;
+  const maxT = Math.max(1, ...info.map((d) => d.total));
+  const pt = (r, a) => `${(CX + r * Math.cos(a)).toFixed(1)} ${(CY + r * Math.sin(a)).toFixed(1)}`;
+  const pct = (d) => (d.chars ? `${Math.round((d.total / sum) * 100)}%` : '—');
+  let svg = [0.25, 0.5, 0.75, 1].map((v) => `<circle cx="${CX}" cy="${CY}" r="${(Math.sqrt(v) * R).toFixed(1)}" fill="none" stroke="var(--border)"/>`).join('');
+  info.forEach((d, i) => {
+    const mid = -Math.PI / 2 + i * step, a0 = mid - step / 2, a1 = mid + step / 2;
+    svg += `<line x1="${CX}" y1="${CY}" x2="${pt(R, a0).replace(' ', '" y2="')}" stroke="var(--border)"/>`;
+    const r = d.total ? R * Math.sqrt(d.total / maxT) : 0;
+    if (r > 0) {
+      svg += n === 1 || d.total === sum
+        ? `<circle class="wedge" data-p="${esc(d.p)}" cx="${CX}" cy="${CY}" r="${r.toFixed(1)}" fill="var(--gold)" fill-opacity="0.6" stroke="var(--panel)" stroke-width="2"><title>${esc(d.p)}: ${pct(d)}</title></circle>`
+        : `<path class="wedge" data-p="${esc(d.p)}" d="M${CX} ${CY} L${pt(r, a0)} A${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${pt(r, a1)} Z" fill="var(--gold)" fill-opacity="0.6" stroke="var(--panel)" stroke-width="2" stroke-linejoin="round"><title>${esc(d.p)}: ${pct(d)} (${d.total} skill)</title></path>`;
+    }
+    const cos = Math.cos(mid), sin = Math.sin(mid), anchor = Math.abs(cos) < 0.25 ? 'middle' : (cos > 0 ? 'start' : 'end');
+    const lx = CX + (R + 40) * cos + (anchor === 'middle' ? 0 : (cos > 0 ? -6 : 6)), ly = CY + (R + 40) * sin + (sin > 0.6 ? 12 : (sin < -0.6 ? -2 : 4));
+    svg += `<g data-p="${esc(d.p)}" style="cursor:pointer"><g transform="translate(${(CX + (R + 18) * cos - 11).toFixed(1)} ${(CY + (R + 18) * sin - 11).toFixed(1)})">${professionIcon(d.p, 22)}</g>
+      <text class="rose-pct" data-p="${esc(d.p)}" ${d.chars ? '' : 'data-none="1"'} x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" fill="${d.chars ? 'var(--text)' : 'var(--bad)'}" font-size="12" font-weight="700">${pct(d)}</text></g>`;
+  });
+  return `<div class="rose" data-rose="${key}" style="display:flex;flex-direction:column;gap:10px">
+    <div><h3 style="margin:0;color:var(--gold-bright)">${esc(title)}</h3><span class="muted" style="font-size:13px">${esc(sub)}</span></div>
+    <svg viewBox="0 0 400 360" role="img" aria-label="${esc(title)}: share of the guild's skill per profession">${svg}</svg>
+    <table class="prof-table"><thead><tr><th>Profession</th><th class="num">Characters</th><th class="num">Total skill</th><th class="num">Share</th></tr></thead><tbody>
+      ${info.map((d) => `<tr data-p="${esc(d.p)}"><td>${professionLabel(d.p, { size: 18 })}</td><td class="num muted">${d.chars}</td><td class="num"><strong>${d.total}</strong> <span class="muted" style="font-size:12px">/ ${d.chars * MAX}</span></td><td class="num" style="color:${d.chars ? 'var(--gold-bright)' : 'var(--bad)'}">${d.chars ? pct(d) : 'nobody yet'}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
 </script>
 </body>
 </html>

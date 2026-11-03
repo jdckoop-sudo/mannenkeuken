@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild overview – Mannenkeuken</title>
+<link rel="icon" href="img/icon-128.png?v=__V__" type="image/png" sizes="128x128">
+<link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
+<link rel="stylesheet" href="css/style.css?v=__V__">
+</head>
+<body>
+<main>
+  <section class="page-head"><div>
+    <h1>Guild overview</h1>
+    <p class="muted">The guild in one chart: group by role, class, race, profession or level, from the guild sheet.</p>
+  </div></section>
+  <section class="box" aria-label="Guild overview">
+        <div class="chart-filters">
+      <label>Group by<select id="ov-group">
+        <option value="role">Role</option><option value="cls">Class</option><option value="race">Race</option>
+        <option value="prof">Profession</option><option value="bracket">Level bracket</option></select></label>
+      <label>Show<select id="ov-measure">
+        <option value="n">Number of characters</option><option value="avg">Average level</option><option value="max">Highest level</option></select></label>
+      <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
+      <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
+    </div>
+    <p class="muted" id="ov-caption" style="margin:0;font-size:13px"></p>
+    <div id="overview" class="bars" aria-live="polite"><p class="muted">Loading…</p></div>
+    <div id="ov-tip" class="chart-tip" role="tooltip" hidden></div>
+  </section>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js?v=__V__';
+import { loadMembers, esc } from './js/sheet.js?v=__V__';
+
+await renderHeader();
+const all = await loadMembers().catch(() => []);
+const mains = all.filter((m) => m.status === 'Main');
+const active = all.filter((m) => m.status !== 'Gestopt');
+
+// Guild overview: one bar chart, with filters (group by / measure / which characters)
+const PROF_KEYS = (m) => [m.prof1, m.prof2, ...[['Cooking', m.cooking], ['First Aid', m.firstAid], ['Fishing', m.fishing]].filter(([, v]) => Number(v) > 0).map(([k]) => k)];
+const skillOf = (m, prof) => ({ [m.prof1]: m.skill1, [m.prof2]: m.skill2, Cooking: m.cooking, 'First Aid': m.firstAid, Fishing: m.fishing })[prof];
+const BRACKETS = [[1, 9], [10, 19], [20, 29], [30, 39], [40, 49], [50, 59], [60, 60]];
+const bracketOf = (m) => { const l = Number(m.level); const b = BRACKETS.find(([lo, hi]) => l >= lo && l <= hi); return b ? (b[0] === b[1] ? `${b[0]}` : `${b[0]}–${b[1]}`) : null; };
+const KEY = { role: (m) => m.role, cls: (m) => m.cls, race: (m) => m.race, prof: PROF_KEYS, bracket: bracketOf };
+const ov = { group: document.getElementById('ov-group'), measure: document.getElementById('ov-measure'), who: document.getElementById('ov-who'), view: document.getElementById('ov-view') };
+const tip = document.getElementById('ov-tip');
+let ovRows = [];
+
+function overviewData() {
+  const isProf = ov.group.value === 'prof';
+  const list = ov.who.value === 'all' ? active : mains;
+  const g = {};
+  for (const m of list) for (const k of [].concat(KEY[ov.group.value](m))) {
+    if (!k) continue;
+    const e = (g[k] ??= { name: k, n: 0, vals: [] });
+    e.n += 1;
+    const v = Number(isProf ? skillOf(m, k) : m.level);
+    if (v > 0) e.vals.push(v);
+  }
+  const rows = Object.values(g).map((e) => ({ ...e, avg: e.vals.length ? Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length) : 0, max: e.vals.length ? Math.max(...e.vals) : 0 }));
+  const m = ov.measure.value;
+  const order = ov.group.value === 'bracket' ? (a, b) => parseInt(a.name, 10) - parseInt(b.name, 10) : (a, b) => b[m] - a[m] || a.name.localeCompare(b.name);
+  return rows.sort(order);
+}
+
+function drawOverview() {
+  const isProf = ov.group.value === 'prof';
+  const unit = isProf ? 'skill' : 'level';
+  // measure labels follow the group: professions measure skill, the rest level
+  [...ov.measure.options].forEach((o) => { o.textContent = { n: 'Number of characters', avg: `Average ${unit}`, max: `Highest ${unit}` }[o.value]; });
+  const m = ov.measure.value;
+  ovRows = overviewData();
+  const cap = isProf ? 300 : 60;
+  const max = m === 'n' ? Math.max(1, ...ovRows.map((r) => r.n)) : cap;
+  document.getElementById('ov-caption').textContent = `${ov.measure.selectedOptions[0].textContent} per ${ov.group.selectedOptions[0].textContent.toLowerCase()} · ${ov.who.value === 'all' ? 'Mains and Alts' : 'Main characters'} from the guild sheet${m === 'n' ? '' : ` · scale 0–${cap}`}`;
+  const el = document.getElementById('overview');
+  if (!all.length) { el.innerHTML = '<p class="muted">Could not read the sheet.</p>'; return; }
+  if (!ovRows.length) { el.innerHTML = '<p class="muted">Nothing to show yet.</p>'; return; }
+  if (ov.view.getAttribute('aria-pressed') === 'true') {
+    el.innerHTML = `<table class="simple-table"><thead><tr><th>${esc(ov.group.selectedOptions[0].textContent)}</th><th class="num">Characters</th><th class="num">Average ${unit}</th><th class="num">Highest ${unit}</th></tr></thead><tbody>
+      ${ovRows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${r.n}</td><td class="num">${r.avg || '–'}</td><td class="num">${r.max || '–'}</td></tr>`).join('')}</tbody></table>`;
+    return;
+  }
+  el.innerHTML = ovRows.map((r, i) => `<div class="bar-row" tabindex="0" data-i="${i}" aria-label="${esc(r.name)}: ${r[m]}">
+      <span class="bar-label">${esc(r.name)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, (r[m] / max) * 100)}%"></div></div>
+      <span class="bar-value">${r[m] || '–'}</span></div>`).join('');
+}
+function showTip(row, x, y) {
+  const r = ovRows[row.dataset.i];
+  const unit = ov.group.value === 'prof' ? 'skill' : 'level';
+  tip.innerHTML = `<strong>${esc(r.name)}</strong><br>${r.n} character${r.n === 1 ? '' : 's'}<br>Average ${unit}: ${r.avg || '–'}<br>Highest ${unit}: ${r.max || '–'}`;
+  tip.hidden = false;
+  tip.style.left = `${Math.min(x + 14, window.innerWidth - tip.offsetWidth - 8)}px`;
+  tip.style.top = `${y + 14}px`;
+}
+const chart = document.getElementById('overview');
+chart.addEventListener('mousemove', (e) => { const row = e.target.closest('.bar-row'); if (row) showTip(row, e.clientX, e.clientY); else tip.hidden = true; });
+chart.addEventListener('mouseleave', () => { tip.hidden = true; });
+chart.addEventListener('focusin', (e) => { const row = e.target.closest('.bar-row'); if (row) { const b = row.getBoundingClientRect(); showTip(row, b.left + 160, b.top); } });
+chart.addEventListener('focusout', () => { tip.hidden = true; });
+[ov.group, ov.measure, ov.who].forEach((c) => c.addEventListener('change', drawOverview));
+ov.view.addEventListener('click', () => {
+  const on = ov.view.getAttribute('aria-pressed') !== 'true';
+  ov.view.setAttribute('aria-pressed', String(on));
+  ov.view.textContent = on ? 'Show as chart' : 'Show as table';
+  tip.hidden = true;
+  drawOverview();
+});
+drawOverview();
+
+</script>
+</body>
+</html>

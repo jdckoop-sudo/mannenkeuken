@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Guild Bank – Mannenkeuken</title>
+<title>Bank – Mannenkeuken</title>
 <link rel="icon" href="img/icon-128.png?v=__V__" type="image/png" sizes="128x128">
 <link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
@@ -13,60 +13,56 @@
 </head>
 <body>
 <main>
-  <div>
-    <h1>Guild Bank – Opie Bank</h1>
-    <p class="muted">Our shared stock of items and gold, kept on the bank character <strong>Opie Bank</strong>.</p>
-  </div>
+  <section class="page-head"><div>
+    <h1>Bank</h1>
+    <p class="muted">Our shared stock of items and gold, kept on the bank character <strong>Opie Bank</strong>. Mail spare gold or items in-game to Opie Bank; need something? Reserve it below.</p>
+  </div></section>
 
-  <div class="row">
-    <section class="box" style="flex: 1 1 340px">
-      <h2>How it works</h2>
-      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
-        <li><strong>Got spare items or gold?</strong> Mail them in-game to <strong>Opie Bank</strong>. <strong>Jelle</strong> keeps the Opie Bank inventory up to date; you can see it below.</li>
-        <li><strong>Sent something?</strong> Add it under <em>Send to Opie Bank</em> so Jelle knows it is coming. Once he has it, it moves into the inventory.</li>
-        <li><strong>Picked it up?</strong> Lower the count here (or remove the line). Reservations on an item disappear with it.</li>
-        <li id="how-gold"><strong>Gold:</strong> we are saving <strong>100 gold</strong> to buy a shared guild bank. Mail your gold for the guild to <strong>Opie Bank</strong> as well; Jelle then updates the amount here.</li>
-      </ul>
+  <section class="box" style="border-top: 2px solid var(--gold)">
+    <h2 id="gold-title">Saving for the guild bank</h2>
+    <p class="muted" id="gold-intro" style="margin:0">A shared guild bank costs <strong>100 gold</strong>. This is how far we are:</p>
+    <div id="gold"><p class="muted">Loading…</p></div>
+    <p class="muted" style="margin:0;font-size:13px">Send guild gold to <strong>Opie Bank</strong> in-game; the amount here is updated after it arrives.</p>
+    <div><button class="btn btn-primary" type="button" id="open-opie">I sent something to Opie Bank</button></div>
+  </section>
+
+    <form id="new-opie" class="box item-form" data-location="opie" style="border-top: 2px solid var(--gold)" hidden>
+      <h3 style="margin:0">Send to Opie Bank</h3>
+      <p class="muted" style="margin:0;font-size:13px">Mailed something to Opie Bank in-game? Add it here so Jelle knows it is coming.</p>
+      <p class="muted form-msg"></p>
+      <label>Item<input class="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"></label>
+      <p class="muted item-hint" style="font-size:13px;margin:-6px 0 0"></p>
+      <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
+      <label>Category<input name="category" list="bank-cats" maxlength="40" placeholder="e.g. Cloth, Herbs, Gear"></label>
+      <label>Note (optional)<input name="note" maxlength="200"></label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button class="btn btn-primary" type="submit" value="sent">I sent this to Opie Bank</button>
+        <button class="btn" type="submit" value="in_stock">Already in the inventory</button>
+        <button class="btn" type="button" id="close-opie">Cancel</button>
+      </div>
+    </form>
+
+    <section class="box" style="min-width: 0">
+      <div id="sent-box" hidden>
+        <h3 style="margin:0 0 6px">On its way to Opie Bank</h3>
+        <ul id="sent-list" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px"></ul>
+      </div>
+      <h2>In stock at Opie Bank</h2><p class="muted" style="margin:0;font-size:14px"><strong>Jelle</strong> runs the Opie Bank character and keeps this inventory up to date.</p>
+      <label style="max-width:320px">Search<input class="q" data-for="opie" type="search" placeholder="Item or category"></label>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Deposited by</th><th>Updated</th><th><span class="muted">Actions</span></th></tr></thead>
+          <tbody id="rows-opie"><tr><td colspan="6">Loading…</td></tr></tbody>
+        </table>
+      </div>
     </section>
 
-    <section class="box" style="flex: 1 1 340px">
-      <h2 id="gold-title">Saving for the guild bank</h2>
-      <p class="muted" id="gold-intro" style="margin:0">A shared guild bank costs <strong>100 gold</strong>. This is how far we are:</p>
-      <p class="muted" style="margin:0;font-size:13px">Send guild gold to <strong>Opie Bank</strong> in-game; the amount here is updated after it arrives.</p>
-      <div id="gold"><p class="muted">Loading…</p></div>
-      <form id="gold-form" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-        <label style="width:90px">Gold<input name="g" type="number" min="0" value="0"></label>
-        <label style="width:80px">Silver<input name="s" type="number" min="0" max="99" value="0"></label>
-        <label style="width:80px">Copper<input name="c" type="number" min="0" max="99" value="0"></label>
-        <label style="width:150px">From (donor)<select name="donor"><option value="">–</option></select></label>
-        <button class="btn" type="submit" value="set">Set balance</button>
-        <button class="btn" type="submit" value="add">+ Add</button>
-      </form>
-      <button class="btn" type="button" id="bought">We bought the guild bank!</button>
-      <details id="goal-details">
-        <summary style="cursor:pointer">Change goal</summary>
-        <form id="goal-form" style="display:flex;gap:8px;align-items:flex-end;margin-top:8px">
-          <label style="width:120px">Goal (gold)<input name="goal" type="number" min="1" value="100"></label>
-          <button class="btn" type="submit">Save goal</button>
-        </form>
-      </details>
-      <p id="gold-msg" class="muted" style="font-size:13px"></p>
-    </section>
+  <datalist id="bank-cats"></datalist>
 
-    <section class="box" style="flex: 1 1 280px">
-      <h2>Top donors</h2>
-      <p class="muted" style="margin:0;font-size:13px">Gold given to the guild per player, since the WoW: Forever launch. Choose the donor at <em>+ Add</em>.</p>
-      <ol id="donors" style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:4px"><li class="muted">Loading…</li></ol>
-      <details>
-        <summary style="cursor:pointer">Latest donations</summary>
-        <ul id="donations" style="margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px"></ul>
-      </details>
-    </section>
-  </div>
-
-  <h2 style="margin-bottom:0">Guild bank</h2>
+  <section class="box" aria-label="Guild bank">
+    <h2>Guild bank</h2>
   <section class="notice" id="items-locked">
-    <strong>Item storage in the guild bank opens once we have bought it.</strong> Until then we save gold for it, and items go to Opie Bank (below). After the purchase you can add guild bank items here and reserve them for your characters.
+    <strong>Item storage in the guild bank opens once we have bought it.</strong> Until then we save gold for it, and items go to Opie Bank (above). After the purchase you can add guild bank items here and reserve them for your characters.
   </section>
 
   <div class="row" id="items-section" hidden>
@@ -91,44 +87,50 @@
     </section>
   </div>
 
-  <div>
-    <h2 style="margin-bottom:4px">Opie Bank (bank character)</h2>
-    <p class="muted" style="margin:0"><strong>Jelle</strong> keeps this inventory up to date. Everything that is on Opie Bank is shown below.</p>
-  </div>
-  <datalist id="bank-cats"></datalist>
-  <div class="row">
-    <form id="new-opie" class="box item-form" data-location="opie" style="flex: 1 1 300px">
-      <h3 style="margin:0">Send to Opie Bank</h3>
-      <p class="muted" style="margin:0;font-size:13px">Mailed something to Opie Bank in-game? Add it here so Jelle knows it is coming.</p>
-      <p class="muted form-msg"></p>
-      <label>Item<input class="item-input" name="item" required maxlength="80" placeholder="Start typing, e.g. linen"></label>
-      <p class="muted item-hint" style="font-size:13px;margin:-6px 0 0"></p>
-      <label>Quantity<input name="quantity" type="number" min="1" value="1"></label>
-      <label>Category<input name="category" list="bank-cats" maxlength="40" placeholder="e.g. Cloth, Herbs, Gear"></label>
-      <label>Note (optional)<input name="note" maxlength="200"></label>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
-        <button class="btn btn-primary" type="submit" value="sent">I sent this to Opie Bank</button>
-        <button class="btn" type="submit" value="in_stock">Already in the inventory</button>
-      </div>
-    </form>
-    <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
-      <div id="sent-box" hidden>
-        <h3 style="margin:0 0 6px">On its way to Opie Bank</h3>
-        <ul id="sent-list" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px"></ul>
-      </div>
-      <h3 style="margin:0">Inventory</h3>
-      <label style="max-width:320px">Search<input class="q" data-for="opie" type="search" placeholder="Item or category"></label>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Deposited by</th><th>Updated</th><th><span class="muted">Actions</span></th></tr></thead>
-          <tbody id="rows-opie"><tr><td colspan="6">Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+  </section>
+
+  <details class="box">
+    <summary>Top donors and latest donations</summary>
+    <p class="muted" style="margin:0;font-size:13px">Gold given to the guild per player, since the WoW: Forever launch.</p>
+    <ol id="donors" style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:4px"><li class="muted">Loading…</li></ol>
+    <h3 style="margin:8px 0 0;font-size:15px">Latest donations</h3>
+    <ul id="donations" style="margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px"></ul>
+  </details>
+
+  <details class="box">
+    <summary>How does the bank work?</summary>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+        <li><strong>Got spare items or gold?</strong> Mail them in-game to <strong>Opie Bank</strong>. <strong>Jelle</strong> keeps the Opie Bank inventory up to date; you can see it below.</li>
+        <li><strong>Sent something?</strong> Add it under <em>Send to Opie Bank</em> so Jelle knows it is coming. Once he has it, it moves into the inventory.</li>
+        <li><strong>Picked it up?</strong> Lower the count here (or remove the line). Reservations on an item disappear with it.</li>
+        <li id="how-gold"><strong>Gold:</strong> we are saving <strong>100 gold</strong> to buy a shared guild bank. Mail your gold for the guild to <strong>Opie Bank</strong> as well; Jelle then updates the amount here.</li>
+      </ul>
+  </details>
+
+  <details class="box" id="manager" hidden open>
+    <summary>Bank manager <span class="dev-badge">DEV</span></summary>
+    <p class="muted" style="margin:0;font-size:13px">Only in developer mode (Jelle and Justin). Choose the donor at <em>+ Add</em> so it counts for Top donors.</p>
+    <form id="gold-form" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+        <label style="width:90px">Gold<input name="g" type="number" min="0" value="0"></label>
+        <label style="width:80px">Silver<input name="s" type="number" min="0" max="99" value="0"></label>
+        <label style="width:80px">Copper<input name="c" type="number" min="0" max="99" value="0"></label>
+        <label style="width:150px">From (donor)<select name="donor"><option value="">–</option></select></label>
+        <button class="btn" type="submit" value="set">Set balance</button>
+        <button class="btn" type="submit" value="add">+ Add</button>
+      </form>
+    <button class="btn" type="button" id="bought">We bought the guild bank!</button>
+    <details id="goal-details">
+        <summary style="cursor:pointer">Change goal</summary>
+        <form id="goal-form" style="display:flex;gap:8px;align-items:flex-end;margin-top:8px">
+          <label style="width:120px">Goal (gold)<input name="goal" type="number" min="1" value="100"></label>
+          <button class="btn" type="submit">Save goal</button>
+        </form>
+      </details>
+    <p id="gold-msg" class="muted" style="font-size:13px"></p>
+  </details>
 </main>
 <script type="module">
-import { renderHeader } from './js/layout.js?v=__V__';
+import { renderHeader, isDevMode } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
@@ -138,6 +140,13 @@ import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from '
 
 const user = await renderHeader();
 const canEdit = !!(supabase && user && await isGuildMember());
+// Bank manager (balance, donations, goal, "we bought it", Received): only in developer mode (Jelle and Justin)
+const manager = canEdit && isDevMode(user);
+document.getElementById('manager').hidden = !manager;
+// "I sent something to Opie Bank" opens the form
+const opieForm = document.getElementById('new-opie');
+document.getElementById('open-opie').addEventListener('click', () => { opieForm.hidden = false; opieForm.scrollIntoView({ behavior: 'smooth', block: 'start' }); opieForm.querySelector('.item-input')?.focus({ preventScroll: true }); });
+document.getElementById('close-opie').addEventListener('click', () => { opieForm.hidden = true; });
 const goldMsg = document.getElementById('gold-msg');
 if (!canEdit) {
   const why = !supabase ? 'Not connected yet.' : !user ? 'Choose your player (top right) to update the bank.' : 'Choose your player with the guild code to update the bank.';
@@ -201,7 +210,7 @@ async function loadDonations() {
   const top = Object.entries(totals).sort((a, b) => b[1] - a[1]);
   document.getElementById('donors').innerHTML = top.map(([p, c], i) => `<li${i === 0 ? ' style="font-weight:700"' : ''}>${esc(p)} <span class="muted">– ${esc(formatGold(c))}</span></li>`).join('')
     || '<li class="muted" style="list-style:none;margin-left:-22px">No donations since the launch yet.</li>';
-  document.getElementById('donations').innerHTML = donations.slice(0, 20).map((x) => `<li>${esc(x.player_name)}: ${esc(formatGold(Number(x.copper)))} <span class="muted">· ${new Date(x.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}${x.created_at < LAUNCH ? ' (test, before launch)' : ''}</span>${canEdit ? ` · <button class="link-btn" type="button" data-undo="${x.id}">Remove</button>` : ''}</li>`).join('')
+  document.getElementById('donations').innerHTML = donations.slice(0, 20).map((x) => `<li>${esc(x.player_name)}: ${esc(formatGold(Number(x.copper)))} <span class="muted">· ${new Date(x.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}${x.created_at < LAUNCH ? ' (test, before launch)' : ''}</span>${manager ? ` · <button class="link-btn" type="button" data-undo="${x.id}">Remove</button>` : ''}</li>`).join('')
     || '<li class="muted">None yet.</li>';
 }
 document.getElementById('donations').addEventListener('click', async (e) => {
@@ -287,7 +296,7 @@ function draw() {
   const sent = items.filter((i) => i.status === 'sent');
   document.getElementById('sent-box').hidden = !sent.length;
   document.getElementById('sent-list').innerHTML = sent.map((i) => `<li>${esc(i.quantity)}× ${itemName(i)} <span class="muted">from ${esc(i.deposited_by ?? '?')} · ${new Date(i.updated_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}</span>${i.note ? ` <span class="muted">– ${esc(i.note)}</span>` : ''}
-    ${canEdit ? ` <button class="link-btn" type="button" data-received="${i.id}" data-name="${esc(i.item)}">Received</button> · <button class="link-btn" type="button" data-del="${i.id}" data-name="${esc(i.item)}">Remove</button>` : ''}</li>`).join('');
+    ${manager ? ` <button class="link-btn" type="button" data-received="${i.id}" data-name="${esc(i.item)}">Received</button> ·` : ''}${canEdit ? ` <button class="link-btn" type="button" data-del="${i.id}" data-name="${esc(i.item)}">Remove</button>` : ''}</li>`).join('');
   refreshTooltips();
 }
 document.querySelectorAll('.q').forEach((q) => q.addEventListener('input', draw));

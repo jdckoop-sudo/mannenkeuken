@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Trade Market – Mannenkeuken</title>
+<title>Market – Mannenkeuken</title>
 <link rel="icon" href="img/icon-128.png?v=__V__" type="image/png" sizes="128x128">
 <link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
@@ -13,12 +13,12 @@
 </head>
 <body>
 <main>
-  <div>
-    <h1>Trade Market</h1>
+  <section class="page-head"><div>
+    <h1>Market</h1>
     <p class="muted">Offer or request items within the guild – no prices, we share. Choose your player (top right) to post or to reserve an offer for one of your characters.</p>
-  </div>
+  </div><button class="btn btn-primary" type="button" id="open-new">+ New listing</button></section>
   <div class="row">
-    <form id="new" class="box" style="flex: 1 1 300px">
+    <form id="new" class="box" style="flex: 1 1 300px; border-top: 2px solid var(--gold)" hidden>
       <h2 id="form-title">New listing</h2>
       <p id="form-msg" class="muted"></p>
       <fieldset><legend>Type</legend>
@@ -37,7 +37,7 @@
         <div id="ping-list" class="check-grid"></div>
       </fieldset>
       <label>Note<textarea name="note" rows="3" maxlength="300"></textarea></label>
-      <div class="row"><button class="btn btn-primary" id="submit-btn" type="submit">Post listing</button><button class="btn" id="cancel-edit" type="button" hidden>Cancel</button></div>
+      <div class="row"><button class="btn btn-primary" id="submit-btn" type="submit">Post listing</button><button class="btn" id="cancel-edit" type="button">Cancel</button></div>
     </form>
     <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
       <div class="box" style="flex-direction:row;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:14px">
@@ -148,7 +148,7 @@ function draw() {
       <td>${l.kind === 'offer' ? 'Offer' : 'Request'}</td><td>${esc(l.quantity)}${res.length ? `<br><span class="muted" style="font-size:13px">${free} free</span>` : ''}</td>
       <td>${isMine ? 'You' : esc(l.author_name)}</td><td>${new Date(l.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}</td>
       <td>${isMine && isDone ? `<button class="link-btn" data-reopen="${l.id}">Reopen</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : isMine ? `<button class="link-btn" data-edit="${l.id}">Edit</button> · <button class="link-btn" data-done="${l.id}" data-name="${esc(l.item)}">Mark as done</button> · <button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}">Delete</button>` : devMode ? `<button class="link-btn" data-del="${l.id}" data-name="${esc(l.item)}" title="Developer mode">Delete (dev)</button>` : ''}</td></tr>`;
-  }).join('') || '<tr><td colspan="7">No listings.</td></tr>';
+  }).join('') || `<tr><td colspan="7"><div class="empty-state"><strong>${finished ? 'No finished listings' : 'No listings here yet'}</strong><p class="muted" style="font-size:14px">${finished ? 'Listings you mark as done show up here; you can reopen or delete them.' : 'Got spare items, or need something crafted? Post the first one.'}</p>${finished ? '' : '<button class="btn" type="button" data-open-new style="margin-top:6px">+ New listing</button>'}</div></td></tr>`;
   refreshTooltips();
 }
 
@@ -180,7 +180,7 @@ function startEdit(l) {
   hint.textContent = '';
   document.getElementById('form-title').textContent = 'Edit listing';
   document.getElementById('submit-btn').textContent = 'Save changes';
-  document.getElementById('cancel-edit').hidden = false;
+  form.hidden = false;
   msg.textContent = '';
   form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -189,9 +189,12 @@ function stopEdit() {
   form.reset(); pickedItem = null; limitQuantity(null); hint.textContent = ''; search.reset(); drawPingList();
   document.getElementById('form-title').textContent = 'New listing';
   document.getElementById('submit-btn').textContent = 'Post listing';
-  document.getElementById('cancel-edit').hidden = true;
 }
-document.getElementById('cancel-edit').addEventListener('click', stopEdit);
+// The form only opens with "+ New listing" (or Edit), so the list gets the room
+function openNew() { stopEdit(); form.hidden = false; form.scrollIntoView({ behavior: 'smooth', block: 'start' }); document.getElementById('item-input').focus({ preventScroll: true }); }
+document.getElementById('open-new').addEventListener('click', openNew);
+document.getElementById('rows').addEventListener('click', (e) => { if (e.target.closest('[data-open-new]')) openNew(); });
+document.getElementById('cancel-edit').addEventListener('click', () => { stopEdit(); form.hidden = true; });
 // Reserve an offer for one of your characters / cancel your reservation
 document.getElementById('rows').addEventListener('submit', async (e) => {
   const f = e.target.closest('form[data-reserve]');
@@ -250,7 +253,7 @@ form.addEventListener('submit', async (e) => {
     ? await supabase.from('listings').update(fields).eq('id', editingId)
     : await supabase.from('listings').insert({ ...fields, author_name: displayName(user) });
   msg.textContent = error ? `Could not save: ${error.message}` : editingId ? 'Saved!' : 'Posted!';
-  if (!error) { stopEdit(); load(); }
+  if (!error) { stopEdit(); form.hidden = true; load(); }
 });
 myCharacters(user).then((c) => { myChars = c; draw(); });
 loadCharacters().then(({ characters, players }) => {
