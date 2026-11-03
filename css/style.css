@@ -19,6 +19,7 @@
   --crimson-bright: #b52a31;
   --text: #e8e2d4;
   --muted: #a39b8b;
+  --grey-light: #b4b1c1;
   --good: #5fd06a;
   --warn: #f0a23b;
   --bad: #ef6b6b;
@@ -41,19 +42,30 @@ a:hover { color: #fff; }
 .site-header {
   background: linear-gradient(#241a14, #171211); border-bottom: 2px solid var(--gold-dim);
   box-shadow: 0 2px 14px rgba(0, 0, 0, .55);
-  padding: 12px 24px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;
+  padding: 12px 24px; display: flex; gap: 16px; align-items: center;
 }
-.brand { display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: .06em; text-decoration: none; color: var(--gold-bright); text-shadow: 0 1px 0 #000; }
+.brand { flex: none; display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: .06em; text-decoration: none; color: var(--gold-bright); text-shadow: 0 1px 0 #000; }
 .brand:hover { color: #fff; }
 /* Own emblem: a gold shield with a dark centre */
 .brand-logo { position: relative; width: 32px; height: 38px; background: linear-gradient(160deg, var(--gold-bright), var(--gold-dim)); clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); }
 .brand-logo::after { content: ''; position: absolute; inset: 3px; background: linear-gradient(#2a1d1c, #120e10); clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); }
 .brand-logo::before { content: ''; position: absolute; left: 50%; top: 9px; width: 8px; height: 8px; margin-left: -4px; background: var(--gold); transform: rotate(45deg); z-index: 1; }
-.site-nav { display: flex; flex-wrap: wrap; gap: 2px; }
-.site-nav a { padding: 10px 13px; border-radius: 4px; text-decoration: none; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; }
+.site-nav { flex: 1 1 auto; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.site-nav a { padding: 10px 14px; border-radius: 4px; text-decoration: none; color: var(--muted); font-weight: 600; white-space: nowrap; border-bottom: 2px solid transparent; }
 .site-nav a:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
 .site-nav a.active { color: var(--gold-bright); border-bottom-color: var(--gold); background: rgba(217, 172, 69, .08); }
-.auth { display: flex; gap: 12px; align-items: center; }
+/* The player (icon, name, switch button) always sits at the right-hand side of the header */
+.auth { flex: none; display: flex; gap: 12px; align-items: center; margin-left: auto; }
+/* Unless the screen is very wide: logo on the left and the player on the right, the menu on its own row below */
+@media (max-width: 1560px) {
+  .site-header { flex-wrap: wrap; }
+  .brand { order: 1; }
+  .auth { order: 2; }
+  .site-nav { order: 3; flex: 1 0 100%; justify-content: flex-start; }
+}
+@media (max-width: 1000px) {
+  .site-nav a { padding: 10px 11px; }
+}
 .user { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .user-name { color: var(--text); }
 .class-icon { display: block; flex: none; }
@@ -121,6 +133,11 @@ tbody tr:hover { background: rgba(255, 255, 255, .03); }
 .badge.must { background: var(--crimson); color: #fff; border-color: var(--crimson-bright); }
 .stat-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 4px 16px; font-size: 14px; }
 .stat-list div { display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 4px 0; }
+/* Character name with the player name under it: smaller and light grey (use .who-name > a/span + .who-sub) */
+.who-name { display: inline-flex; flex-direction: column; line-height: 1.25; }
+.who-sub { font-size: 12px; font-weight: 400; color: var(--grey-light); }
+.who-sub a { color: inherit; text-decoration: none; }
+.who-sub a:hover { color: var(--text); text-decoration: underline; }
 .good { color: var(--good); }
 .warn { color: var(--warn); }
 hr { border: none; border-top: 1px solid var(--border); }
