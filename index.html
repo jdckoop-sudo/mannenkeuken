@@ -77,6 +77,7 @@ import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V_
 import { loadItems, qualityColor, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { questUrl } from './js/quests.js?v=__V__';
 import { findDungeon, dungeonUrl } from './js/dungeons.js?v=__V__';
+import { kindIcon } from './js/kindicons.js?v=__V__';
 
 const user = await renderHeader();
 const membersPromise = loadMembers().catch(() => []);
@@ -252,7 +253,7 @@ if (supabase) {
       : e.quest ? esc(e.quest)
       : dg && dg.name.toLowerCase() !== String(e.title).toLowerCase() ? `<a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(dg.name)}</a>` : '';
     const title = dg && !extra ? `<a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : `<a href="events.html#ev-${e.id}">${esc(e.title)}</a>`;
-    return `<p style="margin:0">${e.kind === 'quest' ? '<span class="badge">Quest help</span> ' : ''}${title}${extra ? ` <span class="muted">·</span> ${extra}` : ''}<br><span class="muted" style="font-size:13px">${d.toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })} · <a href="events.html#ev-${e.id}">details</a></span></p>`;
+    return `<p style="margin:0">${kindIcon(e.kind, 16)} ${title}${extra ? ` <span class="muted">·</span> ${extra}` : ''}<br><span class="muted" style="font-size:13px">${d.toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', weekday: 'short', day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })} · <a href="events.html#ev-${e.id}">details</a></span></p>`;
   }).join('') || '<p class="muted">No upcoming events.</p>';
   refreshTooltips();
 } else {
