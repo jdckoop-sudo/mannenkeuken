@@ -40,14 +40,10 @@ a:hover { color: #fff; }
 
 /* Header */
 .site-header {
-  /* Leather: our own texture (img/leather.svg, made with SVG filters), darkened towards the bottom, with a gold stitch line */
-  background: linear-gradient(rgba(30, 20, 14, .25), rgba(12, 8, 6, .5)), url('../img/leather.svg?v=__V__') 0 0 / 320px 320px repeat, #2a1a12;
-  border-bottom: 2px solid var(--gold-dim); position: relative;
-  box-shadow: 0 2px 14px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 220, 170, .06);
+  background: linear-gradient(#241a14, #171211); border-bottom: 2px solid var(--gold-dim);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, .55);
   padding: 12px 24px; display: flex; gap: 16px; align-items: center;
 }
-.site-header::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 5px; border-bottom: 1.5px dashed rgba(217, 172, 69, .5); pointer-events: none; }
-.site-nav a, .site-nav a:hover { text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
 .brand { flex: none; display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: .06em; text-decoration: none; color: var(--gold-bright); text-shadow: 0 1px 0 #000; }
 .brand:hover { color: #fff; }
 /* Own emblem: the flexing cauldron on its own (img/logo-mark.png; the whole logo with shield and banner: img/logo.png / logo.webp) */
