@@ -144,6 +144,11 @@ Jelle en Justin werken elk met hun eigen Claude in dezelfde repo.
 - Klaar: `[bezig]` uit de titel, PR "ready for review" zetten, rebasen en mergen.
 - Elke PR-beschrijving bevat: **Wat** (wat er veranderd is), **Waarom**, en **Voor de ander** (waar de ander op moet letten: andere bestanden, database-wijziging, iets om te testen). Die beschrijvingen samen zijn het logboek.
 
+### Preview en "akkoord = live"
+- Grote wijzigingen (bijv. een nieuwe opmaak) krijgen het label **`preview`** op de pull request. De site zet die branch dan automatisch op **https://jdckoop-sudo.github.io/mannenkeuken/preview/** (`preview.yml` start `pages.yml` opnieuw; altijd de nieuwste open PR met het label). Let op: de preview gebruikt dezelfde database als de live site.
+- **Akkoord geven** (alleen de ánder, niet wie de PR maakte): op GitHub *Review changes → Approve → Submit*, of een reactie op de PR met alleen **`akkoord`** (ook goed: `approve`, `lgtm`, `ship it`). De workflow `go-live.yml` merget dan, publiceert de site en zet een bevestiging onder de PR. Binnen ±1 minuut live.
+- Op de developer-pagina (In progress) staat bij zo'n PR **Open preview** en **Approve = live**.
+
 ### Regels
 1. **Begin altijd vanaf de nieuwste `main`**: `git fetch` en een nieuwe branch vanaf `origin/main` (nooit verder bouwen op een oude lokale kopie).
 2. **Kijk eerst wat de ander doet**: `gh pr list` (open PR's) en `git log origin/main -10` (laatste wijzigingen). Heeft de ander een open PR of branch die dezelfde bestanden raakt: niet daarin werken, eerst overleggen of wachten.

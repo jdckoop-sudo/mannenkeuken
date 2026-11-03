@@ -1,0 +1,51 @@
+# "Akkoord = live": a pull request labelled "preview" goes live as soon as the OTHER developer agrees:
+#  - an approving review on GitHub (Review changes → Approve), or
+#  - a comment on the pull request that says "akkoord" (or "approve", "lgtm", "ship it").
+# The pull request is merged, the site is published and a comment confirms it.
+name: Go live on approval
+on:
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created]
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+concurrency:
+  group: go-live
+jobs:
+  go-live:
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'pull_request_review'
+        && github.event.review.state == 'approved'
+        && contains(github.event.pull_request.labels.*.name, 'preview')
+        && github.event.review.user.login != github.event.pull_request.user.login)
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && contains(github.event.issue.labels.*.name, 'preview')
+        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+        && github.event.comment.user.login != github.event.issue.user.login)
+    steps:
+      - name: Is this an approval?
+        id: check
+        env:
+          EVENT: ${{ github.event_name }}
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          if [ "$EVENT" = "pull_request_review" ]; then echo "ok=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          WORD=$(printf '%s' "$BODY" | tr '[:upper:]' '[:lower:]' | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]!.]*$//' -e 's#^/##')
+          case "$WORD" in akkoord|approve|approved|lgtm|"ship it") echo "ok=1" >> "$GITHUB_OUTPUT";; *) echo "Not an approval: '$WORD'";; esac
+      - name: Merge, publish and confirm
+        if: steps.check.outputs.ok == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+          BY: ${{ github.event.review.user.login || github.event.comment.user.login }}
+        run: |
+          gh pr ready "$PR" --repo "$GITHUB_REPOSITORY" || true
+          gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "✅ Akkoord van @$BY – gemerged. De site staat over ±1 minuut live: https://jdckoop-sudo.github.io/mannenkeuken/"
