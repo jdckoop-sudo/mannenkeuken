@@ -277,8 +277,18 @@ async function loadMessages() {
   if (error) { document.getElementById('todo').innerHTML = `<p class="muted">Could not load: ${esc(error.message)}</p>`; return; }
   const forMe = messages.filter((m) => m.to_player === user.player && !m.done_at);
   const forOther = messages.filter((m) => m.to_player !== user.player && !m.done_at);
-  document.getElementById('todo').innerHTML = forMe.map((m) => line(m, true)).join('') || '<p class="muted">Nothing to do. 🎉</p>';
-  document.getElementById('todo-other').innerHTML = forOther.map((m) => line(m, false)).join('') || `<p class="muted">${esc(other)} has nothing open.</p>`;
+  // Previews (open pull requests labelled "preview") wait for the OTHER developer's OK: shown automatically, no message needed
+  let previews = [];
+  try { previews = (await gh('pulls?state=open&per_page=50')).filter((pr) => (pr.labels || []).some((l) => l.name === 'preview')); } catch { /* GitHub not reachable */ }
+  const reviewLine = (pr, forMe) => `<div class="dev-row"><span>${badge('check')}</span>
+      <span><strong>Check the preview:</strong> <a href="${pr.html_url}" target="_blank" rel="noopener">${esc(pr.title)}</a> (#${pr.number})<br>
+      <span style="font-size:14px"><a href="preview/" target="_blank" rel="noopener"><strong>Open preview</strong></a> · ${forMe ? `happy? Comment <code>akkoord</code> on the <a href="${pr.html_url}" target="_blank" rel="noopener">pull request</a> (or Approve) and it goes live by itself` : `waiting for ${esc(other)}'s OK – it goes live by itself after his <code>akkoord</code>`}</span><br>
+      <span class="muted" style="font-size:12px"><strong>${esc(who(pr))} → ${esc(forMe ? user.player : other)}</strong> · since ${esc(ago(pr.created_at))}</span></span>
+      <span>${forMe ? `<a class="btn btn-primary" href="preview/" target="_blank" rel="noopener">Check</a>` : ''}</span></div>`;
+  const reviewForMe = previews.filter((pr) => who(pr) !== user.player).map((pr) => reviewLine(pr, true)).join('');
+  const reviewForOther = previews.filter((pr) => who(pr) === user.player).map((pr) => reviewLine(pr, false)).join('');
+  document.getElementById('todo').innerHTML = (reviewForMe + forMe.map((m) => line(m, true)).join('')) || '<p class="muted">Nothing to do. 🎉</p>';
+  document.getElementById('todo-other').innerHTML = (reviewForOther + forOther.map((m) => line(m, false)).join('')) || `<p class="muted">${esc(other)} has nothing open.</p>`;
   document.getElementById('msg-history').innerHTML = messages.filter((m) => m.done_at).map((m) => `<p style="margin:0 0 6px;font-size:14px">${badge('ok')}
       ${esc(m.text)}<br><span class="muted" style="font-size:12px"><strong>${esc(m.from_player ?? '?')} → ${esc(m.to_player)}</strong> · sent ${esc(ago(m.created_at))} · <strong>done by ${esc(m.to_player)}</strong> ${esc(ago(m.done_at))}</span></p>`).join('')
     || '<p class="muted">Nothing done yet.</p>';
