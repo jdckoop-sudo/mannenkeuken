@@ -4,6 +4,8 @@ import { supabase } from './supabase.js?v=__V__';
 import { loadMembers } from './sheet.js?v=__V__';
 
 export const SECONDARY = ['Cooking', 'First Aid', 'Fishing'];
+// The sheet's Status column uses the Dutch value "Gestopt" (the sync and the code compare with it); the site shows it in English.
+export const statusLabel = (status) => (status === 'Gestopt' ? 'Quit' : status);
 const norm = (s) => String(s ?? '').trim().toLowerCase();
 // "Skyborne (Horde)" (profile form) and "Skyborne" (sheet) are the same race.
 export const baseRace = (r) => String(r ?? '').replace(/\s*\((Horde|Alliance)\)$/, '');

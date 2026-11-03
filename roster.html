@@ -34,7 +34,7 @@
   <form class="box" style="flex-direction: row; flex-wrap: wrap; align-items: flex-end" onsubmit="return false">
     <label style="flex: 1 1 220px">Search<input id="q" type="search" placeholder="Player, character or profession"></label>
     <label>Role<select id="role"><option value="">All roles</option><option>Tank</option><option>Healer</option><option>DPS</option></select></label>
-    <label>Status<select id="status"><option>Main</option><option>Alt</option><option>Gestopt</option><option value="">All</option></select></label>
+    <label>Status<select id="status"><option>Main</option><option>Alt</option><option value="Gestopt">Quit</option><option value="">All</option></select></label>
   </form>
   <div class="table-wrap">
     <table>
@@ -48,7 +48,7 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { professionLabel } from './js/proficons.js?v=__V__';
-import { loadBlizzard, activityOf, ACTIVITY } from './js/players.js?v=__V__';
+import { loadBlizzard, activityOf, ACTIVITY, statusLabel } from './js/players.js?v=__V__';
 renderHeader();
 
 const key = (s) => String(s ?? '').trim().toLowerCase();
@@ -73,7 +73,7 @@ const cols = [
   ['fishing', 'Fishing', (m) => n(m.fishing), (m) => esc(m.fishing), true, 'num'],
   ['recipes', 'Key recipes', (m) => m.recipes, (m) => esc(m.recipes), false, 'wrap'],
   ['notes', 'Notes', (m) => m.notes, (m) => esc(m.notes), false, 'wrap'],
-  ['status', 'Status', (m) => m.status, (m) => esc(m.status)],
+  ['status', 'Status', (m) => m.status, (m) => esc(statusLabel(m.status))],
   ['updated', 'Last updated', (m) => m.updated?.split('-').reverse().join(''), (m) => esc(m.updated)],
 ];
 

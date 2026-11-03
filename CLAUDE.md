@@ -2,7 +2,7 @@
 
 This repo is the Mannenkeuken guild dashboard. Read README.md first. The working instructions (guild sync + dashboard, in Dutch) are in `docs/instructies.md`: follow them, and update that file in the same pull request whenever sync or dashboard behaviour changes. At the start of every conversation: summarise what the other person merged since this person's last PR, and list the other's open `[bezig]` draft PRs. When you start work: open a draft PR titled `[bezig] …` right away; every PR body has *Wat*, *Waarom* and *Voor de ander*.
 
-- Site copy is in **English**. Talk to Jelle/Tinus in **Dutch**.
+- Site copy is in **English**, everywhere (labels, notes, placeholders, addon texts in the database). Talk to Jelle/Tinus in **Dutch**. The sheet's Status value "Gestopt" stays Dutch in the data (the sync compares with it) but is shown as "Quit" with `statusLabel()` from `js/players.js`: never show a raw sheet value without checking it. Addon priorities are Must-have / Recommended / Optional / Alternative.
 - Plain static HTML/CSS/JS served by GitHub Pages. No frameworks, no build step, no npm.
   Supabase is loaded from `https://esm.sh/@supabase/supabase-js@2` as an ES module.
 - Every page: `<link rel="stylesheet" href="css/style.css">` and a module script that calls `renderHeader()` from `js/layout.js`. New page → add it to the `pages` list in `js/layout.js`.

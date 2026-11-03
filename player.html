@@ -29,7 +29,7 @@ import { renderHeader } from './js/layout.js?v=__V__';
 import { LAUNCH } from './js/releases.js?v=__V__';
 import { supabase } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
-import { loadCharacters, statsFor, characterUrl, playerForUser } from './js/players.js?v=__V__';
+import { loadCharacters, statsFor, characterUrl, playerForUser, statusLabel } from './js/players.js?v=__V__';
 
 const user = await renderHeader();
 const name = new URLSearchParams(location.search).get('name');
@@ -54,7 +54,7 @@ if (!target) {
 
   document.getElementById('chars').innerHTML = chars.map((c) => `
     <a class="box" href="${characterUrl(c.name)}" style="text-decoration:none">
-      <span class="badge">${esc(c.status)}</span>
+      <span class="badge">${esc(statusLabel(c.status))}</span>
       <strong style="font-size:18px">${esc(c.name)}</strong>
       <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · ') || '–')}</span>
       <span>Level <strong>${esc(c.level ?? '–')}</strong></span>

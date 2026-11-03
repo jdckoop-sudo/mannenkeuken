@@ -62,7 +62,7 @@
       <label>Title<input name="title" required maxlength="80"></label>
       <div id="addon-fields" style="display: flex; flex-direction: column; gap: 12px">
         <label>Addon category<input name="addon_category" list="addon-cats" maxlength="40" placeholder="e.g. Interface"><datalist id="addon-cats"></datalist></label>
-        <label>Priority<select name="priority"><option>Must-have</option><option>Aanrader</option><option selected>Optioneel</option><option>Alternatief</option></select></label>
+        <label>Priority<select name="priority"><option>Must-have</option><option>Recommended</option><option selected>Optional</option><option>Alternative</option></select></label>
       </div>
       <label><span id="class-label">Class (optional)</span><input name="class" maxlength="40" placeholder="e.g. Warrior"></label>
       <label>Link (optional)<input name="link" type="url" placeholder="https://"></label>
@@ -202,7 +202,7 @@ function toggleFields() {
   const isAddon = catSel.value === 'addon';
   document.getElementById('addon-fields').hidden = !isAddon;
   document.getElementById('class-label').textContent = isAddon ? 'For whom (optional)' : 'Class (optional)';
-  form.class.placeholder = isAddon ? 'e.g. Iedereen, Healers' : 'e.g. Warrior';
+  form.class.placeholder = isAddon ? 'e.g. Everyone, Healers' : 'e.g. Warrior';
 }
 catSel.addEventListener('change', toggleFields);
 toggleFields();

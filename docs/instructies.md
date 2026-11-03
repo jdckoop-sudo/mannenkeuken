@@ -31,7 +31,7 @@ Twee vaste taken:
 | Blizzard-API (experiment) | developer-client op https://develop.battle.net; de geheimen `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan alleen als GitHub Actions-secrets (Claude typt ze nooit in en vraagt er nooit naar). Iedereen met repo-toegang kan de workflows starten met de client in GitHub. Om de scripts **lokaal** te draaien heeft ieder een eigen dev-client op Battle.net (zonder client geen data); zelf aanmaken op develop.battle.net → API Access → Create Client, en ID + secret zelf in een privé `.env` buiten de projectmap zetten. Testen: Actions → *Test Blizzard API* → Run workflow (`tools/blizzard-test.mjs`), of lokaal met `node --env-file=<privé .env buiten de OneDrive-map> tools/blizzard-test.mjs <character> <realm> [regio]` (zie `.env.example`; `.env`-bestanden staan in `.gitignore`; Claude leest zo'n bestand nooit uit). Alle characters ophalen naar `data/blizzard-characters.json`: Actions → *Update characters* (alleen handmatig; `tools/update-characters.mjs`; instellingen in `data/blizzard-config.json`). De characterpagina toont die gegevens onder "From the game" zodra het bestand bestaat |
 
 ### Sheet
-- **Members**: kopregel 4, spelers vanaf regel 5. Kolommen: A Player (echte naam), B Character, C Race, D Class, E Role, F Level, G Profession 1, H Skill 1, I Profession 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated, P Status (Main / Alt / Gestopt), Q Notes (opmerkingen, bijv. "Druid als back-up"). Een alt = een extra regel met Status = Alt.
+- **Members**: kopregel 4, spelers vanaf regel 5. Kolommen: A Player (echte naam), B Character, C Race, D Class, E Role, F Level, G Profession 1, H Skill 1, I Profession 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated, P Status (Main / Alt / Gestopt; op de site staat "Gestopt" als **Quit**, de waarde in de sheet blijft Nederlands), Q Notes (opmerkingen, bijv. "Druid als back-up"). Een alt = een extra regel met Status = Alt.
 - **Last updated (O) gaat automatisch**: het Apps Script van de sheet (project *Mannenkeuken Discord Sync*, functie `onEdit`) zet bij elke echte wijziging in een spelersregel de datum van vandaag (NL-tijd). Niet zelf invullen. Dezelfde waarde opnieuw typen of opmaak wijzigen over lege cellen telt niet.
 - **Lists**: geldige waarden – A Race, B Class, C Profession. Let op geldige race/class-combinaties (bijv. Skyborne kan geen Priest zijn).
 - **Addons** en **Guild Bank**: worden niet meer gebruikt; die staan nu op het dashboard.
@@ -116,6 +116,7 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag d
 ---
 
 ## Dashboard aanpassen
+- **Alle tekst op de site is Engels** (labels, uitleg, placeholders, ook de addon-teksten in Supabase). Alleen deze instructies en de README zijn Nederlands. Nieuwe teksten dus in het Engels; toon een sheetwaarde die Nederlands is (zoals "Gestopt") via `statusLabel()` in `js/players.js`.
 
 - **Vraag eerst of de guildbank al gekocht is** (zolang dat nog niet zo is).
 - Lees eerst **README.md** en **CLAUDE.md** in de repo (technische regels: gewone HTML/CSS/JS, Engels op de site, `?v=__V__`, `confirm()` vóór verwijderen, `esc()`, `mine(user, uid)` voor "is dit van mij", enz.).

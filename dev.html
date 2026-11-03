@@ -184,13 +184,15 @@ const dayKey = (iso) => new Date(iso).toLocaleDateString('en-CA', TZ); // 2026-1
 const dayLabel = (key) => new Date(`${key}T12:00:00Z`).toLocaleDateString('en-GB', { ...TZ, weekday: 'short', day: 'numeric', month: 'short' });
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('en-GB', { ...TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' });
 
-// PR body → the sections Wat / Waarom / Voor de ander (or the first lines when they are missing)
+// PR body → the sections What / Why / For the other (the PR template uses the Dutch headings Wat / Waarom / Voor de ander; both are read, English is shown)
 function sections(body) {
   const text = String(body ?? '').split(/\n🤖|\nhttps:\/\/claude\.ai/)[0].trim();
   const parts = [];
-  for (const name of ['Wat', 'Waarom', 'Voor de ander']) {
-    const m = text.match(new RegExp(`\\*\\*${name}\\*\\*:?\\s*([\\s\\S]*?)(?=\\n\\*\\*(?:Wat|Waarom|Voor de ander)\\*\\*|$)`));
-    if (m && m[1].trim()) parts.push([name, m[1].trim()]);
+  const names = [['What', 'Wat|What'], ['Why', 'Waarom|Why'], ['For the other', 'Voor de ander|For the other']];
+  const any = names.map(([, alt]) => alt).join('|');
+  for (const [label, alt] of names) {
+    const m = text.match(new RegExp(`\\*\\*(?:${alt})\\*\\*:?\\s*([\\s\\S]*?)(?=\\n\\*\\*(?:${any})\\*\\*|$)`));
+    if (m && m[1].trim()) parts.push([label, m[1].trim()]);
   }
   return parts.length ? parts : (text ? [['Details', text.slice(0, 900)]] : []);
 }

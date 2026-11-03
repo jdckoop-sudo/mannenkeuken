@@ -418,3 +418,49 @@ drop policy if exists "read devs" on public.dev_messages;
 drop policy if exists "write devs" on public.dev_messages;
 create policy "read devs" on public.dev_messages for select to authenticated using (public.is_dev());
 create policy "write devs" on public.dev_messages for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+-- 2026-11-04: the addon texts (category, what, priority, who, note) in English; they were Dutch.
+-- Idempotent: each row is matched on the addon name (the old or the new name) and set to the English text.
+update public.addons as a set
+  name = v.new_name, category = v.category, what = v.what, priority = v.priority, who = v.who,
+  note = nullif(v.note, ''), link_label = coalesce(v.link_label, a.link_label)
+from (values
+  ($q$CurseForge-app$q$, $q$CurseForge-app$q$, $q$Basics$q$, $q$Addon manager: installs and updates all your addons automatically.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Not an addon but a program on your PC. Pick the "Forever" version for WoW.$q$, null),
+  ($q$BugSack + BugGrabber$q$, $q$BugSack + BugGrabber$q$, $q$Basics$q$, $q$Catches red Lua error messages so they don't spam your screen, and shows you which addon is broken.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Update after a patch.$q$, null),
+  ($q$Guild Found Forever$q$, $q$Guild Found Forever$q$, $q$Guild-found$q$, $q$Guild-found rules: no Auction House, post and trade only within the guild, group lock with outsiders. Plus deathlog, guild map and announcements (level 60, deaths, epics).$q$, $q$Must-have$q$, $q$Whole guild$q$, $q$Best match for your own guild; an officer sets the rules via the guild info. Still beta, 1.0 planned for 4 Nov – check whether it is on CurseForge by then.$q$, null),
+  ($q$Guild Self Forever 2.0$q$, $q$Guild Self Forever 2.0$q$, $q$Guild-found$q$, $q$Blocks the AH and trading/posting outside the guild; shared bank, craft requests and roles.$q$, $q$Alternative$q$, $q$Whole guild$q$, $q$Already works on Forever, but is built for the (French-speaking) GSF guild network; rules only apply to registered characters.$q$, null),
+  ($q$ForeverGuild+$q$, $q$ForeverGuild+$q$, $q$Guild$q$, $q$Guild roster with roles, professions and craft requests, raid sign-ups, loot history and group finder.$q$, $q$Recommended$q$, $q$Whole guild$q$, $q$Does NOT enforce guild-found rules; only really works once everyone has it.$q$, null),
+  ($q$Questie$q$, $q$Questie$q$, $q$Questing & levelling$q$, $q$Shows on the map and minimap where you pick up, do and hand in quests.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$Leatrix Plus$q$, $q$Leatrix Plus$q$, $q$Questing & levelling$q$, $q$Convenience pack: sell grey items, auto-repair, hand in quests faster, block duels, zoom out further.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Everything can be switched on or off separately in the options.$q$, null),
+  ($q$Nova Spell Rank Checker$q$, $q$Nova Spell Rank Checker$q$, $q$Questing & levelling$q$, $q$Warns when an old rank of a spell is on your action bar.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$In Forever a spell on your bar does not upgrade to the new rank by itself.$q$, null),
+  ($q$GnomeLevelUp$q$, $q$GnomeLevelUp$q$, $q$Questing & levelling$q$, $q$On every level-up shows what improved and which spells you can learn from the trainer.$q$, $q$Recommended$q$, $q$Beginners$q$, $q$$q$, null),
+  ($q$Class Quests Forever$q$, $q$Class Quests Forever$q$, $q$Questing & levelling$q$, $q$Journal of all class quests; tells you when a new one unlocks and where your trainer is.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$RestedXP Guides$q$, $q$RestedXP Guides$q$, $q$Questing & levelling$q$, $q$Levelling guide with an arrow to the fastest quests.$q$, $q$Optional$q$, $q$Anyone who wants to level fast$q$, $q$Level 1–20 free, paid after that.$q$, null),
+  ($q$Leatrix Maps$q$, $q$Leatrix Maps$q$, $q$Maps & navigation$q$, $q$World map fully revealed, with zone levels and extra icons.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Don't combine with OpenMap or Mapster.$q$, null),
+  ($q$Forever Dungeon Map$q$, $q$Forever Dungeon Map$q$, $q$Maps & navigation$q$, $q$Dungeon entrances with levels on the map.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$TomTom$q$, $q$TomTom$q$, $q$Maps & navigation$q$, $q$Arrow on your screen pointing to a spot on the map (/way x y).$q$, $q$Optional$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$Edit Mode (ingebouwd)$q$, $q$Edit Mode (built in)$q$, $q$Interface$q$, $q$Move and scale action bars and frames: Esc → Edit Mode.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Try this first before you pick a UI addon.$q$, $q$Built into the game$q$),
+  ($q$Bartender4$q$, $q$Bartender4$q$, $q$Interface$q$, $q$Action bars exactly how you want them, extra bars and /kb to set keybinds quickly.$q$, $q$Optional$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$MinimapButtonButton$q$, $q$MinimapButtonButton$q$, $q$Interface$q$, $q$Collects all addon buttons around the minimap into one button.$q$, $q$Optional$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$Baganator$q$, $q$Baganator$q$, $q$Bags & gear$q$, $q$All your bags (and bank) in one window, with search bar and sorting.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$ForeverGear$q$, $q$ForeverGear$q$, $q$Bags & gear$q$, $q$Shows whether an item is an upgrade for your spec, including quest rewards.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Choose your own spec profile; some profiles are still provisional.$q$, null),
+  ($q$Deadly Boss Mods (DBM)$q$, $q$Deadly Boss Mods (DBM)$q$, $q$Dungeons & raids$q$, $q$Warnings and timers for boss abilities.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$ThreatClassic2$q$, $q$ThreatClassic2$q$, $q$Dungeons & raids$q$, $q$Threat meter: see who has aggro and how close you are to it.$q$, $q$Must-have$q$, $q$Everyone (especially tanks)$q$, $q$Threat is harder to hold in Forever than in retail.$q$, null),
+  ($q$DungeonJournal$q$, $q$DungeonJournal$q$, $q$Dungeons & raids$q$, $q$/dj: bosses, loot, maps and quests per dungeon.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Dungeons only, no raids.$q$, null),
+  ($q$AtlasLoot Classic Forever$q$, $q$AtlasLoot Classic Forever$q$, $q$Dungeons & raids$q$, $q$Loot tables of dungeons and raids.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Get THIS version, not the old AtlasLootClassic.$q$, null),
+  ($q$Details!$q$, $q$Details!$q$, $q$Dungeons & raids$q$, $q$Extensive damage and heal meter.$q$, $q$Optional$q$, $q$Everyone$q$, $q$There is already a damage meter in the game; Details! is extra.$q$, null),
+  ($q$SkillUp Forever$q$, $q$SkillUp Forever$q$, $q$Professions$q$, $q$Chance of a skill-up per recipe, shopping list and levelling route for your profession.$q$, $q$Recommended$q$, $q$Anyone with a profession$q$, $q$Extra handy in guild-found: you have to make everything yourself.$q$, null),
+  ($q$ForeverMapNotes$q$, $q$ForeverMapNotes$q$, $q$Professions$q$, $q$Ores, herbs, chests and rares on the map.$q$, $q$Optional$q$, $q$Mining / Herbalism$q$, $q$$q$, null),
+  ($q$HealBot Continued$q$, $q$HealBot Continued$q$, $q$Role: healer$q$, $q$Heal frames: click a teammate (or hover + key) to heal.$q$, $q$Must-have$q$, $q$Healers$q$, $q$Pick HealBot OR VuhDo, not both.$q$, null),
+  ($q$VuhDo$q$, $q$VuhDo$q$, $q$Role: healer$q$, $q$Alternative to HealBot with raid frames and click-healing.$q$, $q$Alternative$q$, $q$Healers$q$, $q$$q$, null),
+  ($q$Decursive$q$, $q$Decursive$q$, $q$Role: healer$q$, $q$Shows who has a debuff you can remove; one click to dispel.$q$, $q$Recommended$q$, $q$Priest, Paladin, Druid, Shaman, Mage$q$, $q$$q$, null),
+  ($q$Threat Plates$q$, $q$Threat Plates$q$, $q$Role: tank$q$, $q$Colours nameplates by threat, so you immediately see which mob breaks loose.$q$, $q$Recommended$q$, $q$Tanks (also handy for DPS)$q$, $q$During the beta the CurseForge version lagged behind; check whether there is a Forever file.$q$, null),
+  ($q$Forever Classmate$q$, $q$Forever Classmate$q$, $q$Class-specific$q$, $q$Recognises your class and shows only what you need: buff reminders, resources, DoT bars.$q$, $q$Recommended$q$, $q$All classes$q$, $q$Good replacement for WeakAuras (which doesn't work on Forever).$q$, null),
+  ($q$Mage Tools Forever$q$, $q$Mage Tools Forever$q$, $q$Class-specific$q$, $q$Conjure and hand out food/drink per level, portal bar and Polymorph bar.$q$, $q$Recommended$q$, $q$Mage$q$, $q$$q$, null),
+  ($q$Warlock Tools Forever$q$, $q$Warlock Tools Forever$q$, $q$Class-specific$q$, $q$Manage Soul Shards, Soulstone/Healthstone buttons, DoT tracker, Fear/Banish bar.$q$, $q$Recommended$q$, $q$Warlock$q$, $q$$q$, null),
+  ($q$TotemTimers$q$, $q$TotemTimers$q$, $q$Class-specific$q$, $q$Timers and quick buttons for your totems.$q$, $q$Recommended$q$, $q$Shaman$q$, $q$$q$, null),
+  ($q$Combo Points on Plate$q$, $q$Combo Points on Plate$q$, $q$Class-specific$q$, $q$Combo points under the nameplate of your target.$q$, $q$Optional$q$, $q$Rogue, Feral Druid$q$, $q$$q$, null),
+  ($q$Auctionator / TSM$q$, $q$Auctionator / TSM$q$, $q$Not needed / doesn't work$q$, $q$Auction House addons.$q$, $q$Not needed$q$, $q$—$q$, $q$Guild-found = no Auction House.$q$, null),
+  ($q$WeakAuras, OmniCC, OmniBar, Postal, AdiBags$q$, $q$WeakAuras, OmniCC, OmniBar, Postal, AdiBags$q$, $q$Not needed / doesn't work$q$, $q$Well-known addons without a working Forever version.$q$, $q$Doesn't work$q$, $q$—$q$, $q$Use Forever Classmate / the built-in Cooldown Manager, Baganator instead of AdiBags.$q$, null)
+) as v(old_name, new_name, category, what, priority, who, note, link_label)
+where a.name in (v.old_name, v.new_name);
