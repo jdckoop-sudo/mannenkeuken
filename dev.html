@@ -171,6 +171,16 @@
   .rx-pick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
   .rx-pick button { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; font-size: 17px; line-height: 1; padding: 4px 6px; cursor: pointer; }
   .rx-pick button:hover, .rx-pick button.on { border-color: var(--gold); }
+  .comments summary { cursor: pointer; font-size: 13px; color: var(--gold-bright); }
+  .comments summary .muted { color: var(--muted); font-size: 12px; }
+  .comments[open] { border-top: 1px solid var(--border); padding-top: 6px; }
+  .comment { margin: 8px 0 0; padding-left: 8px; border-left: 2px solid var(--border); }
+  .comment-head { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .comment-head .link-btn { font-size: 12px; margin-left: auto; }
+  .comment .body { margin: 2px 0 0; font-size: 14px; }
+  .comment-form { display: flex; gap: 6px; align-items: flex-end; margin-top: 8px; }
+  .comment-form textarea { flex: 1; min-height: 0; font-size: 14px; }
+  .comment-form .btn { padding: 4px 12px; font-size: 13px; }
   .ticket .top { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
   .ticket-form textarea { min-height: 140px; }
   .ticket-form .full { grid-column: 1 / -1; }
@@ -403,9 +413,16 @@ for (const [kind, host] of Object.entries(hosts)) {
     <div class="board"><p class="muted">Loading…</p></div>
   </section>`;
 }
+let comments = [];
+const openComments = new Set(); // ticket ids whose comments are open (stay open after a redraw)
+const when = (iso) => new Date(iso).toLocaleString('en-GB', { ...TZ, hourCycle: 'h23', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 async function loadTickets() {
-  const { data, error } = await supabase.from('dev_tickets').select('*').order('created_at', { ascending: true });
+  const [{ data, error }, cm] = await Promise.all([
+    supabase.from('dev_tickets').select('*').order('created_at', { ascending: true }),
+    supabase.from('dev_ticket_comments').select('*').order('created_at', { ascending: true }),
+  ]);
   tickets = data ?? [];
+  comments = cm.data ?? [];
   if (error) {
     const msg = /dev_tickets/.test(error.message) ? 'The table dev_tickets is not in the database yet: run supabase/schema.sql in the Supabase SQL Editor.' : `Could not load: ${error.message}`;
     Object.values(hosts).forEach((h) => { h.querySelector('.board').innerHTML = `<p class="muted">${esc(msg)}</p>`; });
@@ -418,6 +435,21 @@ function reactionsRow(t) {
   const on = REACTIONS.filter((e) => rx[e]?.length).map((e) => `<button type="button" class="rx ${rx[e].includes(user.player) ? 'on' : ''}" data-act="react" data-emoji="${e}" data-id="${t.id}" title="${esc(rx[e].join(' and '))} – click to switch yours on/off">${e} <span>${esc(rx[e].join(' + '))}</span></button>`).join('');
   const pick = REACTIONS.map((e) => `<button type="button" class="${rx[e]?.includes(user.player) ? 'on' : ''}" data-act="react" data-emoji="${e}" data-id="${t.id}">${e}</button>`).join('');
   return `<div class="reactions">${on}<details class="rx-add"><summary title="Add a reaction">☺+</summary><div class="rx-pick">${pick}</div></details></div>`;
+}
+function commentsBlock(t) {
+  const list = comments.filter((c) => c.ticket_id === t.id);
+  const items = list.map((c) => `<div class="comment">
+      <div class="comment-head"><span class="dev-who ${esc((c.author ?? '').toLowerCase())}">${esc(c.author ?? '?')}</span><time>${esc(when(c.created_at))}</time>
+        ${c.author === user.player ? `<button type="button" class="link-btn" data-act="del-comment" data-cid="${c.id}" data-id="${t.id}">Remove</button>` : ''}</div>
+      <p class="body">${esc(c.text)}</p></div>`).join('');
+  return `<details class="comments" data-ticket="${t.id}" ${openComments.has(t.id) ? 'open' : ''}>
+    <summary>💬 ${list.length ? `Comments (${list.length})` : 'Comment'}${list.length ? ` <span class="muted">· last by ${esc(list[list.length - 1].author ?? '?')}, ${esc(when(list[list.length - 1].created_at))}</span>` : ''}</summary>
+    ${items}
+    <form class="comment-form" data-ticket="${t.id}">
+      <textarea name="text" required maxlength="2000" rows="2" placeholder="Write a comment…"></textarea>
+      <button class="btn" type="submit">Post</button>
+    </form>
+  </details>`;
 }
 function ticketCard(t) {
   const mine = t.claimed_by === user.player;
@@ -435,6 +467,7 @@ function ticketCard(t) {
     <div class="meta">Added by ${esc(t.created_by ?? '?')} · ${esc(ago(t.created_at))}</div>
     ${claim}${t.status === 'done' ? '' : body}
     ${reactionsRow(t)}
+    ${commentsBlock(t)}
     <div class="actions">${actions.join('')}</div>
   </article>`;
 }
@@ -471,6 +504,13 @@ for (const [kind, host] of Object.entries(hosts)) {
     if (b.hasAttribute('data-cancel')) { form.hidden = true; return; }
     const t = tickets.find((x) => x.id === b.dataset.id);
     if (!t) return;
+    if (b.dataset.act === 'del-comment') {
+      if (!confirm('Are you sure you want to remove your comment?')) return;
+      const { error } = await supabase.from('dev_ticket_comments').delete().eq('id', b.dataset.cid);
+      msg.textContent = error ? `Could not remove: ${error.message}` : '';
+      loadTickets();
+      return;
+    }
     if (b.dataset.act === 'react') {
       const { error } = await supabase.rpc('toggle_ticket_reaction', { p_ticket: t.id, p_emoji: b.dataset.emoji });
       msg.textContent = error ? `Could not save: ${error.message}` : '';
@@ -502,6 +542,21 @@ for (const [kind, host] of Object.entries(hosts)) {
       : await supabase.from('dev_tickets').delete().eq('id', t.id);
     msg.textContent = res.error ? `Could not save: ${res.error.message}` : '';
     loadTickets();
+  });
+  // Comments: remember which are open, and post new ones (the author is set by the database)
+  host.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (!d.matches?.('details.comments')) return;
+    if (d.open) openComments.add(d.dataset.ticket); else openComments.delete(d.dataset.ticket);
+  }, true);
+  host.addEventListener('submit', async (e) => {
+    if (!e.target.matches('.comment-form')) return;
+    e.preventDefault();
+    const text = new FormData(e.target).get('text').trim();
+    if (!text) return;
+    const { error } = await supabase.from('dev_ticket_comments').insert({ ticket_id: e.target.dataset.ticket, text });
+    msg.textContent = error ? `Could not post: ${error.message}` : '';
+    if (!error) { openComments.add(e.target.dataset.ticket); loadTickets(); }
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
