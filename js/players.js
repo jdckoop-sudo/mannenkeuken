@@ -20,6 +20,22 @@ export function loadBlizzard() {
   return blizzardPromise;
 }
 
+// How active is a character? From the last login (data/blizzard-characters.json, lastLogin as ISO text).
+// One place for the thresholds, so Roster, Home, player pages and checks all agree.
+export const ACTIVITY = { activeDays: 3, quietDays: 14 };
+// level: active | quiet | inactive | unknown (no login known: the file does not exist yet, or the character was not found)
+export function activityOf(iso, now = new Date()) {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return { level: 'unknown', label: '–', title: 'Not known yet: appears when the game data is available', ts: null, days: null };
+  const ms = Math.max(0, now.getTime() - t);
+  const hours = ms / 3600e3;
+  const days = ms / 86400e3;
+  const label = hours < 1 ? 'Just now' : hours < 24 ? `${Math.floor(hours)} h ago` : `${Math.floor(days)} day${Math.floor(days) === 1 ? '' : 's'} ago`;
+  const level = days <= ACTIVITY.activeDays ? 'active' : days <= ACTIVITY.quietDays ? 'quiet' : 'inactive';
+  const title = `Last login ${new Date(t).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} (Dutch time)`;
+  return { level, label, title, ts: t, days };
+}
+
 // players table: player_name (sheet column A) <-> discord_name
 export async function loadPlayers() {
   if (!supabase) return [];

@@ -42,13 +42,19 @@
       <tbody id="rows"><tr><td colspan="14">Loading…</td></tr></tbody>
     </table>
   </div>
+  <p class="muted" id="activity-note" style="font-size:13px"></p>
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { professionLabel } from './js/proficons.js?v=__V__';
+import { loadBlizzard, activityOf, ACTIVITY } from './js/players.js?v=__V__';
 renderHeader();
 
+const key = (s) => String(s ?? '').trim().toLowerCase();
+let blizzard = null; // data/blizzard-characters.json, once the update workflow has made it
+// Last seen = last login from the game data; empty ("–") until that data exists
+const activity = (m) => activityOf(blizzard?.characters?.[key(m.character)]?.lastLogin);
 const n = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
 const prof = (p, s) => (p ? `<span class="prof-cell"><span>${professionLabel(p, { size: 18 })}</span>${s ? `<span class="prof-skill muted">(${esc(s)})</span>` : ''}</span>` : '');
 // key, label, value used for sorting, cell html, numeric sort?, css class of the column (num = right aligned, prof = profession + skill, wrap = free text)
@@ -59,6 +65,7 @@ const cols = [
   ['cls', 'Class', (m) => m.cls, (m) => esc(m.cls)],
   ['role', 'Role', (m) => m.role, (m) => esc(m.role)],
   ['level', 'Level', (m) => n(m.level), (m) => esc(m.level), true, 'num'],
+  ['lastSeen', 'Last seen', (m) => activity(m).ts, (m) => { const a = activity(m); return `<span class="activity" title="${esc(a.title)}"><span class="dot dot-${a.level}" aria-hidden="true"></span>${esc(a.label)}</span>`; }, true],
   ['prof1', 'Profession 1', (m) => n(m.skill1), (m) => prof(m.prof1, m.skill1), true, 'prof'],
   ['prof2', 'Profession 2', (m) => n(m.skill2), (m) => prof(m.prof2, m.skill2), true, 'prof'],
   ['cooking', 'Cooking', (m) => n(m.cooking), (m) => esc(m.cooking), true, 'num'],
@@ -113,7 +120,12 @@ document.getElementById('head').addEventListener('click', (e) => {
 });
 ['q', 'role', 'status'].forEach((id) => document.getElementById(id).addEventListener('input', draw));
 drawHead();
-loadMembers().then((m) => { members = m; draw(); }).catch(() => {
+function drawNote() {
+  document.getElementById('activity-note').textContent = blizzard
+    ? `Last seen is the last login, read from the game; it updates after a player logs out. Green: within ${ACTIVITY.activeDays} days, orange: within ${ACTIVITY.quietDays} days, red: longer.`
+    : 'Last seen shows when a character last logged in. It fills in as soon as the game data (Blizzard API) is available.';
+}
+Promise.all([loadMembers(), loadBlizzard()]).then(([m, bz]) => { members = m; blizzard = bz; drawNote(); draw(); }).catch(() => {
   document.getElementById('rows').innerHTML = `<tr><td colspan="${cols.length}">Could not read the sheet. Is it shared as "Anyone with the link can view"?</td></tr>`;
 });
 </script>

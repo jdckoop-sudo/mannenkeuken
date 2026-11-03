@@ -173,6 +173,12 @@ tbody tr:hover { background: rgba(255, 255, 255, .03); }
 .who-sub { font-size: 12px; font-weight: 400; color: var(--grey-light); }
 .who-sub a { color: inherit; text-decoration: none; }
 .who-sub a:hover { color: var(--text); text-decoration: underline; }
+/* Activity (last login): a coloured dot plus text (see activityOf in js/players.js) */
+.activity { display: inline-flex; align-items: center; gap: 8px; }
+.dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+.dot-active { background: var(--good); }
+.dot-quiet { background: var(--warn); }
+.dot-inactive { background: var(--bad); }
 .good { color: var(--good); }
 .warn { color: var(--warn); }
 hr { border: none; border-top: 1px solid var(--border); }
