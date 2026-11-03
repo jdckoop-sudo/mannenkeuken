@@ -19,8 +19,8 @@
       <h2 id="form-title">New listing</h2>
       <p id="form-msg" class="muted"></p>
       <fieldset><legend>Type</legend>
-        <label><input type="radio" name="kind" value="offer" checked> Offer</label>
-        <label><input type="radio" name="kind" value="request"> Request</label>
+        <label class="check"><input type="radio" name="kind" value="offer" checked> Offer</label>
+        <label class="check"><input type="radio" name="kind" value="request"> Request</label>
       </fieldset>
       <label for="item-input">Item</label>
       <p class="muted" style="font-size:13px;margin:-6px 0 0">Pick an item from the suggestions. Only items that can be traded are listed (no soulbound or quest items).</p>
@@ -31,7 +31,7 @@
         <label style="flex:0 1 110px">Skill needed<input name="min_skill" type="number" min="1" max="300" placeholder="e.g. 75"></label>
       </div>
       <fieldset style="flex-direction:column;gap:6px"><legend style="font-size:14px;margin-bottom:6px">Tag players (they see it on their Home page)</legend>
-        <div id="ping-list" style="display:flex;flex-wrap:wrap;gap:6px 14px"></div>
+        <div id="ping-list" class="check-grid"></div>
       </fieldset>
       <label>Note<textarea name="note" rows="3" maxlength="300"></textarea></label>
       <div class="row"><button class="btn btn-primary" id="submit-btn" type="submit">Post listing</button><button class="btn" id="cancel-edit" type="button" hidden>Cancel</button></div>
@@ -42,11 +42,11 @@
         <label>Type<select id="filter"><option value="">All</option><option value="offer">Offers</option><option value="request">Requests</option></select></label>
         <label>Profession<select id="f-prof"><option value="">Any</option></select></label>
         <div style="display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px">
-          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-tagged"> Tagged me</label>
-          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-craft"> I can craft</label>
-          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-mine"> My listings</label>
-          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-done"> My finished listings</label>
-          <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="f-res"> My reservations</label>
+          <label class="check"><input type="checkbox" id="f-tagged"> Tagged me</label>
+          <label class="check"><input type="checkbox" id="f-craft"> I can craft</label>
+          <label class="check"><input type="checkbox" id="f-mine"> My listings</label>
+          <label class="check"><input type="checkbox" id="f-done"> My finished listings</label>
+          <label class="check"><input type="checkbox" id="f-res"> My reservations</label>
         </div>
       </div>
       <div class="table-wrap">
@@ -136,7 +136,7 @@ function draw() {
     const free = l.quantity - reservedCount(res);
     const reserveUi = l.kind === 'offer' && !isDone ? reservationsHtml(res, user) + (user && !isMine ? reserveFormHtml(l.id, myChars, free) : '') : '';
     const crafters = canCraft(l);
-    const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${crafters.length ? ` <span style="font-size:13px;color:#1a7f00">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
+    const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${crafters.length ? ` <span style="font-size:13px;color:var(--good)">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
       + (isDone ? '<br><span class="badge">Finished</span>' : '')
       + ((l.pinged ?? []).length ? `<br><span class="muted" style="font-size:13px">Tagged: ${l.pinged.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</span>` : '');
     return `<tr class="${isMine ? 'mine' : ''}">
@@ -160,7 +160,7 @@ form.profession.insertAdjacentHTML('beforeend', profOptions);
 document.getElementById('f-prof').insertAdjacentHTML('beforeend', profOptions);
 function drawPingList(selected = []) {
   document.getElementById('ping-list').innerHTML = playerNames.filter((p) => p !== me).map((p) =>
-    `<label style="flex-direction:row;align-items:center;gap:6px;font-size:14px"><input type="checkbox" name="pinged" value="${esc(p)}" ${selected.includes(p) ? 'checked' : ''}> ${esc(p)}</label>`).join('') || '<span class="muted">No players yet.</span>';
+    `<label class="check"><input type="checkbox" name="pinged" value="${esc(p)}" ${selected.includes(p) ? 'checked' : ''}> ${esc(p)}</label>`).join('') || '<span class="muted">No players yet.</span>';
 }
 function startEdit(l) {
   editingId = l.id;

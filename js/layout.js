@@ -1,4 +1,5 @@
-import { supabase, getUser, displayName, joinGuild, logout } from './supabase.js?v=__V__';
+import { supabase, getUser, displayName, getProfile, joinGuild, logout } from './supabase.js?v=__V__';
+import { classIcon, classColor } from './classicons.js?v=__V__';
 
 const pages = [
   ['index.html', 'Home'],
@@ -27,8 +28,20 @@ export async function renderHeader() {
   const auth = header.querySelector('#auth');
   const user = await getUser();
   if (user) {
-    auth.innerHTML = `<span class="user"><span class="user-name"></span></span><button class="btn" type="button">Switch player</button>`;
-    auth.querySelector('.user-name').textContent = displayName(user);
+    auth.innerHTML = `<span class="user"><span class="user-icon"></span><span class="user-name"></span></span><button class="btn" type="button">Switch player</button>`;
+    const nameEl = auth.querySelector('.user-name');
+    nameEl.textContent = displayName(user);
+    // Class icon next to the name: the main character's class (remembered per player so it shows at once).
+    const cacheKey = `mk-class:${user.player ?? user.id}`;
+    const showClass = (cls) => {
+      auth.querySelector('.user-icon').innerHTML = classIcon(cls, 30);
+      nameEl.style.color = classColor(cls);
+    };
+    try { showClass(localStorage.getItem(cacheKey)); } catch { /* storage not available */ }
+    getProfile(user).then((p) => {
+      showClass(p?.class);
+      try { p?.class ? localStorage.setItem(cacheKey, p.class) : localStorage.removeItem(cacheKey); } catch { /* storage not available */ }
+    }).catch(() => {});
     auth.querySelector('button').addEventListener('click', () => {
       if (confirm('Are you sure you want to switch player? You can choose again with the guild code.')) logout();
     });

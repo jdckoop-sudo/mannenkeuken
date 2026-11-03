@@ -12,6 +12,6 @@ export function formatGold(copper) {
 export function goldBar(copper, goal) {
   const pct = goal > 0 ? Math.min(100, (copper / goal) * 100) : 0;
   return `<div style="display:flex;justify-content:space-between;font-size:14px"><strong>${formatGold(copper)}</strong><span class="muted">goal ${formatGold(goal)} · ${Math.floor(pct)}%</span></div>
-    <div role="progressbar" aria-label="Guild bank gold" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.floor(pct)}" style="height:16px;background:#e5e7eb;border-radius:8px;overflow:hidden">
-      <div style="width:${pct}%;height:16px;background:#b45309"></div></div>`;
+    <div role="progressbar" aria-label="Guild bank gold" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.floor(pct)}" style="height:16px;background:var(--field);border:1px solid var(--border-strong);border-radius:8px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:linear-gradient(var(--gold-bright),var(--gold-dim))"></div></div>`;
 }

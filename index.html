@@ -120,7 +120,7 @@ async function drawMe() {
   const card = (c, label) => {
     const row = find(c.character_name);
     const profs = row ? [[row.prof1, row.skill1], [row.prof2, row.skill2], ['Cooking', row.cooking], ['First Aid', row.firstAid], ['Fishing', row.fishing]].filter(([p, s]) => p && (s || s === 0) && s !== '') : [];
-    return `<div style="border:1px solid #d1d5db;border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px">
+    return `<div style="border:1px solid var(--border);background:var(--panel);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline"><span class="badge">${label}</span><strong style="font-size:18px">${esc(c.character_name)}</strong>
         <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · '))}</span></div>
       ${row ? `<div class="stat-list">
@@ -161,7 +161,7 @@ async function drawForMe() {
   const line = (l) => `<strong>${esc(l.item)}</strong> ×${esc(l.quantity)} <span class="muted">(${l.kind === 'offer' ? 'Offer' : 'Request'} by ${esc(l.author_name)})</span>`;
   document.getElementById('tagged').innerHTML = tagged.map((l) => `<p style="margin:0 0 6px">${line(l)}${l.note ? `<br><span class="muted" style="font-size:13px">${esc(l.note)}</span>` : ''}</p>`).join('') || '<p class="muted">Nothing right now.</p>';
   document.getElementById('craftable').innerHTML = craftable.map(({ l, c, ok }) => `<p style="margin:0 0 6px">${line(l)}<br>
-    <span style="font-size:13px;${ok ? 'color:#1a7f00' : 'color:#b45309'}">${ok ? 'You can make this' : 'Not yet'}: ${esc(c.character)} – ${esc(l.profession)} ${esc(c.skill)}${l.min_skill ? ` / ${esc(l.min_skill)} needed` : ''}</span></p>`).join('') || '<p class="muted">Nothing right now.</p>';
+    <span style="font-size:13px;${ok ? 'color:var(--good)' : 'color:var(--warn)'}">${ok ? 'You can make this' : 'Not yet'}: ${esc(c.character)} – ${esc(l.profession)} ${esc(c.skill)}${l.min_skill ? ` / ${esc(l.min_skill)} needed` : ''}</span></p>`).join('') || '<p class="muted">Nothing right now.</p>';
 }
 drawForMe();
 

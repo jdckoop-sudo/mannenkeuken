@@ -35,8 +35,8 @@
     </div>
     <fieldset style="flex-direction:column;gap:8px"><legend style="font-size:14px;margin-bottom:6px">Who do you need?</legend>
       <div style="display:flex;flex-wrap:wrap;gap:6px 18px">
-        <label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="need" value="roles" checked> Specific roles</label>
-        <label style="flex-direction:row;align-items:center;gap:6px"><input type="radio" name="need" value="players"> Just players (any role)</label>
+        <label class="check"><input type="radio" name="need" value="roles" checked> Specific roles</label>
+        <label class="check"><input type="radio" name="need" value="players"> Just players (any role)</label>
       </div>
       <div class="grid" id="need-roles">
         <label>Tanks needed<input name="tanks_needed" type="number" min="0" value="1"></label>
@@ -48,7 +48,7 @@
       </div>
     </fieldset>
     <fieldset style="flex-direction:column;gap:6px"><legend style="font-size:14px;margin-bottom:6px">Tag players (they see it on their Home page)</legend>
-      <div id="ping-list" style="display:flex;flex-wrap:wrap;gap:6px 14px"><span class="muted">Loading…</span></div>
+      <div id="ping-list" class="check-grid"><span class="muted">Loading…</span></div>
     </fieldset>
     <label>Note<textarea name="note" rows="2" maxlength="300"></textarea></label>
     <div><button class="btn btn-primary" type="submit">Create event</button></div>
@@ -106,7 +106,7 @@ const anyPlayers = (e) => e.players_needed != null;
 loadPlayers().then((players) => {
   me = playerForUser(user);
   document.getElementById('ping-list').innerHTML = players.map((p) => p.player_name).filter((p) => p && p !== me).sort().map((p) =>
-    `<label style="flex-direction:row;align-items:center;gap:6px;font-size:14px"><input type="checkbox" name="pinged" value="${esc(p)}"> ${esc(p)}</label>`).join('') || '<span class="muted">No players yet.</span>';
+    `<label class="check"><input type="checkbox" name="pinged" value="${esc(p)}"> ${esc(p)}</label>`).join('') || '<span class="muted">No players yet.</span>';
   drawEvents();
 });
 
@@ -151,10 +151,10 @@ function drawWeek() {
     const day = new Date(weekStart); day.setDate(day.getDate() + i);
     const items = events.filter((e) => new Date(e.starts_at).toDateString() === day.toDateString());
     const rel = releases.filter((r) => r.date && new Date(r.date).toDateString() === day.toDateString());
-    html += `<div style="border:${day.toDateString() === todayKey ? '2px solid #1f2937' : '1px solid #d1d5db'};border-radius:6px;padding:10px;min-height:120px;display:flex;flex-direction:column;gap:8px">
+    html += `<div style="border:${day.toDateString() === todayKey ? '2px solid var(--gold)' : '1px solid var(--border)'};border-radius:6px;padding:10px;min-height:120px;display:flex;flex-direction:column;gap:8px">
       <strong style="font-size:14px">${fmtDay(day)}</strong>
-      ${rel.map((r) => `<span style="border:2px dashed #b45309;border-radius:4px;padding:6px;font-size:13px"><strong>Release:</strong> ${esc(r.title)}</span>`).join('')}
-      ${items.map((e) => `<a href="#ev-${e.id}" style="background:#e5e7eb;border-radius:4px;padding:6px;font-size:13px;text-decoration:none">${e.kind === 'quest' ? 'Quest: ' : ''}${esc(e.title)} · ${fmtTime(new Date(e.starts_at))}</a>`).join('')}
+      ${rel.map((r) => `<span style="border:1px dashed var(--warn);color:var(--warn);border-radius:4px;padding:6px;font-size:13px"><strong>Release:</strong> ${esc(r.title)}</span>`).join('')}
+      ${items.map((e) => `<a href="#ev-${e.id}" style="background:var(--panel-3);border:1px solid var(--border-strong);border-radius:4px;padding:6px;font-size:13px;text-decoration:none">${e.kind === 'quest' ? 'Quest: ' : ''}${esc(e.title)} · ${fmtTime(new Date(e.starts_at))}</a>`).join('')}
     </div>`;
   }
   document.getElementById('week').innerHTML = html;
@@ -170,7 +170,7 @@ function drawEvents() {
       const yes = s.filter((x) => x.answer === 'yes');
       const maybe = s.filter((x) => x.answer === 'maybe');
       const open = Math.max(0, e.players_needed - yes.length);
-      return `<div style="border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px">
+      return `<div style="border:1px solid var(--border);background:var(--panel);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;justify-content:space-between"><strong>Players</strong><span class="muted">${yes.length} / ${esc(e.players_needed)}</span></div>
         ${yes.map((x) => `<span>${esc(x.author_name)} <span class="muted">(${esc(x.role)})</span></span>`).join('')}
         ${maybe.map((x) => `<span class="muted">${esc(x.author_name)} (maybe)</span>`).join('')}
@@ -181,7 +181,7 @@ function drawEvents() {
       const yes = s.filter((x) => x.role === r && x.answer === 'yes');
       const maybe = s.filter((x) => x.role === r && x.answer === 'maybe');
       const open = Math.max(0, (need[r] ?? 0) - yes.length);
-      return `<div style="border:1px solid #d1d5db;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px">
+      return `<div style="border:1px solid var(--border);background:var(--panel);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;justify-content:space-between"><strong>${r}</strong><span class="muted">${yes.length} / ${need[r] ?? 0}</span></div>
         ${yes.map((x) => `<span>${esc(x.author_name)}</span>`).join('')}
         ${maybe.map((x) => `<span class="muted">${esc(x.author_name)} (maybe)</span>`).join('')}
@@ -295,7 +295,7 @@ const questBox = attachItemSearch(document.getElementById('quest-input'), (q) =>
   if (q.minLevel || q.level) form.min_level.value = q.minLevel ?? q.level;
   questHint.innerHTML = `Level ${esc(q.level ?? '?')}${q.zone ? ` · ${esc(q.zone)}` : ''} · <a href="${questLink(q.id)}" target="_blank" rel="noopener">${esc(q.name)}</a> <span style="font-size:12px">(hover for details)</span>`;
   refreshTooltips();
-}, { load: loadQuestSuggestions, meta: (q) => [q.level ? `Lvl ${q.level}` : '', q.zone].filter(Boolean).join(' · '), color: () => '#1f2937' });
+}, { load: loadQuestSuggestions, meta: (q) => [q.level ? `Lvl ${q.level}` : '', q.zone].filter(Boolean).join(' · '), color: () => 'var(--text)' });
 form.title.addEventListener('input', () => { form.title.dataset.auto = ''; });
 
 // Title: for dungeon and raid events, pick the place while typing (fills min. level, links to Wowhead)
@@ -304,7 +304,7 @@ const titleBox = attachItemSearch(document.getElementById('title-input'), (dg) =
   if (!dg) { titleHint.textContent = ''; return; }
   if (dg.levels) form.min_level.value = dg.levels[0];
   titleHint.innerHTML = `${esc(dungeonInfo(dg))} · <a href="${dungeonUrl(dg)}" target="_blank" rel="noopener">${esc(dg.name)} on Wowhead</a>`;
-}, { load: () => loadDungeonSuggestions(form.kind.value), meta: (dg) => dungeonInfo(dg), color: () => '#1f2937' });
+}, { load: () => loadDungeonSuggestions(form.kind.value), meta: (dg) => dungeonInfo(dg), color: () => 'var(--text)' });
 // Specific roles or just a number of players
 function showNeed() {
   const players = form.need.value === 'players';

@@ -26,7 +26,8 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 ## Mappen
 
 ```
-css/style.css        simpele wireframe-styling (later vervangen door het echte ontwerp)
+css/style.css        het donkere fantasy-thema (kleuren als variabelen bovenaan; gebruik `var(--…)`, geen hex-codes)
+js/classicons.js     onze eigen classicons (SVG, geen Blizzard-afbeeldingen); staan naast je naam in het menu
 js/config.js         publieke instellingen (Supabase URL + anon key, sheet-id)
 js/supabase.js       verbinding, inloggen met speler + guildcode, `mine()` (is dit van mijn speler?)
 js/layout.js         menu bovenaan (nieuwe pagina? voeg hem hier toe)
