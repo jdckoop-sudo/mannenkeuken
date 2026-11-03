@@ -28,7 +28,7 @@ export async function renderHeader() {
   const header = document.createElement('header');
   header.className = 'site-header';
   header.innerHTML = `
-    <a class="brand" href="index.html"><img class="brand-logo" src="img/logo-mark.png?v=__V__" alt="" width="51" height="64">Mannenkeuken</a>
+    <a class="brand" href="index.html"><img class="brand-logo" src="img/logo-mark.png?v=__V__" alt="" width="84" height="52">Mannenkeuken</a>
     <nav class="site-nav" aria-label="Main">
       ${pages.map(([href, label]) => `<a href="${href}" class="${href === current ? 'active' : ''}">${label}</a>`).join('')}
     </nav>
