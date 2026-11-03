@@ -18,9 +18,12 @@
 
   <div id="dev" hidden style="display:flex;flex-direction:column;gap:24px">
     <section class="box" id="todo-box">
-      <h2>To do for you</h2>
-      <p class="muted" style="margin:0;font-size:14px">Messages from the other developer: something you need to do. Click <em>Done</em> when it's done.</p>
+      <h2>To do</h2>
+      <p class="muted" style="margin:0;font-size:14px">Things one developer has to do himself (settings, keys, Claude project). Only the person it is for can click <em>Done</em>.</p>
+      <h3 id="todo-me-title" style="margin:4px 0 0;font-size:16px">For you</h3>
       <div id="todo"><p class="muted">Loading…</p></div>
+      <h3 id="todo-other-title" style="margin:8px 0 0;font-size:16px">Waiting on the other</h3>
+      <div id="todo-other"></div>
       <details>
         <summary style="cursor:pointer">Send a message</summary>
         <form id="new-msg" class="chart-filters" style="margin-top:8px">
@@ -30,7 +33,7 @@
         </form>
       </details>
       <details>
-        <summary style="cursor:pointer">Sent and done</summary>
+        <summary style="cursor:pointer">Done</summary>
         <div id="msg-history" style="margin-top:8px"></div>
       </details>
       <p id="msg-msg" class="muted" style="font-size:13px;margin:0"></p>
@@ -260,18 +263,20 @@ let messages = [];
 async function loadMessages() {
   const { data, error } = await supabase.from('dev_messages').select('*').order('created_at', { ascending: false }).limit(100);
   messages = data ?? [];
-  const open = messages.filter((m) => m.to_player === user.player && !m.done_at);
-  document.getElementById('todo').innerHTML = error ? `<p class="muted">Could not load: ${esc(error.message)}</p>`
-    : open.map((m) => `<div class="dev-row"><span>${badge('check')}</span>
-        <span>${esc(m.text)}<br><span class="muted" style="font-size:12px">from ${esc(m.from_player ?? '?')} · ${esc(ago(m.created_at))}</span></span>
-        <span><button class="btn" type="button" data-done-msg="${m.id}">Done</button></span></div>`).join('')
-      || '<p class="muted">Nothing to do. 🎉</p>';
-  const rest = messages.filter((m) => !(m.to_player === user.player && !m.done_at));
-  document.getElementById('msg-history').innerHTML = rest.map((m) => `<p style="margin:0 0 6px;font-size:14px">${m.done_at ? badge('ok') : badge('check')}
-      <strong>${esc(m.from_player ?? '?')} → ${esc(m.to_player)}</strong>: ${esc(m.text)}
-      <span class="muted" style="font-size:12px">· ${esc(ago(m.created_at))}${m.done_at ? ` · done ${esc(ago(m.done_at))}` : ' · not done yet'}</span>
-      ${m.from_player === user.player ? ` · <button class="link-btn" type="button" data-del-msg="${m.id}">Remove</button>` : ''}</p>`).join('')
-    || '<p class="muted">Nothing yet.</p>';
+  const line = (m, mine) => `<div class="dev-row"><span>${badge('check')}</span>
+      <span>${esc(m.text)}<br><span class="muted" style="font-size:12px"><strong>${esc(m.from_player ?? '?')} → ${esc(m.to_player)}</strong> · sent ${esc(ago(m.created_at))} · not done yet</span></span>
+      <span>${mine ? `<button class="btn" type="button" data-done-msg="${m.id}">Done</button>`
+        : m.from_player === user.player ? `<button class="link-btn" type="button" data-del-msg="${m.id}">Remove</button>` : ''}</span></div>`;
+  document.getElementById('todo-me-title').textContent = `For you (${user.player})`;
+  document.getElementById('todo-other-title').textContent = `Waiting on ${other}`;
+  if (error) { document.getElementById('todo').innerHTML = `<p class="muted">Could not load: ${esc(error.message)}</p>`; return; }
+  const forMe = messages.filter((m) => m.to_player === user.player && !m.done_at);
+  const forOther = messages.filter((m) => m.to_player !== user.player && !m.done_at);
+  document.getElementById('todo').innerHTML = forMe.map((m) => line(m, true)).join('') || '<p class="muted">Nothing to do. 🎉</p>';
+  document.getElementById('todo-other').innerHTML = forOther.map((m) => line(m, false)).join('') || `<p class="muted">${esc(other)} has nothing open.</p>`;
+  document.getElementById('msg-history').innerHTML = messages.filter((m) => m.done_at).map((m) => `<p style="margin:0 0 6px;font-size:14px">${badge('ok')}
+      ${esc(m.text)}<br><span class="muted" style="font-size:12px"><strong>${esc(m.from_player ?? '?')} → ${esc(m.to_player)}</strong> · sent ${esc(ago(m.created_at))} · <strong>done by ${esc(m.to_player)}</strong> ${esc(ago(m.done_at))}</span></p>`).join('')
+    || '<p class="muted">Nothing done yet.</p>';
 }
 document.getElementById('todo-box').addEventListener('click', async (e) => {
   const b = e.target.closest('button');

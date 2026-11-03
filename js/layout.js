@@ -62,8 +62,8 @@ export async function renderHeader() {
     if (isDevMode(user)) {
       auth.insertAdjacentHTML('afterbegin', '<a class="dev-badge" href="dev.html" title="Developer mode is on">DEV</a>');
     }
-    // Open "To do for you" messages for this developer: a red dot that links to developer mode (also when it is off).
-    if (DEVS.includes(user.player)) {
+    // Open to-do messages for this developer: a red count that links to developer mode – only in developer mode.
+    if (isDevMode(user)) {
       supabase.from('dev_messages').select('id', { count: 'exact', head: true }).eq('to_player', user.player).is('done_at', null)
         .then(({ count }) => {
           if (!count) return;
