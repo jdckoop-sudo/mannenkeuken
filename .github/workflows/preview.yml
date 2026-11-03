@@ -1,0 +1,28 @@
+# Keeps /preview/ up to date: when a branch with an open pull request labelled "preview" gets new commits
+# (or the label is added), the site is published again from main, with that branch at /preview/.
+name: Update preview
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    types: [labeled, unlabeled, closed]
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish again if this is a preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          N=$(gh pr list --repo "$GITHUB_REPOSITORY" --state all --head "$BRANCH" --label preview --json number --jq 'length')
+          if [ "$N" != "0" ] || [ "${{ github.event.label.name }}" = "preview" ]; then
+            gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+            echo "Site (with preview) is being published again."
+          else
+            echo "Not a preview branch."
+          fi

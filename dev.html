@@ -207,7 +207,7 @@ async function loadChanges() {
     ]);
     document.getElementById('in-progress').innerHTML = open.map((pr) => `<p style="margin:0">
       <span class="dev-who ${who(pr).toLowerCase()}">${esc(who(pr))}</span>${pr.draft ? '<span class="status check" style="margin-right:6px">Draft</span>' : ''}
-      <a href="${pr.html_url}" target="_blank" rel="noopener">${esc(pr.title)}</a> <span class="muted" style="font-size:13px">#${pr.number} · since ${esc(dayLabel(dayKey(pr.created_at)))}</span></p>`).join('')
+      <a href="${pr.html_url}" target="_blank" rel="noopener">${esc(pr.title)}</a> <span class="muted" style="font-size:13px">#${pr.number} · since ${esc(dayLabel(dayKey(pr.created_at)))}</span>${(pr.labels || []).some((l) => l.name === 'preview') ? ` · <a href="preview/" target="_blank" rel="noopener"><strong>Open preview</strong></a> · <a href="${pr.html_url}" target="_blank" rel="noopener">Approve = live</a>` : ''}</p>`).join('')
       || '<p class="muted">Nobody is working on anything right now.</p>';
     merged = [...p1, ...p2].filter((pr) => pr.merged_at).sort((a, b) => b.merged_at.localeCompare(a.merged_at));
     const days = [...new Set(merged.map((pr) => dayKey(pr.merged_at)))];

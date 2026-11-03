@@ -1,5 +1,6 @@
 # Publishes the site to GitHub Pages on every push to main.
 # Stamps a version (?v=__V__ → commit id) on CSS/JS (and on images referenced from CSS) so browsers never mix old and new files.
+# Preview: the newest open pull request with the label "preview" is published as well, at /preview/ (see preview.yml and go-live.yml).
 name: Deploy site
 on:
   push:
@@ -10,6 +11,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: read
   pages: write
   id-token: write
 concurrency:
@@ -23,9 +25,28 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Add preview of the newest open pull request labelled "preview"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --label preview --json headRefName,updatedAt --jq 'sort_by(.updatedAt) | last | .headRefName // ""')
+          if [ -n "$BRANCH" ]; then
+            echo "Preview: $BRANCH"
+            git fetch origin "$BRANCH"
+            mkdir preview
+            git archive "origin/$BRANCH" | tar -x -C preview
+            rm -rf preview/.github preview/tools preview/supabase preview/docs
+            PV=$(git rev-parse --short=8 "origin/$BRANCH")
+            sed -i "s/__V__/p$PV/g" preview/*.html preview/js/*.js preview/css/*.css
+          else
+            echo "No open preview"
+          fi
       - name: Stamp version
         run: |
-          V="${GITHUB_SHA::8}"
+          V="$(git rev-parse --short=8 HEAD)"
           sed -i "s/__V__/$V/g" *.html js/*.js css/*.css
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
