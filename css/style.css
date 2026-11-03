@@ -208,7 +208,7 @@ hr { border: none; border-top: 1px solid var(--border); }
 body::before {
   content: ''; position: fixed; z-index: -1; pointer-events: none;
   width: min(62vmin, 600px); aspect-ratio: 719 / 896; right: 2vw; bottom: 2vh;
-  background: url('../img/logo.webp') center / contain no-repeat;
+  background: url('../img/logo.webp?v=__V__') center / contain no-repeat;
   opacity: .12;
 }
 @media (max-width: 700px) {
