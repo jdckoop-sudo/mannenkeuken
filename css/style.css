@@ -203,3 +203,16 @@ hr { border: none; border-top: 1px solid var(--border); }
   #week { grid-template-columns: 1fr !important; min-width: 0 !important; }
   #week > div { min-height: 0 !important; }
 }
+
+/* Guild seal as a faint watermark: enlarged, sharp, low opacity, fixed in the bottom-right corner, fading into the background. Panels sit on top of it. */
+body::before {
+  content: ''; position: fixed; z-index: -1; pointer-events: none;
+  width: min(95vmin, 900px); aspect-ratio: 1; right: -20vmin; bottom: -24vmin;
+  background: url('../img/logo-mark.svg') center / contain no-repeat;
+  opacity: .12;
+  -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 72%);
+  mask-image: radial-gradient(circle, #000 45%, transparent 72%);
+}
+@media (max-width: 700px) {
+  body::before { width: 120vw; right: -45vw; bottom: -30vw; }
+}
