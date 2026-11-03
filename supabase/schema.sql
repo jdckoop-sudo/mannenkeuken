@@ -464,3 +464,105 @@ from (values
   ($q$WeakAuras, OmniCC, OmniBar, Postal, AdiBags$q$, $q$WeakAuras, OmniCC, OmniBar, Postal, AdiBags$q$, $q$Not needed / doesn't work$q$, $q$Well-known addons without a working Forever version.$q$, $q$Doesn't work$q$, $q$—$q$, $q$Use Forever Classmate / the built-in Cooldown Manager, Baganator instead of AdiBags.$q$, null)
 ) as v(old_name, new_name, category, what, priority, who, note, link_label)
 where a.name in (v.old_name, v.new_name);
+
+-- 2026-11-03: Tickets in developer mode (dev.html → tabs Ideas and Fixes): cards for ideas and for things that
+-- still need fixing, which a developer can put on his name ("I'm working on this"). Only Jelle and Justin (is_dev()).
+create table if not exists public.dev_tickets (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null default 'idea' check (kind in ('idea', 'fix')),
+  title text not null check (char_length(title) <= 120),
+  area text check (char_length(area) <= 40),
+  body text check (char_length(body) <= 6000),
+  status text not null default 'open' check (status in ('open', 'doing', 'done')),
+  created_by text,
+  claimed_by text check (claimed_by in ('Jelle', 'Justin')),
+  updated_by text,
+  done_at timestamptz,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+alter table public.dev_tickets enable row level security;
+drop policy if exists "read devs" on public.dev_tickets;
+drop policy if exists "write devs" on public.dev_tickets;
+create policy "read devs" on public.dev_tickets for select to authenticated using (public.is_dev());
+create policy "write devs" on public.dev_tickets for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+-- The first ideas (fixed ids, so running this file again adds nothing twice and keeps your changes).
+insert into public.dev_tickets (id, title, area, created_by, created_at, body) values
+('6f1d2a10-0001-4c3e-9a51-000000000001', $q$Achievements: bigger and more fun$q$, $q$Achievements$q$, $q$Justin$q$, now() - interval '3 minutes', $q$Nothing concrete yet – collect thoughts here first.
+
+Ideas
+- An achievement list like in WoW.
+- A skill tree like the Minecraft advancements: not everything is open from the start, you unlock the next step.
+- Alt achievements: alt at level 5 / 10 / 15, a 2nd alt at level x.
+- Guild, player and character achievements: separate tabs, or one tab with a row per kind.
+- The Discord bot posts it when someone earns one (see the Discord bot idea).
+- Open question: can everyone earn an achievement, or only the first person (a race)?
+- Murn may have ideas for the skill tree – ask him.
+
+Name ideas (brainstorm)
+Market
+- Bliksemhandel – a listing done within an hour
+- Eerste reservering / Bestelbaas – 1 and 10 reservations
+- Gewild – someone reserves your item
+
+Guild bank
+- Eerste munt – first gold donated; then 10 / 50 / 100 gold donated
+- Top donor – of the week / month / ever
+- Gouden hart – the biggest single donation
+- Trouwe schenker – donated 4 weeks in a row
+- Spaarvarken – the guild reaches 25 / 50 / 75 / 100% of the goal (a badge for everyone)
+- Gekocht! – the guild bank is bought
+- Bevoorrader – 10 and 50 items sent to Opie Bank
+- Volle voorraad – 100 items in the bank
+
+Events and raids
+- Eerste aanmelding – first sign-up; then 10 / 25 / 50
+- Altijd erbij – 10× "yes"
+- Organisator – first event organised; then 10
+- Bomvol – an event with every role full
+- Tankheld / Genezer / Schadebrenger – 10× in that role
+- Alle rollen – signed up in every role at least once
+- Vroege vogel – signed up within an hour after the event was posted
+- Quest-maat – 5 quest-help events
+- Dungeonmeester – every event type once
+- Weekreeks – 4 weeks in a row at an event
+- Hele guild – every active main signed up for one event$q$),
+('6f1d2a10-0001-4c3e-9a51-000000000002', $q$Discord bot$q$, $q$Discord$q$, $q$Jelle$q$, now() - interval '2 minutes', $q$A bot for the Mannenkeuken Discord. Not sure yet what is possible live – find out first.
+
+- Commands to ask for info quickly (e.g. who has which profession, the next event, the bank goal).
+- @mention someone when they earn an achievement (see the Achievements idea).
+- A weekly report at the end of the week:
+  - most gold donated
+  - most levels gained
+  - most profession levels gained
+  - highest level
+  - highest profession level$q$),
+('6f1d2a10-0001-4c3e-9a51-000000000003', $q$After launch: gear on profiles + upgrade hints$q$, $q$Characters$q$, $q$Jelle$q$, now() - interval '1 minute', $q$For after the launch, when the Blizzard API gives character data.
+
+- Add the armour/gear of every character to the character update and show it on the profile page, with the Wowhead hover.
+- With your player selected: when you hover an item (e.g. on the Market), show whether it is an upgrade for one of your characters.
+- New Market listing: automatically tag the players who can (almost) wear the item, whose role/class fits and who would get an upgrade.$q$),
+('6f1d2a10-0001-4c3e-9a51-000000000004', $q$Home: message of the day$q$, $q$Home$q$, $q$Jelle$q$, now(), $q$What to do with the "[Short guild intro / message of the day]" line on Home? Some options (can be combined):
+
+- A script that checks certain values (next event, bank goal, new levels, new members, …) and turns them into a message of the day.
+- The Discord bot also posts that message (see the Discord bot idea).
+- A Discord channel where members post messages, and the message of the day picks one from there.
+- Earlier proposal (docs/instructies.md): a countdown until the launch, then a message of the day members can edit + the next event with "Sign up".$q$)
+on conflict (id) do nothing;
+
+-- An example fix, so the Fixes tab shows what a fix ticket looks like (remove it when you like).
+insert into public.dev_tickets (id, kind, title, area, created_by, body) values
+('6f1d2a10-0001-4c3e-9a51-000000000101', 'fix', $q$Example: how to write a fix ticket$q$, $q$Example$q$, $q$Jelle$q$, $q$This is an example – remove it when you like.
+
+What is wrong: one line, e.g. "The Reserve button on the Market does nothing on my phone".
+Where: page + device/browser (e.g. market.html, iPhone Safari).
+How to see it: the steps (1. open the Market, 2. tap Reserve on any listing, 3. nothing happens).
+Expected: what should happen instead (a dialog to pick your character).
+Screenshot: a link to it, if you have one.$q$)
+on conflict (id) do nothing;
+
+-- Checklist item for the new boards.
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$, $q$Developer mode$q$, 'check', $q$Try every button on dev.html → Ideas and Fixes once, as Jelle and as Justin.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$);
