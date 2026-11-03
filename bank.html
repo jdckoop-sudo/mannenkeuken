@@ -160,7 +160,7 @@ async function loadGold() {
   document.getElementById('items-locked').hidden = bought;
   document.getElementById('goal-details').hidden = bought;
   document.getElementById('gold').innerHTML = (bought ? `<strong style="font-size:32px">${esc(formatGold(bank.copper))}</strong>` : goldBar(bank.copper, bank.goal_copper))
-    + (bank.updated_by ? `<p class="muted" style="font-size:13px;margin:0">Last updated by ${esc(bank.updated_by)} · ${new Date(bank.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</p>` : '');
+    + (bank.updated_by ? `<p class="muted" style="font-size:13px;margin:0">Last updated by ${esc(bank.updated_by)} · ${new Date(bank.updated_at).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', dateStyle: 'medium', timeStyle: 'short' })}</p>` : '');
   document.querySelector('#goal-form [name="goal"]').value = Math.round(bank.goal_copper / 10000);
 }
 document.getElementById('gold-form').addEventListener('submit', async (e) => {
@@ -198,7 +198,7 @@ async function loadDonations() {
   const top = Object.entries(totals).sort((a, b) => b[1] - a[1]);
   document.getElementById('donors').innerHTML = top.map(([p, c], i) => `<li${i === 0 ? ' style="font-weight:700"' : ''}>${esc(p)} <span class="muted">– ${esc(formatGold(c))}</span></li>`).join('')
     || '<li class="muted" style="list-style:none;margin-left:-22px">No donations since the launch yet.</li>';
-  document.getElementById('donations').innerHTML = donations.slice(0, 20).map((x) => `<li>${esc(x.player_name)}: ${esc(formatGold(Number(x.copper)))} <span class="muted">· ${new Date(x.created_at).toLocaleDateString('en-GB')}${x.created_at < LAUNCH ? ' (test, before launch)' : ''}</span>${canEdit ? ` · <button class="link-btn" type="button" data-undo="${x.id}">Remove</button>` : ''}</li>`).join('')
+  document.getElementById('donations').innerHTML = donations.slice(0, 20).map((x) => `<li>${esc(x.player_name)}: ${esc(formatGold(Number(x.copper)))} <span class="muted">· ${new Date(x.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}${x.created_at < LAUNCH ? ' (test, before launch)' : ''}</span>${canEdit ? ` · <button class="link-btn" type="button" data-undo="${x.id}">Remove</button>` : ''}</li>`).join('')
     || '<li class="muted">None yet.</li>';
 }
 document.getElementById('donations').addEventListener('click', async (e) => {
@@ -274,7 +274,7 @@ function drawTable(location) {
       <td>${itemName(i)}${i.note ? `<br><span class="muted">${esc(i.note)}</span>` : ''}${reservationsHtml(res, user)}${canEdit ? reserveFormHtml(i.id, myChars, free) : ''}${res.length ? `<span class="muted" style="font-size:13px">${Math.max(0, free)} of ${esc(i.quantity)} free</span>` : ''}</td>
       <td>${canEdit ? `<span style="display:inline-flex;gap:6px;align-items:center"><button class="btn" style="padding:2px 10px" type="button" data-dec="${i.id}" aria-label="One less">−</button><strong>${esc(i.quantity)}</strong><button class="btn" style="padding:2px 10px" type="button" data-inc="${i.id}" aria-label="One more">+</button></span>` : esc(i.quantity)}</td>
       <td>${esc(i.category ?? '')}</td><td>${esc(i.deposited_by ?? '')}</td>
-      <td>${new Date(i.updated_at).toLocaleDateString('en-GB')}</td>
+      <td>${new Date(i.updated_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}</td>
       <td>${canEdit ? `<button class="link-btn" type="button" data-del="${i.id}" data-name="${esc(i.item)}">Remove</button>` : ''}</td></tr>`;
   }).join('') || `<tr><td colspan="6">${location === 'opie' ? 'Opie Bank is empty.' : 'The guild bank is empty.'}</td></tr>`;
 }
@@ -283,7 +283,7 @@ function draw() {
   drawTable('guild');
   const sent = items.filter((i) => i.status === 'sent');
   document.getElementById('sent-box').hidden = !sent.length;
-  document.getElementById('sent-list').innerHTML = sent.map((i) => `<li>${esc(i.quantity)}× ${itemName(i)} <span class="muted">from ${esc(i.deposited_by ?? '?')} · ${new Date(i.updated_at).toLocaleDateString('en-GB')}</span>${i.note ? ` <span class="muted">– ${esc(i.note)}</span>` : ''}
+  document.getElementById('sent-list').innerHTML = sent.map((i) => `<li>${esc(i.quantity)}× ${itemName(i)} <span class="muted">from ${esc(i.deposited_by ?? '?')} · ${new Date(i.updated_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}</span>${i.note ? ` <span class="muted">– ${esc(i.note)}</span>` : ''}
     ${canEdit ? ` <button class="link-btn" type="button" data-received="${i.id}" data-name="${esc(i.item)}">Received</button> · <button class="link-btn" type="button" data-del="${i.id}" data-name="${esc(i.item)}">Remove</button>` : ''}</li>`).join('');
   refreshTooltips();
 }
