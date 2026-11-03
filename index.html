@@ -141,8 +141,8 @@ drawMe();
 // For you on the market: listings where you were tagged, and requests one of your characters can craft
 async function drawForMe() {
   if (!supabase || !user) return;
-  const { characters, players } = await loadCharacters();
-  const me = playerForUser(user, players);
+  const { characters } = await loadCharacters();
+  const me = playerForUser(user);
   const mine = characters.filter((c) => c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)));
   const crafts = mine.flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill ?? 0 })));
   const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });

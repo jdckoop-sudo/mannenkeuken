@@ -31,7 +31,7 @@ import { loadCharacters, statsFor, characterUrl, playerForUser } from './js/play
 const user = await renderHeader();
 const name = new URLSearchParams(location.search).get('name');
 const { characters, players } = await loadCharacters();
-const target = name || playerForUser(user, players);
+const target = name || playerForUser(user);
 if (!target) {
   document.getElementById('title').textContent = 'Player not found';
   document.getElementById('chars').innerHTML = '<p class="muted">Pick a player on the <a href="roster.html">Roster</a>.</p>';

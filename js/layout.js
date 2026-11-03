@@ -1,4 +1,4 @@
-import { supabase, getUser, displayName, avatarUrl, joinGuild, logout } from './supabase.js?v=__V__';
+import { supabase, getUser, displayName, joinGuild, logout } from './supabase.js?v=__V__';
 
 const pages = [
   ['index.html', 'Home'],
@@ -27,11 +27,8 @@ export async function renderHeader() {
   const auth = header.querySelector('#auth');
   const user = await getUser();
   if (user) {
-    auth.innerHTML = `<span class="user"><img class="avatar" alt="" hidden><span class="user-name"></span></span><button class="btn" type="button">Switch player</button>`;
+    auth.innerHTML = `<span class="user"><span class="user-name"></span></span><button class="btn" type="button">Switch player</button>`;
     auth.querySelector('.user-name').textContent = displayName(user);
-    const img = auth.querySelector('.avatar');
-    const src = avatarUrl(user);
-    if (src) { img.src = src; img.hidden = false; }
     auth.querySelector('button').addEventListener('click', () => {
       if (confirm('Are you sure you want to switch player? You can choose again with the guild code.')) logout();
     });

@@ -27,7 +27,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 
 ```
 css/style.css        simpele wireframe-styling (later vervangen door het echte ontwerp)
-js/config.js         publieke instellingen (Supabase URL + anon key, Discord server-id, sheet-id)
+js/config.js         publieke instellingen (Supabase URL + anon key, sheet-id)
 js/supabase.js       verbinding, inloggen met speler + guildcode, `mine()` (is dit van mijn speler?)
 js/layout.js         menu bovenaan (nieuwe pagina? voeg hem hier toe)
 js/sheet.js          leest de Google Sheet
@@ -38,7 +38,7 @@ supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supaba
 
 1. **Nooit direct op `main` werken.** Laat Claude per taak een branch maken: `jelle/...` of `tinus/...`.
 2. Klaar? Laat Claude een **pull request** openen en merge hem. Even laten weten in Discord waar je mee bezig bent, zodat je niet tegelijk hetzelfde bestand aanpast.
-3. **Geheimen nooit in de repo.** De Supabase *anon key* mag in `js/config.js`; de *service_role key* en het *Discord Client Secret* nooit.
+3. **Geheimen nooit in de repo.** De Supabase *anon key* mag in `js/config.js`; de *service_role key* en de *guildcode* nooit.
 4. Simpel houden: gewone HTML/CSS/JS, geen build-stap.
 
 ## Wat Tinus moet doen (eenmalig)

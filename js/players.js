@@ -1,6 +1,6 @@
 // Players and their characters, merged from the guild sheet (Members tab) and the site's profiles/alts.
 // The sheet is leading for levels and professions; the site fills in what the sheet does not have.
-import { supabase, displayName } from './supabase.js?v=__V__';
+import { supabase } from './supabase.js?v=__V__';
 import { loadMembers } from './sheet.js?v=__V__';
 
 export const SECONDARY = ['Cooking', 'First Aid', 'Fishing'];
@@ -19,12 +19,9 @@ export async function loadPlayers() {
   return data ?? [];
 }
 
-// Which sheet player is this Discord login? (by display name or username)
-export function playerForUser(user, players) {
-  if (!user) return null;
-  if (user.player) return user.player; // chosen in "Choose your player"
-  const names = [displayName(user), user.user_metadata?.full_name, user.user_metadata?.name, user.user_metadata?.custom_claims?.global_name].map(norm).filter(Boolean);
-  return players.find((p) => p.discord_name && names.includes(norm(p.discord_name)))?.player_name ?? null;
+// Which sheet player is logged in? (chosen in "Choose your player")
+export function playerForUser(user) {
+  return user?.player ?? null;
 }
 
 // All characters of the guild, one entry per character name.

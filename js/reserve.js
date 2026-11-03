@@ -6,8 +6,8 @@ import { loadCharacters, playerForUser, characterUrl } from './players.js?v=__V_
 // The logged-in member's characters (main first), for the "reserve for" dropdown.
 export async function myCharacters(user) {
   if (!user) return [];
-  const { characters, players } = await loadCharacters();
-  const me = playerForUser(user, players);
+  const { characters } = await loadCharacters();
+  const me = playerForUser(user);
   return characters
     .filter((c) => c.hasName && c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)))
     .sort((a, b) => (a.kind === 'Main' ? -1 : 1) - (b.kind === 'Main' ? -1 : 1))
