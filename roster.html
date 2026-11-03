@@ -62,6 +62,7 @@ const n = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
 const prof = (p, s) => (p ? `<span class="prof-cell"><span>${professionLabel(p, { size: 18 })}</span>${s ? `<span class="prof-skill muted">(${esc(s)})</span>` : ''}</span>` : '');
 // key, label, value used for sorting, cell html, numeric sort?, css class of the column (num = right aligned, prof = profession + skill, wrap = free text)
 const cols = [
+  ['status', 'Status', (m) => m.status, (m) => esc(statusLabel(m.status))],
   ['player', 'Player', (m) => m.player, (m) => `<a href="player.html?name=${encodeURIComponent(m.player)}">${esc(m.player)}</a>`],
   ['character', 'Character', (m) => m.character, (m) => (m.character ? `<a href="character.html?name=${encodeURIComponent(m.character)}">${esc(m.character)}</a>` : '')],
   ['race', 'Race', (m) => m.race, (m) => (m.race ? `<span class="muted">${esc(m.race)}</span>` : '<span class="muted">—</span>')],
@@ -76,7 +77,6 @@ const cols = [
   ['fishing', 'Fishing', (m) => n(m.fishing), (m) => esc(m.fishing), true, 'num'],
   ['recipes', 'Key recipes', (m) => m.recipes, (m) => esc(m.recipes), false, 'wrap'],
   ['notes', 'Notes', (m) => m.notes, (m) => esc(m.notes), false, 'wrap'],
-  ['status', 'Status', (m) => m.status, (m) => esc(statusLabel(m.status))],
   ['updated', 'Last updated', (m) => m.updated?.split('-').reverse().join(''), (m) => esc(m.updated)],
 ];
 
