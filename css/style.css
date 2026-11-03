@@ -64,6 +64,20 @@ a:hover { color: #fff; }
 @media (max-width: 1000px) {
   .site-nav a { padding: 10px 11px; }
 }
+/* Phone: logo, name and the player button on one compact row, the menu below */
+@media (max-width: 640px) {
+  .site-header { padding: 8px 12px 4px; gap: 6px 10px; flex-wrap: wrap; }
+  .brand { gap: 8px; font-size: 15px; letter-spacing: .03em; min-width: 0; }
+  .brand-logo { height: 36px; margin: 0; }
+  .auth { gap: 8px; }
+  .auth .btn { padding: 7px 10px; font-size: 13px; }
+  .auth .user-name { display: none; }
+  .site-nav a { padding: 8px 10px; }
+}
+@media (max-width: 380px) {
+  .brand { font-size: 13px; letter-spacing: .02em; }
+  .brand-logo { height: 32px; }
+}
 .user { display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .user-name { color: var(--text); }
 .class-icon { display: block; flex: none; }
