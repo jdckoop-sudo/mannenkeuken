@@ -1,6 +1,8 @@
 // Experiment: can we read character data (level, professions, ...) from the Blizzard (Battle.net) API?
-// Verified on regular (retail) WoW only: character Markrutte, realm Outland, EU, 3 Nov 2026. WoW: Forever will
-// probably use other namespaces and another way to address a character (ruleset instead of realm): untested.
+// Verified on regular (retail) WoW: character Markrutte, realm Outland, EU, 3 Nov 2026.
+// WoW: Forever has its own namespaces (found 3 Nov 2026, one day before launch): dynamic-forever-<region> and
+// profile-forever-<region>. Its "realm" list (/data/wow/realm/index?namespace=dynamic-forever-eu) then only held
+// CAMWOW test entries, and no character was found yet: try again after launch, with a slug from that list as REALM.
 // Runs only by hand: via the "Test Blizzard API" workflow (.github/workflows/blizzard-test.yml), or locally:
 //   node --env-file=<path to your private .env> tools/blizzard-test.mjs <character> <realm> [region]
 // (see .env.example; keep that file outside the OneDrive project folder). Node 20+, no dependencies.
@@ -62,8 +64,8 @@ const short = (body) => JSON.stringify(body ?? '').slice(0, 220);
   console.log(`Game data check (WoW token): HTTP ${r.status}${r.status === 200 ? ' – the API answers' : ` – ${short(r.body)}`}`);
 }
 
-// 3. The character, per namespace: retail, Classic, Classic Era, and any extra ones given
-const namespaces = [`profile-${region}`, `profile-classic-${region}`, `profile-classic1x-${region}`, ...extra];
+// 3. The character, per namespace: retail, Classic, Classic Era, Forever, and any extra ones given
+const namespaces = [`profile-${region}`, `profile-classic-${region}`, `profile-classic1x-${region}`, `profile-forever-${region}`, ...extra];
 const base = `/profile/wow/character/${slug(realm)}/${nameKey(character)}`;
 console.log(`\nCharacter: ${character} on ${realm} (${base})`);
 
