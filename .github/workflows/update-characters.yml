@@ -1,0 +1,35 @@
+# Fetch level, professions and last login of all guild characters from the Blizzard API into data/blizzard-characters.json.
+# Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. Settings: data/blizzard-config.json.
+# Manual only for now. At the WoW: Forever launch: fix the namespace/realm in the config, run it once by hand, and if the result
+# is right, switch the schedule below on (remove the leading "# ").
+name: Update characters
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '23 * * * *'   # hourly, at :23
+permissions:
+  contents: write
+concurrency: update-characters
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Fetch the characters
+        run: node tools/update-characters.mjs
+        env:
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- data/blizzard-characters.json && [ -z "$(git ls-files --others --exclude-standard data)" ]; then
+            echo "No changes"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/blizzard-characters.json
+          git commit -m "Update characters from the Blizzard API"
+          git push

@@ -12,6 +12,14 @@ const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v)
 export const playerUrl = (name) => `player.html?name=${encodeURIComponent(name)}`;
 export const characterUrl = (name) => `character.html?name=${encodeURIComponent(name)}`;
 
+// Character data from the Blizzard API (data/blizzard-characters.json, filled by the "Update characters" workflow).
+// null while that file does not exist yet. Entries are keyed by the lowercase character name.
+let blizzardPromise = null;
+export function loadBlizzard() {
+  blizzardPromise ??= fetch('data/blizzard-characters.json?v=__V__').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  return blizzardPromise;
+}
+
 // players table: player_name (sheet column A) <-> discord_name
 export async function loadPlayers() {
   if (!supabase) return [];
