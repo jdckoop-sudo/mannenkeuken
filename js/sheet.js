@@ -3,7 +3,13 @@ import { SHEET_ID } from './config.js?v=__V__';
 // Reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
 // Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
 // I Prof 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated (set automatically by the sheet's onEdit script), P Status, Q Notes.
-export async function loadMembers() {
+// One request per page load: everybody who asks shares it (Home used to fetch the sheet twice). A failed request is tried again next time.
+let membersPromise = null;
+export function loadMembers() {
+  membersPromise ??= fetchMembers().catch((err) => { membersPromise = null; throw err; });
+  return membersPromise.then((rows) => rows.map((r) => ({ ...r }))); // copies, so a page that sorts or edits its list leaves the others alone
+}
+async function fetchMembers() {
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Sheet not reachable');
