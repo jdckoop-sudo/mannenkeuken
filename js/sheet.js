@@ -1,4 +1,5 @@
 import { SHEET_ID } from './config.js?v=__V__';
+import { supabase } from './supabase.js?v=__V__';
 
 // Reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
 // Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
@@ -6,9 +7,36 @@ import { SHEET_ID } from './config.js?v=__V__';
 // One request per page load: everybody who asks shares it (Home used to fetch the sheet twice). A failed request is tried again next time.
 let membersPromise = null;
 export function loadMembers() {
-  membersPromise ??= fetchMembers().catch((err) => { membersPromise = null; throw err; });
+  membersPromise ??= Promise.all([fetchMembers(), fetchMainChoices()]).then(([rows, choices]) => applyMainChoices(rows, choices)).catch((err) => { membersPromise = null; throw err; });
   return membersPromise.then((rows) => rows.map((r) => ({ ...r }))); // copies, so a page that sorts or edits its list leaves the others alone
 }
+// The main a player chose on My profile (table main_characters; empty when nothing is chosen or the table is not there yet).
+async function fetchMainChoices() {
+  if (!supabase) return [];
+  try { return (await supabase.from('main_characters').select('player_name,character_name')).data ?? []; } catch { return []; }
+}
+// Main / Alt per player. Characters that quit (Status Gestopt) and rows without a character name are left alone.
+//  - 1 active character: that one is the main.
+//  - 2 or more: the chosen main is Main and the others are Alt. No (valid) choice: the sheet's Status stays; if that does not name
+//    exactly one main, the player's rows get needsMain = true (Home and My profile ask them to choose).
+export function applyMainChoices(rows, choices) {
+  const k = (s) => String(s ?? '').trim().toLowerCase();
+  const groups = new Map();
+  for (const r of rows) {
+    if (!k(r.character) || r.status === 'Gestopt') continue;
+    if (!groups.has(k(r.player))) groups.set(k(r.player), []);
+    groups.get(k(r.player)).push(r);
+  }
+  for (const [player, list] of groups) {
+    if (list.length === 1) { list[0].status = 'Main'; continue; }
+    const choice = choices.find((c) => k(c.player_name) === player);
+    const chosen = choice && list.find((r) => k(r.character) === k(choice.character_name));
+    if (chosen) list.forEach((r) => { r.status = r === chosen ? 'Main' : 'Alt'; });
+    else if (list.filter((r) => r.status === 'Main').length !== 1) list.forEach((r) => { r.needsMain = true; });
+  }
+  return rows;
+}
+
 async function fetchMembers() {
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0`;
   const res = await fetch(url);

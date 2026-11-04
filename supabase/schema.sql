@@ -743,3 +743,35 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$, $q$Deploy$q$, 'check',
   $q$1) Put a long random secret in GitHub as DEPLOY_CHECK_SECRET. 2) Run the SQL in the comment above report_deploy_check in schema.sql with the same secret. 3) GitHub → Actions → Check site after deploy → Run workflow: the line "Automatic check after every deploy" appears here, green.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$);
+
+-- 2026-11-04: which character is a player's main? The sheet's Status column (Main / Alt / Gestopt) stays the starting point, but a player can
+-- choose their main on My profile. Only the choice is stored here (one row per player); every other active character of that player is an Alt.
+-- A player with one active character always has that one as main (the site decides that itself). Characters with Status Gestopt are left alone.
+-- Players cannot write the table directly: they use set_main_character(), which takes the player name from `members`.
+create table if not exists public.main_characters (
+  player_name text primary key,
+  character_name text not null check (char_length(character_name) between 1 and 60),
+  updated_at timestamptz not null default now()
+);
+alter table public.main_characters enable row level security;
+drop policy if exists "read all" on public.main_characters;
+create policy "read all" on public.main_characters for select using (true);
+
+create or replace function public.set_main_character(p_character text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text; c text;
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if me is null then raise exception 'Choose your player first'; end if;
+  c := btrim(coalesce(p_character, ''));
+  if char_length(c) < 1 or char_length(c) > 60 then raise exception 'Unknown character'; end if;
+  insert into public.main_characters (player_name, character_name, updated_at) values (me, c, now())
+  on conflict (player_name) do update set character_name = excluded.character_name, updated_at = now();
+end $$;
+revoke all on function public.set_main_character(text) from public, anon;
+grant execute on function public.set_main_character(text) to authenticated;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Choose your main character (My profile)$q$, $q$Profile$q$, 'check',
+  $q$Player with 2+ characters: pick a main on My profile, then check Roster / Home / Overview (main + alts). Switch to another main and back. Player with 1 character: automatically main. Then run a guild sync: the sheet's Status column follows the choice.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Choose your main character (My profile)$q$);
