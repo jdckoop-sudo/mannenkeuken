@@ -1,5 +1,6 @@
 import { supabase, getUser, displayName, getProfile, joinGuild, logout } from './supabase.js?v=__V__';
 import { classIcon, classColor } from './classicons.js?v=__V__';
+import { openReport } from './report.js?v=__V__';
 
 // Players who can open developer mode (dev.html). Same names as public.is_dev() in supabase/schema.sql.
 export const DEVS = ['Jelle', 'Justin'];
@@ -27,6 +28,22 @@ export const GUILD_TABS = [
   ['professions.html', 'Professions'],
   ['achievements.html', 'Achievements'],
 ];
+// Orange count next to DEV (developer mode only): ideas and fixes that someone else added since this developer last opened
+// the Ideas / Fixes tab on dev.html (database: dev_ticket_news()). Gone once the tab has been opened (dev.html calls this again).
+export async function updateDevNewBadge() {
+  const auth = document.getElementById('auth');
+  if (!auth || !supabase) return;
+  let news = null;
+  try { news = (await supabase.rpc('dev_ticket_news')).data; } catch { /* not switched on yet */ }
+  const ideas = Number(news?.ideas ?? 0);
+  const fixes = Number(news?.fixes ?? 0);
+  let el = auth.querySelector('.dev-new');
+  if (!ideas && !fixes) { el?.remove(); return; }
+  if (!el) { auth.insertAdjacentHTML('afterbegin', '<a class="dev-new"></a>'); el = auth.querySelector('.dev-new'); }
+  el.textContent = ideas + fixes;
+  el.href = `dev.html#${fixes ? 'fixes' : 'ideas'}`;
+  el.title = [fixes ? `${fixes} new fix${fixes === 1 ? '' : 'es'}` : '', ideas ? `${ideas} new idea${ideas === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
+}
 const escHtml = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export async function renderHeader() {
@@ -57,6 +74,8 @@ export async function renderHeader() {
         <div class="user-menu" role="menu" hidden>
           <a role="menuitem" href="profile.html">My profile</a>
           ${user.player ? `<a role="menuitem" href="player.html?name=${encodeURIComponent(user.player)}">My player page &amp; stats</a>` : ''}
+          <button role="menuitem" type="button" data-report="fix">Report a problem</button>
+          <button role="menuitem" type="button" data-report="idea">Suggest a feature</button>
           ${isDev ? `<a role="menuitem" href="dev.html" class="user-menu-dev">Developer mode <span class="dev-badge">${isDevMode(user) ? 'ON' : 'OFF'}</span></a>` : ''}
           <button role="menuitem" type="button" data-switch>Switch player</button>
         </div>
@@ -67,6 +86,7 @@ export async function renderHeader() {
     chip.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.hidden); });
     document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('.user-menu-wrap')) setMenu(false); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { setMenu(false); chip.focus(); } });
+    auth.querySelectorAll('[data-report]').forEach((b) => b.addEventListener('click', () => { setMenu(false); openReport(b.dataset.report); }));
     const nameEl = auth.querySelector('.user-name');
     nameEl.textContent = displayName(user);
     // Class icon next to the name: the main character's class (remembered per player so it shows at once).
@@ -108,6 +128,7 @@ export async function renderHeader() {
           auth.insertAdjacentHTML('afterbegin', `<a class="dev-todo" href="dev.html" title="${count} thing${count === 1 ? '' : 's'} to do for you">${count}</a>`);
         }).catch(() => {});
     }
+    if (isDevMode(user)) updateDevNewBadge();
     getProfile(user).then((p) => {
       showClass(p?.class);
       try { p?.class ? localStorage.setItem(cacheKey, p.class) : localStorage.removeItem(cacheKey); } catch { /* storage not available */ }

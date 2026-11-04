@@ -44,8 +44,8 @@
 
     <div class="dev-tabs" role="tablist">
       <button class="btn" type="button" role="tab" data-tab="changes" aria-selected="true">Changes</button>
-      <button class="btn" type="button" role="tab" data-tab="fixes" aria-selected="false">Fixes <span class="tab-count" id="count-fix"></span></button>
-      <button class="btn" type="button" role="tab" data-tab="ideas" aria-selected="false">Ideas <span class="tab-count" id="count-idea"></span></button>
+      <button class="btn" type="button" role="tab" data-tab="fixes" aria-selected="false">Fixes <span class="tab-count" id="count-fix"></span> <span class="tab-new" id="new-fix"></span></button>
+      <button class="btn" type="button" role="tab" data-tab="ideas" aria-selected="false">Ideas <span class="tab-count" id="count-idea"></span> <span class="tab-new" id="new-idea"></span></button>
       <button class="btn" type="button" role="tab" data-tab="checks" aria-selected="false">Checks</button>
       <button class="btn" type="button" id="dev-off" style="margin-left:auto">Switch developer mode off</button>
     </div>
@@ -137,6 +137,11 @@
   .dev-tabs { flex-wrap: wrap; }
   .tab-count { font-size: 12px; color: var(--muted); }
   .tab-count:empty { display: none; }
+  /* New since you last opened the tab (orange, like the count next to DEV) and who sent a card in */
+  .tab-new { font-size: 12px; font-weight: 700; color: var(--bg); background: var(--warn); border-radius: 999px; padding: 0 8px; }
+  .tab-new:empty { display: none; }
+  .ticket .chip-new { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--bg); background: var(--warn); border-radius: 999px; padding: 0 8px; margin-right: 4px; }
+  .ticket .from-player { font-size: 12px; color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 0 8px; margin-right: 4px; white-space: nowrap; }
   .board { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 
   .board-col { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
@@ -207,7 +212,7 @@
   }
 </style>
 <script type="module">
-import { renderHeader, DEVS, isDevMode, setDevMode } from './js/layout.js?v=__V__';
+import { renderHeader, DEVS, isDevMode, setDevMode, updateDevNewBadge } from './js/layout.js?v=__V__';
 import { supabase, displayName } from './js/supabase.js?v=__V__';
 import { esc, loadMembers } from './js/sheet.js?v=__V__';
 import { loadBlizzard } from './js/players.js?v=__V__';
@@ -215,6 +220,16 @@ import { loadBlizzard } from './js/players.js?v=__V__';
 const REPO = 'jdckoop-sudo/mannenkeuken';
 const TZ = { timeZone: 'Europe/Amsterdam' };
 const user = await renderHeader();
+// What is new for me: tickets from someone else that are newer than the last time I opened the Ideas / Fixes tab (database: dev_ticket_news()).
+// This is read before the tab marks itself as seen, so the cards keep their "New" label for this visit.
+let seenState = null;
+const seenReady = (async () => { try { seenState = (await supabase.rpc('dev_ticket_news')).data; } catch { /* not switched on yet */ } })();
+const isNewTicket = (t) => !!seenState && t.created_by !== user.player && t.created_at > seenState[t.kind === 'idea' ? 'ideas_seen_at' : 'fixes_seen_at'];
+async function markSeen(kind) {
+  await seenReady;
+  try { await supabase.rpc('dev_mark_tickets_seen', { p_kind: kind }); } catch { /* not switched on yet */ }
+  updateDevNewBadge(); // the orange count next to DEV goes away
+}
 const isDev = !!user && DEVS.includes(user.player);
 if (!isDev) {
   const locked = document.getElementById('locked');
@@ -238,9 +253,12 @@ function showTab(tab) {
   document.querySelectorAll('.dev-tabs [data-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
   document.querySelectorAll('.dev-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; });
   if (tab === 'checks') loadChecksTab();
+  if (tab === 'fixes' || tab === 'ideas') markSeen(tab === 'fixes' ? 'fix' : 'idea');
   history.replaceState(null, '', `#${tab}`);
 }
 document.querySelectorAll('.dev-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+// the orange count next to DEV links to dev.html#fixes or #ideas, also when you are on this page already
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (['changes', 'fixes', 'ideas', 'checks'].includes(h)) showTab(h); });
 
 // GitHub (public API, cached 5 minutes per browser tab)
 async function gh(path) {
@@ -450,6 +468,7 @@ async function loadTickets() {
     Object.values(hosts).forEach((h) => { h.querySelector('.board').innerHTML = `<p class="muted">${esc(msg)}</p>`; });
     return;
   }
+  await seenReady;
   Object.keys(hosts).forEach(drawBoard);
 }
 function reactionsRow(t) {
@@ -488,8 +507,10 @@ function ticketCard(t) {
     rx.map(([e, who]) => `${e}${who.length > 1 ? who.length : ''}`).join(' '),
   ].filter(Boolean).join(' · ');
   const areaChip = t.area ? `<span class="area">${esc(t.area)}</span>` : '';
+  const fromPlayer = t.created_by && !DEVS.includes(t.created_by);
+  const newChip = (isNewTicket(t) ? '<span class="chip-new">New</span>' : '') + (fromPlayer ? '<span class="from-player" title="Sent in through the account menu by a player">From player</span>' : '');
   const head = `<div class="top"><button type="button" class="t-title" data-act="expand" data-id="${t.id}" aria-expanded="${isOpen}" title="${esc(t.title)}"><span class="caret">${isOpen ? '▾' : '▸'}</span><span class="t-text">${esc(t.title)}</span></button>${t.status === 'done' ? '' : `<button type="button" class="urg urg-${urg(t)}" data-act="urgency" data-id="${t.id}" title="Click to change the urgency">${URGENCY[urg(t)]}</button>`}</div>`;
-  if (!isOpen) return `<article class="ticket compact ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">${head}<div class="meta">${claimedChip}${areaChip}<span>${summary}</span></div></article>`;
+  if (!isOpen) return `<article class="ticket compact ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">${head}<div class="meta">${newChip}${claimedChip}${areaChip}<span>${summary}</span></div></article>`;
   const body = t.body ? `<p class="body">${esc(t.body)}</p>` : '';
   const claim = t.status === 'doing' && t.claimed_by
     ? `<div class="claim"><span class="dev-who ${esc(t.claimed_by.toLowerCase())}">${esc(t.claimed_by)}</span>${mine ? 'You are working on this' : 'is working on this'}</div>`
@@ -500,7 +521,7 @@ function ticketCard(t) {
       : [act('reopen', 'Reopen'), act('remove', 'Remove')];
   return `<article class="ticket ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">
     ${head}
-    <div class="meta">${areaChip}<span>Added by ${esc(t.created_by ?? '?')} · ${esc(ago(t.created_at))}</span></div>
+    <div class="meta">${newChip}${areaChip}<span>${fromPlayer ? 'Reported' : 'Added'} by ${esc(t.created_by ?? '?')} · ${esc(ago(t.created_at))}</span></div>
     ${claim}${body}
     ${reactionsRow(t)}
     ${commentsBlock(t)}
@@ -525,6 +546,8 @@ function drawBoard(kind) {
   const all = tickets.filter((t) => t.kind === kind);
   const open = all.filter((t) => t.status !== 'done').length;
   document.getElementById(`count-${kind}`).textContent = open ? `(${open})` : '';
+  const fresh = all.filter(isNewTicket).length;
+  document.getElementById(`new-${kind}`).textContent = fresh ? `${fresh} new` : '';
   const f = filters[kind];
   const areaSel = hosts[kind].querySelector('[data-f="area"]');
   const areas = [...new Set(all.map((t) => t.area).filter(Boolean))].sort((a, b) => a.localeCompare(b));

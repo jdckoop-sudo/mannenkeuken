@@ -622,3 +622,72 @@ on conflict (id) do nothing;
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$, $q$Developer mode$q$, 'check', $q$Try every button on dev.html → Ideas and Fixes once, as Jelle and as Justin.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$);
+
+-- 2026-11-04: every logged-in player can report a problem or suggest a feature (account menu → "Report a problem" / "Suggest a feature").
+-- It becomes a card on the Fixes or Ideas board (dev_tickets) with the player's name as created_by. Players cannot read or change
+-- the boards themselves (only is_dev()); they only hand a ticket in through this function, which takes the name from `members`
+-- (so nobody can send in something in another player's name) and allows 10 per hour per player.
+create or replace function public.submit_ticket(p_kind text, p_title text, p_body text, p_page text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare me text; new_id uuid; t text; b text;
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if me is null then raise exception 'Choose your player first'; end if;
+  if p_kind not in ('idea', 'fix') then raise exception 'Unknown kind'; end if;
+  t := btrim(coalesce(p_title, ''));
+  b := btrim(coalesce(p_body, ''));
+  if char_length(t) < 3 then raise exception 'Give it a short title'; end if;
+  if (select count(*) from public.dev_tickets where created_by = me and created_at > now() - interval '1 hour') >= 10 then
+    raise exception 'That is a lot of reports in an hour, try again later';
+  end if;
+  insert into public.dev_tickets (kind, title, area, body, created_by, updated_by)
+  values (p_kind, left(t, 120), nullif(left(btrim(coalesce(p_page, '')), 40), ''), nullif(left(b, 6000), ''), me, me)
+  returning id into new_id;
+  return new_id;
+end $$;
+revoke all on function public.submit_ticket(text, text, text, text) from public, anon;
+grant execute on function public.submit_ticket(text, text, text, text) to authenticated;
+
+-- What is new for a developer: per developer the moment they last opened the Ideas tab and the Fixes tab on dev.html.
+-- The orange count next to DEV = tickets made by someone else after that moment. First time: everything that exists counts as seen.
+create table if not exists public.dev_seen (
+  player_name text primary key,
+  ideas_seen_at timestamptz not null default now(),
+  fixes_seen_at timestamptz not null default now()
+);
+alter table public.dev_seen enable row level security;  -- no policies: only the two functions below use it
+
+create or replace function public.dev_ticket_news() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare me text; s public.dev_seen; ni int; nf int;
+begin
+  if not public.is_dev() then return jsonb_build_object('ideas', 0, 'fixes', 0); end if;
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  insert into public.dev_seen (player_name) values (me) on conflict (player_name) do nothing;
+  select * into s from public.dev_seen where player_name = me;
+  select count(*) into ni from public.dev_tickets where kind = 'idea' and created_at > s.ideas_seen_at and coalesce(created_by, '') <> me;
+  select count(*) into nf from public.dev_tickets where kind = 'fix' and created_at > s.fixes_seen_at and coalesce(created_by, '') <> me;
+  return jsonb_build_object('ideas', ni, 'fixes', nf, 'ideas_seen_at', s.ideas_seen_at, 'fixes_seen_at', s.fixes_seen_at);
+end $$;
+
+create or replace function public.dev_mark_tickets_seen(p_kind text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text;
+begin
+  if not public.is_dev() then return; end if;
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  insert into public.dev_seen (player_name) values (me) on conflict (player_name) do nothing;
+  if p_kind = 'idea' then update public.dev_seen set ideas_seen_at = now() where player_name = me;
+  elsif p_kind = 'fix' then update public.dev_seen set fixes_seen_at = now() where player_name = me;
+  end if;
+end $$;
+revoke all on function public.dev_ticket_news() from public, anon;
+revoke all on function public.dev_mark_tickets_seen(text) from public, anon;
+grant execute on function public.dev_ticket_news() to authenticated;
+grant execute on function public.dev_mark_tickets_seen(text) to authenticated;
+
+-- Checklist item for this feature.
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Report a problem / Suggest a feature from the account menu, with the orange count next to DEV$q$, $q$Developer mode$q$, 'check',
+  $q$As a player (not Jelle or Justin): menu → Report a problem and Suggest a feature, send one of each. As a developer: the orange count shows up next to DEV, the cards are on Fixes / Ideas with the player's name and a New label, and the count is gone after opening the tab.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Report a problem / Suggest a feature from the account menu, with the orange count next to DEV$q$);
