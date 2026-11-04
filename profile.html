@@ -159,9 +159,9 @@ if (!canEdit) {
 // Choose which of your characters (in the guild sheet) is the main; the others are alts. One character = automatically the main.
 //  - no main chosen yet (several characters): a prompt box above the forms
 //  - main chosen: only a small "Switch main" button under the Main character form, which opens a list of the other characters
-const pickList = (el, chars) => {
+function pickList(el, chars) {
   el.innerHTML = chars.map((c) => `<label style="display:flex;align-items:center;gap:10px;margin:0"><input type="radio" name="main-pick" value="${esc(c.name)}" style="width:auto"><span><strong>${esc(c.name)}</strong> <span class="muted">${esc([c.race, c.class, c.level ? 'level ' + c.level : ''].filter(Boolean).join(' · '))}</span></span></label>`).join('');
-};
+}
 async function saveMain(pick, noteEl, btn) {
   if (!confirm(`Are you sure you want to make ${pick} your main? Your other characters become alts.`)) return;
   btn.disabled = true;
@@ -232,7 +232,8 @@ function updateAlts() {
 }
 
 // Alts you make here count against MAX_ALTS; alts that come from the guild sheet (locked cards) do not.
-const ownAltCount = () => [...altList.children].filter((c) => !c.dataset.sheet).length;
+// (a function declaration, so it can be used by the code above that runs before this line is reached)
+function ownAltCount() { return [...altList.children].filter((c) => !c.dataset.sheet).length; }
 function addAltCard(alt, lock = null) {
   const card = document.createElement('form');
   card.className = 'box';
