@@ -844,3 +844,8 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ticket history (Ideas + Fixes cards)$q$, $q$Developer mode$q$, 'check',
   $q$After running schema.sql: open a card → 🕘 History shows who created it. Take it, change urgency, edit, let go, done, reopen: each adds a line with the right name and time. Reactions add nothing. A report sent in through the account menu shows "Reported it".$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ticket history (Ideas + Fixes cards)$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$, $q$Developer mode$q$, 'check',
+  $q$Open 🕘 History of all fixes under the board: newest first, who + what + ticket + "now: phase" + time. Click a ticket name: the card opens. Do something to a ticket (take, done, edit): a new line appears on top.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$);

@@ -194,6 +194,14 @@
   .log li { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; padding: 3px 0; border-bottom: 1px dotted var(--border); }
   .log li:last-child { border-bottom: 0; }
   .log-detail { flex-basis: 100%; white-space: pre-wrap; color: var(--muted); font-size: 12px; margin: 2px 0 0 4px; padding-left: 8px; border-left: 2px solid var(--border); }
+  .board-history { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .board-history summary { cursor: pointer; color: var(--gold-bright); font-family: var(--font-display); font-size: 16px; }
+  .board-history summary .muted { font-family: inherit; font-size: 13px; }
+  .log .phase { font-size: 11px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .log .phase.done { border-color: var(--good); color: var(--good); }
+  .log .phase.doing { border-color: var(--gold-dim); color: var(--gold-bright); }
+  .log .t-link { background: none; border: 0; padding: 0; color: var(--text); font-weight: 600; cursor: pointer; text-align: left; font: inherit; font-weight: 600; }
+  .log .t-link:hover { color: var(--gold-bright); text-decoration: underline; }
   .log time { color: var(--muted); font-size: 12px; margin-left: auto; }
   .comment-form { display: flex; gap: 6px; align-items: flex-end; margin-top: 8px; }
   .comment-form textarea { flex: 1; min-height: 0; font-size: 14px; }
@@ -478,6 +486,7 @@ for (const [kind, host] of Object.entries(hosts)) {
       <button type="button" class="link-btn" data-expand-all>Open all cards</button>
     </div>
     <div class="board"><p class="muted">Loading…</p></div>
+    <details class="board-history"><summary>🕘 History of all ${k.name.toLowerCase()}</summary><div class="board-history-body"></div></details>
   </section>`;
 }
 let comments = [];
@@ -584,7 +593,22 @@ function passes(t, f) {
   }
   return true;
 }
+const showAllHistory = new Set(); // kinds where the whole board history is shown
+const openBoardHistory = new Set(); // kinds where the board history is open
+const PHASE = { open: 'Open', doing: 'In progress', done: 'Done' };
+function boardHistory(kind) {
+  const det = hosts[kind].querySelector('.board-history');
+  const byId = new Map(tickets.filter((t) => t.kind === kind).map((t) => [t.id, t]));
+  const all = ticketLog.filter((l) => byId.has(l.ticket_id)).sort((a, b) => b.created_at.localeCompare(a.created_at)); // newest first
+  det.open = openBoardHistory.has(kind);
+  det.querySelector('summary').innerHTML = `🕘 History of all ${KINDS[kind].name.toLowerCase()}${all.length ? ` <span class="muted">· ${all.length} ${all.length === 1 ? 'line' : 'lines'}, last by ${esc(all[0].actor ?? '?')} ${esc(when(all[0].created_at))}</span>` : ''}`;
+  const shown = showAllHistory.has(kind) ? all : all.slice(0, 30);
+  det.querySelector('.board-history-body').innerHTML = all.length
+    ? `<ul class="log">${shown.map((l) => { const t = byId.get(l.ticket_id); return `<li><span class="dev-who ${esc((l.actor ?? '').toLowerCase())}" style="margin:0">${esc(l.actor ?? '?')}</span><span>${esc(l.text)} –</span><button type="button" class="t-link" data-act="goto" data-id="${t.id}" title="Go to this card">${esc(t.title)}</button><span class="phase ${t.status}" title="Phase of the ticket now">now: ${PHASE[t.status]}</span><time>${esc(when(l.created_at))}</time>${l.detail ? `<div class="log-detail">${esc(l.detail)}</div>` : ''}</li>`; }).join('')}</ul>${all.length > shown.length ? `<button type="button" class="link-btn" data-show-all-history style="font-size:13px">Show all ${all.length}</button>` : ''}`
+    : '<p class="muted" style="margin:6px 0 0;font-size:13px">No history yet (run the change-log part of supabase/schema.sql if this stays empty).</p>';
+}
 function drawBoard(kind) {
+  boardHistory(kind);
   const all = tickets.filter((t) => t.kind === kind);
   const open = all.filter((t) => t.status !== 'done').length;
   document.getElementById(`count-${kind}`).textContent = open ? `(${open})` : '';
@@ -631,6 +655,7 @@ for (const [kind, host] of Object.entries(hosts)) {
     if (!b) return;
     if (b.hasAttribute('data-new')) { openForm(kind); return; }
     if (b.hasAttribute('data-cancel')) { form.hidden = true; return; }
+    if (b.hasAttribute('data-show-all-history')) { showAllHistory.add(kind); drawBoard(kind); return; }
     if (b.hasAttribute('data-show-done')) { showAllDone.add(kind); drawBoard(kind); return; }
     if (b.hasAttribute('data-clear-filters')) { filters[kind] = {}; host.querySelectorAll('[data-f]').forEach((x) => { x.value = ''; }); drawBoard(kind); return; }
     if (b.hasAttribute('data-expand-all')) {
@@ -642,6 +667,13 @@ for (const [kind, host] of Object.entries(hosts)) {
     }
     const t = tickets.find((x) => x.id === b.dataset.id);
     if (!t) return;
+    if (b.dataset.act === 'goto') {
+      expanded.add(t.id);
+      filters[kind] = {}; host.querySelectorAll('[data-f]').forEach((x) => { x.value = ''; });
+      drawBoard(kind);
+      host.querySelector(`article[data-id="${t.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     if (b.dataset.act === 'expand') {
       if (expanded.has(t.id)) expanded.delete(t.id); else expanded.add(t.id);
       drawBoard(kind);
@@ -746,6 +778,7 @@ for (const [kind, host] of Object.entries(hosts)) {
   // Comments: remember which are open, and post new ones (the author is set by the database)
   host.addEventListener('toggle', (e) => {
     const d = e.target;
+    if (d.matches?.('details.board-history')) { if (d.open) openBoardHistory.add(kind); else openBoardHistory.delete(kind); return; }
     if (d.matches?.('details.history')) { if (d.open) openHistory.add(d.dataset.ticket); else openHistory.delete(d.dataset.ticket); return; }
     if (!d.matches?.('details.comments')) return;
     if (d.open) openComments.add(d.dataset.ticket); else openComments.delete(d.dataset.ticket);
