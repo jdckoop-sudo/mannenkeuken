@@ -20,6 +20,10 @@
   --text: #e8e2d4;
   --muted: #a39b8b;
   --grey-light: #b4b1c1;
+  --silver: #cfd3dd;
+  --silver-dim: #6f7585;
+  --copper: #cf7f4e;
+  --copper-dim: #7a3f1d;
   --good: #5fd06a;
   --warn: #f0a23b;
   --bad: #ef6b6b;
@@ -154,6 +158,9 @@ h2 { margin: 0; font-size: 20px; }
 .stat .stat-sub { font-size: 14px; color: var(--muted); }
 /* Key-number tiles: two per row on phones instead of one */
 .grid:has(> .stat) { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+/* "Guild at a glance" on Home: eight tiles, four per row */
+.grid.glance { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .grid.glance { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Bar chart (guild overview): label · bar · value */
 .chart-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
@@ -225,6 +232,35 @@ tbody tr:hover { background: rgba(255, 255, 255, .03); }
 .who-sub { font-size: 12px; font-weight: 400; color: var(--grey-light); }
 .who-sub a { color: inherit; text-decoration: none; }
 .who-sub a:hover { color: var(--text); text-decoration: underline; }
+/* Money with coin icons (goldHtml in js/gold.js) */
+.money { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.money-n { margin-left: 8px; }
+.money-n:first-child { margin-left: 0; }
+.coin { flex: none; }
+.coin .rim { fill: var(--coin-rim); }
+.coin .face { fill: var(--coin-face); }
+.coin .shine { fill: none; stroke: var(--coin-shine); stroke-width: 1.2; stroke-linecap: round; }
+.coin-gold { --coin-rim: var(--gold-dim); --coin-face: var(--gold-bright); --coin-shine: var(--text); }
+.coin-silver { --coin-rim: var(--silver-dim); --coin-face: var(--silver); --coin-shine: var(--text); }
+.coin-copper { --coin-rim: var(--copper-dim); --coin-face: var(--copper); --coin-shine: var(--text); }
+/* Ledger: a list whose rows line up in columns (bank: top donors = rank, name, amount; latest donations = name, amount, date, action).
+   The list is one grid and every row shares its columns (subgrid), so a long date in one row cannot push the others out of line. */
+.ledger { list-style: none; margin: 0; padding: 0; counter-reset: rank; display: grid; column-gap: 14px; }
+.ledger.ranked { grid-template-columns: 1.6em minmax(0, 1fr) auto; }
+.ledger.log { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+.ledger > li { grid-column: 1 / -1; display: grid; grid-template-columns: inherit; align-items: center; gap: 4px 14px; padding: 7px 0; border-top: 1px solid var(--border); }
+@supports (grid-template-columns: subgrid) { .ledger > li { grid-template-columns: subgrid; } }
+.ledger > li:first-child { border-top: none; }
+.ledger > li.empty { display: block; }
+.ledger.ranked > li { counter-increment: rank; }
+.ledger.ranked > li.empty { counter-increment: none; }
+.ledger.ranked > li:not(.empty)::before { content: counter(rank); text-align: right; color: var(--gold); font-family: var(--font-display); font-weight: 700; }
+.ledger .when { color: var(--muted); font-size: 13px; white-space: nowrap; }
+/* Amounts in a ledger: every unit in a column of its own width, so the coins line up from row to row */
+.ledger .money-n { display: inline-block; text-align: right; }
+.ledger .money-n:nth-of-type(1) { min-width: 4.2ch; }
+.ledger .money-n:nth-of-type(2), .ledger .money-n:nth-of-type(3) { min-width: 2ch; }
+@media (max-width: 640px) { .ledger.log { grid-template-columns: minmax(0, 1fr) auto; } .ledger.log > li .when { grid-column: 1 / -1; } }
 /* Activity (last login): a coloured dot plus text (see activityOf in js/players.js) */
 .activity { display: inline-flex; align-items: center; gap: 8px; }
 .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }

@@ -92,9 +92,9 @@
   <details class="box">
     <summary>Top donors and latest donations</summary>
     <p class="muted" style="margin:0;font-size:13px">Gold given to the guild per player, since the WoW: Forever launch.</p>
-    <ol id="donors" style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:4px"><li class="muted">Loading…</li></ol>
+    <ol id="donors" class="ledger ranked"><li class="empty muted">Loading…</li></ol>
     <h3 style="margin:8px 0 0;font-size:15px">Latest donations</h3>
-    <ul id="donations" style="margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px"></ul>
+    <ul id="donations" class="ledger log"></ul>
   </details>
 
   <details class="box">
@@ -134,7 +134,7 @@ import { renderHeader, isDevMode } from './js/layout.js?v=__V__';
 import { supabase, displayName, isGuildMember } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
-import { toCopper, formatGold, goldBar } from './js/gold.js?v=__V__';
+import { toCopper, formatGold, goldBar, goldHtml } from './js/gold.js?v=__V__';
 import { LAUNCH } from './js/releases.js?v=__V__';
 import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from './js/reserve.js?v=__V__';
 
@@ -164,14 +164,14 @@ async function loadGold() {
   const bought = !!bank.guild_bank_bought;
   // Before the purchase: progress towards the guild bank. After: just the guild's gold.
   document.getElementById('gold-title').textContent = bought ? 'Guild gold' : 'Saving for the guild bank';
-  document.getElementById('gold-intro').innerHTML = bought ? 'We own a shared guild bank. Current guild gold:' : `A shared guild bank costs <strong>${esc(formatGold(bank.goal_copper).replace(/ 0s 0c$/, ''))}</strong>. This is how far we are:`;
+  document.getElementById('gold-intro').innerHTML = bought ? 'We own a shared guild bank. Current guild gold:' : `A shared guild bank costs <strong>${goldHtml(bank.goal_copper, 16, true)}</strong>. This is how far we are:`;
   if (bought) document.getElementById('how-gold').innerHTML = '<strong>Gold</strong> for the guild: mail it to <strong>Opie Bank</strong>; Jelle puts it in the guild bank and updates the amount here.';
   document.getElementById('bought').hidden = bought;
   // Guild bank items (add, list, reserve) only after the guild bank has been bought
   document.getElementById('items-section').hidden = !bought;
   document.getElementById('items-locked').hidden = bought;
   document.getElementById('goal-details').hidden = bought;
-  document.getElementById('gold').innerHTML = (bought ? `<strong style="font-size:32px">${esc(formatGold(bank.copper))}</strong>` : goldBar(bank.copper, bank.goal_copper))
+  document.getElementById('gold').innerHTML = (bought ? `<strong style="font-size:32px">${goldHtml(bank.copper, 24)}</strong>` : goldBar(bank.copper, bank.goal_copper))
     + (bank.updated_by ? `<p class="muted" style="font-size:13px;margin:0">Last updated by ${esc(bank.updated_by)} · ${new Date(bank.updated_at).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', dateStyle: 'medium', timeStyle: 'short' })}</p>` : '');
   document.querySelector('#goal-form [name="goal"]').value = Math.round(bank.goal_copper / 10000);
 }
@@ -208,10 +208,10 @@ async function loadDonations() {
   const totals = {};
   for (const x of donations.filter((x) => x.created_at >= LAUNCH)) totals[x.player_name] = (totals[x.player_name] ?? 0) + Number(x.copper);
   const top = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  document.getElementById('donors').innerHTML = top.map(([p, c], i) => `<li${i === 0 ? ' style="font-weight:700"' : ''}>${esc(p)} <span class="muted">– ${esc(formatGold(c))}</span></li>`).join('')
-    || '<li class="muted" style="list-style:none;margin-left:-22px">No donations since the launch yet.</li>';
-  document.getElementById('donations').innerHTML = donations.slice(0, 20).map((x) => `<li>${esc(x.player_name)}: ${esc(formatGold(Number(x.copper)))} <span class="muted">· ${new Date(x.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}${x.created_at < LAUNCH ? ' (test, before launch)' : ''}</span>${manager ? ` · <button class="link-btn" type="button" data-undo="${x.id}">Remove</button>` : ''}</li>`).join('')
-    || '<li class="muted">None yet.</li>';
+  document.getElementById('donors').innerHTML = top.map(([p, c], i) => `<li><span${i === 0 ? ' style="font-weight:700"' : ''}>${esc(p)}</span><span class="muted">${goldHtml(c)}</span></li>`).join('')
+    || '<li class="empty muted">No donations since the launch yet.</li>';
+  document.getElementById('donations').innerHTML = donations.slice(0, 20).map((x) => `<li><span>${esc(x.player_name)}</span><span>${goldHtml(Number(x.copper))}</span><span class="when">${new Date(x.created_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' })}${x.created_at < LAUNCH ? ' (test, before launch)' : ''}</span>${manager ? `<button class="link-btn" type="button" data-undo="${x.id}">Remove</button>` : ''}</li>`).join('')
+    || '<li class="empty muted">None yet.</li>';
 }
 document.getElementById('donations').addEventListener('click', async (e) => {
   const id = e.target.dataset?.undo;
