@@ -12,7 +12,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 
 | Pagina | Bestand | Data | Status |
 |---|---|---|---|
-| Home | `index.html` | Sheet + Supabase | basis klaar |
+| Home | `index.html` | Sheet + Supabase (+ `gold_donations` voor de topdonor) | basis klaar |
 | Roster | `roster.html` | Google Sheet (tab Members); kolom *Last seen* uit `data/blizzard-characters.json` (leeg tot de Blizzard-data er is) | klaar |
 | Professions | `professions.html` | Google Sheet | klaar |
 | Trade Market | `market.html` | Supabase `listings`; stapelgrootte per item uit `data/items.json` (niet stapelbaar = aantal 1); plaatsen kan alleen met een item uit de zoeklijst (verhandelbare items uit `data/tradeable-items.json`) | klaar |

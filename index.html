@@ -75,10 +75,14 @@
 
     <section class="box" aria-label="Guild at a glance">
       <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between"><h2>Guild at a glance</h2><a href="overview.html">Guild overview</a></div>
-      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      <div class="grid glance">
         <a class="box stat" href="roster.html" style="text-decoration:none;color:inherit"><span class="muted">Members (Main)</span><strong id="stat-members">–</strong></a>
+        <a class="box stat" href="roster.html" style="text-decoration:none;color:inherit"><span class="muted">Alts</span><strong id="stat-alts">–</strong></a>
         <div class="box stat"><span class="muted">Tank / Healer / DPS</span><strong id="stat-roles">–</strong></div>
-        <div class="box stat"><span class="muted">Average level</span><strong id="stat-level">–</strong></div>
+        <div class="box stat"><span class="muted">Average profession level</span><strong id="stat-prof">–</strong><span class="stat-sub">Max 300</span></div>
+        <div class="box stat"><span class="muted">Average level</span><strong id="stat-level">–</strong><span class="stat-sub">Max 60</span></div>
+        <a class="box stat" href="roster.html" style="text-decoration:none;color:inherit"><span class="muted">Highest level</span><strong class="stat-text" id="stat-top">–</strong><span class="stat-sub" id="stat-top-sub"></span></a>
+        <a class="box stat" href="bank.html" style="text-decoration:none;color:inherit"><span class="muted">Top donor to the guild bank</span><strong class="stat-text" id="stat-donor">–</strong><span class="stat-sub" id="stat-donor-sub"></span></a>
         <a class="box stat" href="market.html" style="text-decoration:none;color:inherit"><span class="muted">Open trade listings</span><strong id="stat-market">–</strong></a>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px"><span class="muted" style="font-size:14px">Guild bank gold</span><div id="gold"><p class="muted">Loading…</p></div><a href="bank.html">Go to the guild bank</a></div>
@@ -89,8 +93,8 @@
 import { renderHeader, openPicker } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { supabase, getProfile, mine } from './js/supabase.js?v=__V__';
-import { upcomingReleases, releaseWhen } from './js/releases.js?v=__V__';
-import { goldBar } from './js/gold.js?v=__V__';
+import { upcomingReleases, releaseWhen, LAUNCH } from './js/releases.js?v=__V__';
+import { goldBar, goldHtml } from './js/gold.js?v=__V__';
 import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
 import { loadItems, qualityColor, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { questUrl } from './js/quests.js?v=__V__';
@@ -101,6 +105,7 @@ import { professionLabel } from './js/proficons.js?v=__V__';
 
 const user = await renderHeader();
 const membersPromise = loadMembers().catch(() => []);
+const charactersPromise = loadCharacters().catch(() => ({ characters: [], players: [], profiles: [] }));
 document.getElementById(user ? 'for-member' : 'for-new').hidden = false;
 document.getElementById('start-pick').addEventListener('click', openPicker);
 if (user) document.getElementById('hello').textContent = `Welcome back, ${user.player ?? 'adventurer'}`;
@@ -108,7 +113,8 @@ if (user) document.getElementById('hello').textContent = `Welcome back, ${user.p
 // Coming up (for new members): the next WoW: Forever release
 { const r = upcomingReleases()[0]; document.getElementById('next-release').textContent = r ? `${r.title} · ${releaseWhen(r)}` : 'Nothing announced yet'; }
 
-// Key numbers (from the sheet); the chart moved to the Guild → Overview tab (overview.html)
+// Key numbers (from the sheet). The tiles Members, Tank / Healer / DPS, Average level, Average profession level and Highest level
+// only look at the mains (`mains` below: status Main); alts and characters that quit do not count. The chart is on the Guild → Overview tab.
 const all = await membersPromise;
 const mains = all.filter((m) => m.status === 'Main');
 const active = all.filter((m) => m.status !== 'Gestopt');
@@ -117,6 +123,35 @@ const levels = mains.map((m) => Number(m.level)).filter((n) => n > 0);
 document.getElementById('stat-members').textContent = mains.length;
 document.getElementById('stat-roles').textContent = `${roleCount('Tank')} / ${roleCount('Healer')} / ${roleCount('DPS')}`;
 document.getElementById('stat-level').textContent = levels.length ? Math.round(levels.reduce((a, b) => a + b, 0) / levels.length) : '–';
+
+// More key numbers: alts, average profession level, highest level, top donor
+{
+  const { characters } = await charactersPromise;
+  const live = characters.filter((c) => c.status !== 'Gestopt');
+  document.getElementById('stat-alts').textContent = live.filter((c) => c.kind === 'Alt').length;
+
+  // Average profession level: the mean of every profession skill that is filled in (main and secondary professions), mains only
+  const skillOf = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v));
+  const skills = mains.flatMap((m) => [[m.prof1, m.skill1], [m.prof2, m.skill2], ['Cooking', m.cooking], ['First Aid', m.firstAid], ['Fishing', m.fishing]]
+    .filter(([p, v]) => p && skillOf(v) !== null).map(([, v]) => skillOf(v)));
+  if (skills.length) {
+    const avg = skills.reduce((x, y) => x + y, 0) / skills.length;
+    document.getElementById('stat-prof').textContent = Number.isInteger(avg) ? avg : avg.toFixed(1);
+  }
+
+  // Highest level (mains only): one name with its player, a few names when tied, or just a count
+  const topLevel = Math.max(0, ...levels);
+  const top = mains.filter((m) => topLevel > 0 && Number(m.level) === topLevel);
+  const nameOf = (m) => m.character || m.player;
+  if (top.length === 1) {
+    const m = top[0];
+    document.getElementById('stat-top').innerHTML = `<span style="color:${classColor(m.cls) || 'inherit'}">${esc(nameOf(m))}</span>`;
+    document.getElementById('stat-top-sub').textContent = `Level ${topLevel}${m.player ? ` · ${m.player}` : ''}`;
+  } else if (top.length > 1) {
+    document.getElementById('stat-top').textContent = top.length <= 3 ? top.map(nameOf).join(', ') : `${top.length} characters`;
+    document.getElementById('stat-top-sub').textContent = `Tied at level ${topLevel}`;
+  }
+}
 
 // My character: profile (main + alts) matched with the sheet for level and professions
 async function drawMe() {
@@ -154,7 +189,7 @@ drawMe();
 // For you on the market: listings where you were tagged, and requests one of your characters can craft
 async function drawForMe() {
   if (!supabase || !user) return;
-  const { characters } = await loadCharacters();
+  const { characters } = await charactersPromise;
   const me = playerForUser(user);
   const myChars = characters.filter((c) => c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)));
   const crafts = myChars.flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill ?? 0 })));
@@ -185,6 +220,18 @@ drawForMe();
 if (supabase) {
   const { data: bank } = await supabase.from('bank').select('*').eq('id', 1).maybeSingle();
   document.getElementById('gold').innerHTML = bank ? goldBar(bank.copper, bank.goal_copper) : '<p class="muted">Not set up yet.</p>';
+
+  // Top donor since the launch (what was donated before was testing), same rule as the Guild bank page
+  const { data: donations } = await supabase.from('gold_donations').select('player_name,copper,created_at');
+  const totals = {};
+  for (const x of (donations ?? []).filter((d) => d.created_at >= LAUNCH)) totals[x.player_name] = (totals[x.player_name] ?? 0) + Number(x.copper);
+  const topDonor = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
+  if (topDonor) {
+    document.getElementById('stat-donor').innerHTML = `<span style="color:var(--player-${esc(topDonor[0].toLowerCase().replace(/[^a-z0-9]/g, ''))}, inherit)">${esc(topDonor[0])}</span>`;
+    document.getElementById('stat-donor-sub').innerHTML = goldHtml(topDonor[1], 15);
+  } else {
+    document.getElementById('stat-donor-sub').textContent = 'No donations since the launch yet';
+  }
 
   const { count } = await supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'open');
   document.getElementById('stat-market').textContent = count ?? 0;
