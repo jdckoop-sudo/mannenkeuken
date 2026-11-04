@@ -84,6 +84,14 @@ function formRace(race) {
 // The profile row may belong to another browser of the same player: keep using that row.
 let profileOwner = null;
 const owner = () => profileOwner ?? user.id;
+async function saveProfileRow(values) {
+  const row = { ...values, ...(me ? { player_name: me } : {}), updated_at: new Date().toISOString() };
+  const res = profileOwner
+    ? await supabase.from('profiles').update(row).eq('user_id', profileOwner).select().single()
+    : await supabase.from('profiles').insert({ user_id: user.id, ...row }).select().single();
+  if (!res.error && res.data) profileOwner = res.data.user_id;
+  return res;
+}
 
 if (!canEdit) {
   const m = !supabase ? 'Not connected yet.' : 'Choose your player (top right) to edit your profile.';
@@ -103,7 +111,7 @@ if (!canEdit) {
   const sheetMain = me && characters.find((c) => c.player === me && c.inSheet && c.kind === 'Main' && c.hasName);
   if (!profile?.character_name && sheetMain) {
     const values = { character_name: sheetMain.name, race: formRace(sheetMain.race), class: sheetMain.class || null, role: sheetMain.role || null };
-    const { data, error } = await supabase.from('profiles').upsert({ user_id: owner(), ...values, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
+    const { data, error } = await saveProfileRow(values);
     if (!error) { profile = data; msg.textContent = 'Your main character was filled in from the guild sheet. Check it and save if something is off.'; }
   } else if (me && profile && !profile.player_name) {
     await supabase.from('profiles').update({ player_name: me }).eq('user_id', owner());
@@ -113,8 +121,9 @@ if (!canEdit) {
     locked = { character_name: sheetMain.name, race: formRace(sheetMain.race), class: sheetMain.class || null };
     const differs = !profile || profile.character_name !== locked.character_name || profile.race !== locked.race || profile.class !== locked.class;
     if (differs) {
-      const { data } = await supabase.from('profiles').upsert({ user_id: owner(), ...locked, role: profile?.role ?? sheetMain.role ?? null, player_name: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select().single();
+      const { data, error } = await saveProfileRow({ ...locked, role: profile?.role ?? sheetMain.role ?? null });
       if (data) profile = data;
+      else msg.textContent = `Could not update your main from the guild sheet: ${error?.message ?? 'unknown error'}`;
     }
   }
   main.set(profile);
@@ -130,7 +139,7 @@ if (!canEdit) {
   let { data: alts } = await supabase.from('alts').select('*').in('user_id', [...user.ids]).order('created_at');
   alts = alts ?? [];
   // A character that became the main must not stay in the alts list as well
-  if (locked) {
+  if (locked && profile?.character_name === locked.character_name) {
     const dup = alts.filter((a) => String(a.character_name ?? '').toLowerCase() === locked.character_name.toLowerCase());
     for (const a of dup) await supabase.from('alts').delete().eq('id', a.id);
     alts = alts.filter((a) => !dup.includes(a));
@@ -210,9 +219,7 @@ function drawMainChoice(mine) {
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const { error } = await supabase.from('profiles').upsert({
-    user_id: owner(), ...main.values(), ...(locked ?? {}), ...(me ? { player_name: me } : {}), updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' });
+  const { error } = await saveProfileRow({ ...main.values(), ...(locked ?? {}) });
   msg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
 });
 
