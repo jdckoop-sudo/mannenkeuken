@@ -2,7 +2,7 @@
 name: Update items
 on:
   schedule:
-    - cron: '17 5 * * *'   # daily 05:17 UTC (only commits when there is a new client build)
+    - cron: '17 * * * *'   # hourly at :17 (only commits when there is a new client build)
   workflow_dispatch:
     inputs:
       force:

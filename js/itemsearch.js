@@ -1,5 +1,5 @@
 // Item search with suggestions while typing (WoW: Forever item list in data/items.json, and the
-// tradeable-only list in data/tradeable-items.json; both refreshed daily by the "Update items" GitHub workflow).
+// tradeable-only list in data/tradeable-items.json; both refreshed hourly by the "Update items" GitHub workflow).
 
 const QUALITY = ['Poor', 'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Artifact', 'Heirloom'];
 // The usual item-quality colours, tuned to stay readable on the dark theme.
