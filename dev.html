@@ -507,8 +507,9 @@ function ticketCard(t) {
     rx.map(([e, who]) => `${e}${who.length > 1 ? who.length : ''}`).join(' '),
   ].filter(Boolean).join(' · ');
   const areaChip = t.area ? `<span class="area">${esc(t.area)}</span>` : '';
-  const fromPlayer = t.created_by && !DEVS.includes(t.created_by);
-  const newChip = (isNewTicket(t) ? '<span class="chip-new">New</span>' : '') + (fromPlayer ? '<span class="from-player" title="Sent in through the account menu by a player">From player</span>' : '');
+  const automatic = t.created_by === 'Deploy check';
+  const fromPlayer = t.created_by && !DEVS.includes(t.created_by) && !automatic;
+  const newChip = (isNewTicket(t) ? '<span class="chip-new">New</span>' : '') + (fromPlayer ? '<span class="from-player" title="Sent in through the account menu by a player">From player</span>' : '') + (automatic ? '<span class="from-player" title="Made by the automatic check after a deploy">Automatic check</span>' : '');
   const head = `<div class="top"><button type="button" class="t-title" data-act="expand" data-id="${t.id}" aria-expanded="${isOpen}" title="${esc(t.title)}"><span class="caret">${isOpen ? '▾' : '▸'}</span><span class="t-text">${esc(t.title)}</span></button>${t.status === 'done' ? '' : `<button type="button" class="urg urg-${urg(t)}" data-act="urgency" data-id="${t.id}" title="Click to change the urgency">${URGENCY[urg(t)]}</button>`}</div>`;
   if (!isOpen) return `<article class="ticket compact ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">${head}<div class="meta">${newChip}${claimedChip}${areaChip}<span>${summary}</span></div></article>`;
   const body = t.body ? `<p class="body">${esc(t.body)}</p>` : '';
