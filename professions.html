@@ -37,6 +37,16 @@
   .prof-table .char { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; }
   .prof-table .char:hover { text-decoration: underline; }
   .prof-table .player { color: var(--muted); }
+  /* Phones: let names wrap and tighten the table so the page never scrolls sideways */
+  .prof-table-wrap { overflow-x: auto; }
+  @media (max-width: 480px) {
+    .prof-table { font-size: 13px; }
+    .prof-table th, .prof-table td { padding: 5px 3px; }
+    .prof-table td:nth-child(2) { white-space: normal; overflow-wrap: anywhere; }
+    .prof-table .char { flex-wrap: wrap; overflow-wrap: anywhere; }
+    .rose .prof-table td.num { white-space: normal; }
+    .rose .prof-table .prof-label { flex-wrap: wrap; gap: 4px; }
+  }
   .rose > svg { width: 100%; max-width: 400px; height: auto; }
   .rose .wedge { cursor: pointer; transition: fill-opacity .15s; }
   .rose tr[data-p] { cursor: default; }
@@ -66,13 +76,13 @@ loadMembers().then((members) => {
   const card = (p) => `
     <section class="box">
       <div><h2>${professionLabel(p, { size: 28 })}</h2><p class="muted" style="font-size:13px;margin-top:2px">${byProf[p].length} character${byProf[p].length === 1 ? '' : 's'}</p></div>
-      <table class="prof-table"><thead><tr><th>Character</th><th>Player</th><th class="num">Lvl</th><th class="num">Skill</th></tr></thead><tbody>
+      <div class="prof-table-wrap"><table class="prof-table"><thead><tr><th>Character</th><th>Player</th><th class="num">Lvl</th><th class="num">Skill</th></tr></thead><tbody>
       ${byProf[p].sort((a, b) => b.level - a.level || b.skill - a.skill || String(a.name).localeCompare(String(b.name))).map((c) => `<tr>
         <td>${c.name ? `<a class="char" href="${characterUrl(c.name)}" style="color:${classColor(c.cls) || 'inherit'}">${classIcon(c.cls, 18)}${esc(c.name)}</a>` : '<span class="muted">(no name yet)</span>'}</td>
         <td><a class="player" href="${playerUrl(c.player)}">${esc(c.player)}</a></td>
         <td class="num"><strong>${c.level || '–'}</strong></td>
         <td class="num"><span class="muted">${c.skill} / ${MAX}</span></td></tr>`).join('')}
-      </tbody></table>
+      </tbody></table></div>
     </section>`;
   // Main professions first; Cooking, First Aid and Fishing in their own row of 3 below
   document.getElementById('cards').innerHTML = mainNames.map(card).join('') || (secNames.length ? '' : '<p class="muted">No professions in the sheet yet.</p>');
