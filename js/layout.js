@@ -112,7 +112,7 @@ export async function renderHeader() {
     chip.addEventListener('click', (e) => { e.stopPropagation(); setMenu(menu.hidden); });
     document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('.user-menu-wrap')) setMenu(false); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { setMenu(false); chip.focus(); } });
-    auth.querySelectorAll('[data-report]').forEach((b) => b.addEventListener('click', () => { setMenu(false); openReport(b.dataset.report); }));
+    auth.querySelectorAll('[data-report]').forEach((b) => b.addEventListener('click', () => { setMenu(false); openReport(b.dataset.report, MY_VERSION); }));
     const nameEl = auth.querySelector('.user-name');
     nameEl.textContent = displayName(user);
     // Class icon next to the name: the main character's class (remembered per player so it shows at once).
