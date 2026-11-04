@@ -787,6 +787,7 @@ create table if not exists public.dev_ticket_log (
   created_at timestamptz not null default now()
 );
 create index if not exists dev_ticket_log_ticket on public.dev_ticket_log (ticket_id, created_at);
+alter table public.dev_ticket_log add column if not exists detail text;  -- 2026-11-04: what the text was before / is now (details edits)
 alter table public.dev_ticket_log enable row level security;
 drop policy if exists "read devs" on public.dev_ticket_log;
 create policy "read devs" on public.dev_ticket_log for select to authenticated using (public.is_dev());
@@ -822,7 +823,8 @@ begin
     insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Area: ' || coalesce(old.area, '–') || ' → ' || coalesce(new.area, '–'));
   end if;
   if new.body is distinct from old.body then
-    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Edited the details');
+    insert into public.dev_ticket_log (ticket_id, actor, text, detail)
+    values (new.id, me, 'Edited the details', 'Was: ' || coalesce(left(old.body, 400), '(empty)') || E'\nNow: ' || coalesce(left(new.body, 400), '(empty)'));
   end if;
   return new;
 end $$;
