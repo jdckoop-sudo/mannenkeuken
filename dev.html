@@ -190,6 +190,9 @@
   .board-filters { align-items: flex-end; }
   .board-filters .link-btn { font-size: 13px; margin-bottom: 8px; }
   .board-col { gap: 6px; }
+  .ticket[draggable="true"] { cursor: grab; }
+  .ticket.dragging { opacity: .45; }
+  .board-col.drop-on { outline: 2px dashed var(--gold); outline-offset: -2px; }
   .ticket.compact { padding: 6px 10px; gap: 2px; }
   .ticket .top { align-items: center; }
   .t-title { flex: 1; min-width: 0; display: flex; align-items: baseline; background: none; border: 0; padding: 0; text-align: left; font: inherit; font-size: 15px; font-weight: 600; color: var(--text); cursor: pointer; line-height: 1.35; }
@@ -225,7 +228,8 @@ const user = await renderHeader();
 let seenState = null;
 const seenReady = (async () => { try { seenState = (await supabase.rpc('dev_ticket_news')).data; } catch { /* not switched on yet */ } })();
 // Same rule as dev_ticket_news(): someone else's card, or my own card sent in with the account-menu buttons (source 'player')
-const isNewTicket = (t) => !!seenState && (t.created_by !== user.player || t.source === 'player') && t.created_at > seenState[t.kind === 'idea' ? 'ideas_seen_at' : 'fixes_seen_at'];
+const clickedTickets = new Set(); // cards I clicked on: their "New" label is gone
+const isNewTicket = (t) => !!seenState && !clickedTickets.has(t.id) && (t.created_by !== user.player || t.source === 'player') && t.created_at > seenState[t.kind === 'idea' ? 'ideas_seen_at' : 'fixes_seen_at'];
 // Leaving the Ideas / Fixes tab: the cards that were new are no longer marked when you come back
 function clearNew(kind) {
   if (!seenState || !tickets?.length) return;
@@ -523,7 +527,7 @@ function ticketCard(t) {
   const fromPlayer = (t.source === 'player' || (t.created_by && !DEVS.includes(t.created_by))) && !automatic;
   const newChip = (isNewTicket(t) ? '<span class="chip-new">New</span>' : '') + (fromPlayer ? '<span class="from-player" title="Sent in through the account menu by a player">From player</span>' : '') + (automatic ? '<span class="from-player" title="Made by the automatic check after a deploy">Automatic check</span>' : '');
   const head = `<div class="top"><button type="button" class="t-title" data-act="expand" data-id="${t.id}" aria-expanded="${isOpen}" title="${esc(t.title)}"><span class="caret">${isOpen ? '▾' : '▸'}</span><span class="t-text">${esc(t.title)}</span></button>${t.status === 'done' ? '' : `<button type="button" class="urg urg-${urg(t)}" data-act="urgency" data-id="${t.id}" title="Click to change the urgency">${URGENCY[urg(t)]}</button>`}</div>`;
-  if (!isOpen) return `<article class="ticket compact ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">${head}<div class="meta">${newChip}${claimedChip}${areaChip}<span>${summary}</span></div></article>`;
+  if (!isOpen) return `<article data-id="${t.id}" class="ticket compact ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">${head}<div class="meta">${newChip}${claimedChip}${areaChip}<span>${summary}</span></div></article>`;
   const body = t.body ? `<p class="body">${esc(t.body)}</p>` : '';
   const claim = t.status === 'doing' && t.claimed_by
     ? `<div class="claim"><span class="dev-who ${esc(t.claimed_by.toLowerCase())}">${esc(t.claimed_by)}</span>${mine ? 'You are working on this' : 'is working on this'}</div>`
@@ -532,7 +536,7 @@ function ticketCard(t) {
   const actions = t.status === 'open' ? [act('claim', 'I\'ll take this', 'btn btn-primary'), act('edit', 'Edit'), act('remove', 'Remove')]
     : t.status === 'doing' ? (mine ? [act('done', 'Done', 'btn btn-primary'), act('release', 'Let go'), act('edit', 'Edit')] : [act('edit', 'Edit'), act('takeover', 'Take over')])
       : [act('reopen', 'Reopen'), act('remove', 'Remove')];
-  return `<article class="ticket ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">
+  return `<article data-id="${t.id}" class="ticket ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">
     ${head}
     <div class="meta">${newChip}${areaChip}<span>${fromPlayer ? 'Reported' : 'Added'} by ${esc(t.created_by ?? '?')} · ${esc(ago(t.created_at))}</span></div>
     ${claim}${body}
@@ -578,7 +582,7 @@ function drawBoard(kind) {
     const cut = s === 'done' && !showAllDone.has(kind) && total > 5;
     if (cut) col = col.slice(0, 5);
     const empty = filtered ? 'Nothing matches the filter.' : s === 'open' ? `No open ${KINDS[kind].name.toLowerCase()}.` : s === 'doing' ? 'Nobody is working on one.' : 'Nothing done yet.';
-    return `<div class="board-col"><h3>${label}<span>${total}</span></h3>
+    return `<div class="board-col" data-status="${s}"><h3>${label}<span>${total}</span></h3>
       ${col.map(ticketCard).join('') || `<p class="muted" style="margin:0;font-size:13px">${empty}</p>`}
       ${cut ? `<button type="button" class="link-btn" data-show-done style="font-size:13px">Show all ${total}</button>` : ''}</div>`;
   }).join('')
@@ -654,6 +658,58 @@ for (const [kind, host] of Object.entries(hosts)) {
     }
     const res = change ? await supabase.from('dev_tickets').update({ ...change, ...stamp }).eq('id', t.id)
       : await supabase.from('dev_tickets').delete().eq('id', t.id);
+    msg.textContent = res.error ? `Could not save: ${res.error.message}` : '';
+    loadTickets();
+  });
+  // Clicking a card that is new takes its "New" label away (runs after the handler above, which may have opened the card)
+  host.addEventListener('click', (e) => {
+    const id = e.target.closest?.('.ticket[data-id]')?.dataset.id;
+    const t = id && tickets.find((x) => x.id === id);
+    if (t && isNewTicket(t)) { clickedTickets.add(id); drawBoard(kind); }
+  });
+  // Drag a card to another column (Open / In progress / Done). Mouse only; the buttons on the cards work on phones.
+  // draggable is switched on at mouse-down, and not on form fields, so text in the comment box can still be selected.
+  host.addEventListener('mousedown', (e) => {
+    const card = e.target.closest?.('.ticket[data-id]');
+    if (card) card.draggable = !e.target.closest('input, textarea, select, summary, .comments');
+  });
+  host.addEventListener('dragstart', (e) => {
+    const card = e.target.closest?.('.ticket[data-id]');
+    if (!card) return;
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+    e.dataTransfer.effectAllowed = 'move';
+    card.classList.add('dragging');
+  });
+  host.addEventListener('dragend', () => host.querySelectorAll('.dragging, .drop-on').forEach((x) => x.classList.remove('dragging', 'drop-on')));
+  host.addEventListener('dragover', (e) => {
+    const col = e.target.closest?.('.board-col[data-status]');
+    if (!col) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    host.querySelectorAll('.drop-on').forEach((x) => { if (x !== col) x.classList.remove('drop-on'); });
+    col.classList.add('drop-on');
+  });
+  host.addEventListener('drop', async (e) => {
+    const col = e.target.closest?.('.board-col[data-status]');
+    if (!col) return;
+    e.preventDefault();
+    host.querySelectorAll('.dragging, .drop-on').forEach((x) => x.classList.remove('dragging', 'drop-on'));
+    const t = tickets.find((x) => x.id === e.dataTransfer.getData('text/plain') && x.kind === kind);
+    const to = col.dataset.status;
+    if (!t || t.status === to) return;
+    const now = new Date().toISOString();
+    let change;
+    if (to === 'open') {
+      if (t.status === 'doing' && t.claimed_by && t.claimed_by !== user.player && !confirm(`Are you sure you want to take "${t.title}" away from ${t.claimed_by}? It goes back to Open.`)) return;
+      change = { status: 'open', claimed_by: null, done_at: null };
+    } else if (to === 'doing') {
+      if (t.claimed_by && t.claimed_by !== user.player && !confirm(`Are you sure you want to take "${t.title}" over from ${t.claimed_by}?`)) return;
+      change = { status: 'doing', claimed_by: user.player, done_at: null };
+    } else {
+      if (!confirm(`Are you sure "${t.title}" is done?`)) return;
+      change = { status: 'done', claimed_by: t.claimed_by ?? user.player, done_at: now };
+    }
+    const res = await supabase.from('dev_tickets').update({ ...change, updated_by: user.player, updated_at: now }).eq('id', t.id);
     msg.textContent = res.error ? `Could not save: ${res.error.message}` : '';
     loadTickets();
   });
