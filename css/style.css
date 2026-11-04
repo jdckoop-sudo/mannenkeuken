@@ -1,6 +1,5 @@
 /* Mannenkeuken – dark fantasy theme (own design: near-black panels, gold trim, crimson buttons). No game artwork or logos.
    All colours live in the variables below; use var(--…) in pages and scripts instead of hex codes. */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap');
 
 :root {
   color-scheme: dark;

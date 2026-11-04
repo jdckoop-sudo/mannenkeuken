@@ -41,7 +41,7 @@ export function activityOf(iso, now = new Date()) {
 // players table: player_name (sheet column A) <-> discord_name
 export async function loadPlayers() {
   if (!supabase) return [];
-  const { data } = await supabase.from('players').select('*');
+  const { data } = await supabase.from('players').select('player_name,discord_name');
   return data ?? [];
 }
 
