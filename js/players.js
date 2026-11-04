@@ -69,7 +69,7 @@ export async function loadCharacters() {
     byName.set(norm(name), {
       name, player: m.player, kind: m.status === 'Alt' ? 'Alt' : 'Main', status: m.status || 'Main',
       race: m.race, class: m.cls, role: m.role, level: num(m.level), profs, recipes: m.recipes, notes: m.notes, updated: m.updated,
-      inSheet: true, onSite: false, hasName: !!m.character,
+      inSheet: true, onSite: false, hasName: !!m.character, needsMain: !!m.needsMain,
     });
   }
   const addSite = (row, kind) => {

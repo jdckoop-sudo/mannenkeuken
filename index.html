@@ -57,6 +57,7 @@
     <section class="box" aria-label="My character" style="border-top:2px solid var(--gold)">
       <h2>My character</h2>
       <div id="me"><p class="muted">Loading…</p></div>
+      <p id="choose-main" hidden style="margin:10px 0 0;font-size:14px">You have more than one character and none is marked as your main yet. <a href="profile.html">Choose your main on My profile</a>.</p>
     </section>
 
     <div class="grid">
@@ -188,6 +189,13 @@ async function drawMe() {
   refreshTooltips();
 }
 drawMe();
+// More than one character and no main chosen yet: point to My profile
+(async () => {
+  if (!supabase || !user) return;
+  const { characters } = await charactersPromise;
+  const me = playerForUser(user);
+  if (me && characters.some((c) => c.player === me && c.needsMain)) document.getElementById('choose-main').hidden = false;
+})();
 
 // For you on the market: listings where you were tagged, and requests one of your characters can craft
 async function drawForMe() {

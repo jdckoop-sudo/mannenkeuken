@@ -20,6 +20,13 @@
     <p class="muted" id="sync-note" style="font-size:14px">Your main is filled in automatically from the guild sheet (the same as your Discord roles). Alts from the sheet are added here too, and alts you add here are put in the guild sheet at the next guild sync.</p>
     <p id="player-link" style="font-size:14px;margin:0"></p>
   </div>
+  <section class="box" id="main-choice" hidden style="max-width: 980px">
+    <h2>Which character is your main?</h2>
+    <p class="muted" id="main-choice-text" style="margin:0"></p>
+    <div id="main-choice-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="row"><button class="btn btn-primary" id="main-choice-save" type="button">Save my main</button></div>
+    <p class="muted" id="main-choice-msg" style="margin:0" role="status"></p>
+  </section>
   <div class="row">
     <form id="profile" class="box" style="flex: 1 1 340px; max-width: 480px">
       <h2>Main character</h2>
@@ -83,6 +90,8 @@ if (!canEdit) {
   me = playerForUser(user);
   if (me) document.getElementById('player-link').innerHTML = `You are <strong>${esc(me)}</strong> in the guild sheet · <a href="${playerUrl(me)}">View your player page & stats</a>`;
 
+  drawMainChoice(characters.filter((c) => me && c.player === me && c.inSheet && c.hasName && c.status !== 'Gestopt'));
+
   // 1. No main yet? Take the Main from the guild sheet (= the Discord roles) and save it.
   const sheetMain = me && characters.find((c) => c.player === me && c.inSheet && c.kind === 'Main' && c.hasName);
   if (!profile?.character_name && sheetMain) {
@@ -113,6 +122,12 @@ if (!canEdit) {
   // 2. Alts in the sheet that are not on the dashboard yet: add them (max MAX_ALTS).
   let { data: alts } = await supabase.from('alts').select('*').in('user_id', [...user.ids]).order('created_at');
   alts = alts ?? [];
+  // A character that became the main must not stay in the alts list as well
+  if (locked) {
+    const dup = alts.filter((a) => String(a.character_name ?? '').toLowerCase() === locked.character_name.toLowerCase());
+    for (const a of dup) await supabase.from('alts').delete().eq('id', a.id);
+    alts = alts.filter((a) => !dup.includes(a));
+  }
   const have = new Set([profile?.character_name, ...alts.map((a) => a.character_name)].filter(Boolean).map((n) => n.toLowerCase()));
   const sheetAlts = me ? characters.filter((c) => c.player === me && c.inSheet && c.kind === 'Alt' && c.hasName && !have.has(c.name.toLowerCase())) : [];
   const added = [];
@@ -125,6 +140,43 @@ if (!canEdit) {
   if (sheetAlts.length > added.length) altMsgExtra += ` (${sheetAlts.length - added.length} more alt(s) in the sheet – the dashboard holds ${MAX_ALTS}.)`;
   alts.slice(0, MAX_ALTS).forEach(addAltCard);
   updateAlts();
+}
+
+// Choose which of your characters (in the guild sheet) is the main; the others are alts. One character = automatically the main.
+function drawMainChoice(mine) {
+  const box = document.getElementById('main-choice');
+  const text = document.getElementById('main-choice-text');
+  const list = document.getElementById('main-choice-list');
+  const save = document.getElementById('main-choice-save');
+  const note = document.getElementById('main-choice-msg');
+  if (!mine.length) return;
+  box.hidden = false;
+  if (mine.length === 1) {
+    text.textContent = `${mine[0].name} is your only character, so it is your main automatically. As soon as you have more characters in the guild sheet you can choose here.`;
+    list.hidden = true; save.hidden = true;
+    return;
+  }
+  const current = mine.find((c) => c.status === 'Main' && !c.needsMain) ?? null;
+  text.textContent = current
+    ? 'Your main is marked below. Pick another character and save to switch: the current main then becomes an alt.'
+    : 'You have more than one character and none is marked as your main yet. Pick your main; the others become alts.';
+  list.innerHTML = mine.map((c, i) => `<label style="display:flex;align-items:center;gap:10px;margin:0"><input type="radio" name="main-pick" value="${esc(c.name)}" ${current ? (c === current ? 'checked' : '') : ''} style="width:auto"><span><strong>${esc(c.name)}</strong> <span class="muted">${esc([c.race, c.class, c.level ? 'level ' + c.level : ''].filter(Boolean).join(' · '))}</span></span></label>`).join('');
+  save.addEventListener('click', async () => {
+    const pick = list.querySelector('input[name="main-pick"]:checked')?.value;
+    if (!pick) { note.textContent = 'Pick a character first.'; return; }
+    if (current && pick === current.name) { note.textContent = 'That is already your main.'; return; }
+    if (!confirm(`Are you sure you want to make ${pick} your main? Your other characters become alts.`)) return;
+    save.disabled = true;
+    const { error } = await supabase.rpc('set_main_character', { p_character: pick });
+    if (error) {
+      save.disabled = false;
+      note.textContent = /set_main_character|schema cache|Could not find/i.test(error.message)
+        ? 'Choosing a main is not switched on yet: a developer has to run supabase/schema.sql in Supabase.' : `Could not save: ${error.message}`;
+      return;
+    }
+    note.textContent = 'Saved! Updating your profile…';
+    location.reload();
+  });
 }
 
 form.addEventListener('submit', async (e) => {
