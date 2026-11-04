@@ -46,7 +46,33 @@ export async function updateDevNewBadge() {
 }
 const escHtml = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// New-version bar: GitHub Pages caches pages for ~10 minutes. The deploy writes version.json (the commit id); this page
+// knows its own id (the deploy stamps it in here) and compares now and then, without cache. Different → a "reload" bar.
+const MY_VERSION = '__V__';
+function watchVersion() {
+  if (MY_VERSION.startsWith('_')) return; // not deployed (local file): nothing to compare
+  const check = async () => {
+    if (document.getElementById('new-version')) return;
+    try {
+      const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const { version } = await res.json();
+      if (!version || version === MY_VERSION) return;
+      const bar = document.createElement('div');
+      bar.id = 'new-version';
+      bar.setAttribute('role', 'status');
+      bar.innerHTML = '<span>A new version of the site is available.</span> <button type="button">Reload</button>';
+      bar.querySelector('button').addEventListener('click', () => location.reload());
+      document.body.prepend(bar);
+    } catch { /* offline or no version.json: try again later */ }
+  };
+  check();
+  setInterval(check, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+}
+
 export async function renderHeader() {
+  watchVersion();
   const current = location.pathname.split('/').pop() || 'index.html';
   const header = document.createElement('header');
   header.className = 'site-header';

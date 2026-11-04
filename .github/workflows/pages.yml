@@ -41,6 +41,7 @@ jobs:
             rm -rf preview/.github preview/tools preview/supabase preview/docs
             PV=$(git rev-parse --short=8 "origin/$BRANCH")
             sed -i "s/__V__/p$PV/g" preview/*.html preview/js/*.js preview/css/*.css
+            echo "{\"version\":\"p$PV\"}" > preview/version.json
           else
             echo "No open preview"
           fi
@@ -48,6 +49,7 @@ jobs:
         run: |
           V="$(git rev-parse --short=8 HEAD)"
           sed -i "s/__V__/$V/g" *.html js/*.js css/*.css
+          echo "{\"version\":\"$V\"}" > version.json   # pages compare this with their own version (new-version bar, js/layout.js)
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
