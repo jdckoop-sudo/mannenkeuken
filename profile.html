@@ -38,6 +38,13 @@
       <div class="row">
         <button class="btn btn-primary" type="submit">Save profile</button>
         <button class="btn" id="clear" type="button">Clear</button>
+        <button class="btn" id="switch-main" type="button" hidden style="margin-left:auto">Switch main</button>
+      </div>
+      <div id="switch-panel" hidden style="display:none;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:12px">
+        <p class="muted" style="margin:0;font-size:14px">Pick the character that becomes your main. Your current main becomes an alt.</p>
+        <div id="switch-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div class="row"><button class="btn btn-primary" id="switch-save" type="button">Make main</button><button class="btn" id="switch-cancel" type="button">Cancel</button></div>
+        <p class="muted" id="switch-msg" style="margin:0;font-size:14px" role="status"></p>
       </div>
     </form>
     <section id="alts" style="flex: 1 1 340px; max-width: 480px; display: flex; flex-direction: column; gap: 16px">
@@ -138,44 +145,68 @@ if (!canEdit) {
   }
   if (added.length) altMsgExtra = `Added from the guild sheet: ${added.join(', ')}.`;
   if (sheetAlts.length > added.length) altMsgExtra += ` (${sheetAlts.length - added.length} more alt(s) in the sheet – the dashboard holds ${MAX_ALTS}.)`;
-  alts.slice(0, MAX_ALTS).forEach(addAltCard);
+  // Alts that are in the guild sheet: name, race and class always follow the sheet (it is leading); only the role can be changed here.
+  for (const a of alts.slice(0, MAX_ALTS)) {
+    const sc = me ? characters.find((c) => c.player === me && c.inSheet && c.hasName && c.name.toLowerCase() === String(a.character_name ?? '').toLowerCase()) : null;
+    const lock = sc && formRace(sc.race) && sc.class ? { character_name: sc.name, race: formRace(sc.race), class: sc.class } : null;
+    if (lock && (a.character_name !== lock.character_name || a.race !== lock.race || a.class !== lock.class)) {
+      const { data } = await supabase.from('alts').update(lock).eq('id', a.id).select().single();
+      if (data) Object.assign(a, data);
+    }
+    addAltCard(a, lock);
+  }
   updateAlts();
 }
 
 // Choose which of your characters (in the guild sheet) is the main; the others are alts. One character = automatically the main.
-function drawMainChoice(mine) {
-  const box = document.getElementById('main-choice');
-  const text = document.getElementById('main-choice-text');
-  const list = document.getElementById('main-choice-list');
-  const save = document.getElementById('main-choice-save');
-  const note = document.getElementById('main-choice-msg');
-  if (!mine.length) return;
-  box.hidden = false;
-  if (mine.length === 1) {
-    text.textContent = `${mine[0].name} is your only character, so it is your main automatically. As soon as you have more characters in the guild sheet you can choose here.`;
-    list.hidden = true; save.hidden = true;
+//  - no main chosen yet (several characters): a prompt box above the forms
+//  - main chosen: only a small "Switch main" button under the Main character form, which opens a list of the other characters
+const pickList = (el, chars) => {
+  el.innerHTML = chars.map((c) => `<label style="display:flex;align-items:center;gap:10px;margin:0"><input type="radio" name="main-pick" value="${esc(c.name)}" style="width:auto"><span><strong>${esc(c.name)}</strong> <span class="muted">${esc([c.race, c.class, c.level ? 'level ' + c.level : ''].filter(Boolean).join(' · '))}</span></span></label>`).join('');
+};
+async function saveMain(pick, noteEl, btn) {
+  if (!confirm(`Are you sure you want to make ${pick} your main? Your other characters become alts.`)) return;
+  btn.disabled = true;
+  const { error } = await supabase.rpc('set_main_character', { p_character: pick });
+  if (error) {
+    btn.disabled = false;
+    noteEl.textContent = /set_main_character|schema cache|Could not find/i.test(error.message)
+      ? 'Choosing a main is not switched on yet: a developer has to run supabase/schema.sql in Supabase.' : `Could not save: ${error.message}`;
     return;
   }
+  noteEl.textContent = 'Saved! Updating your profile…';
+  location.reload();
+}
+function drawMainChoice(mine) {
+  if (mine.length < 2) return; // nothing to choose
   const current = mine.find((c) => c.status === 'Main' && !c.needsMain) ?? null;
-  text.textContent = current
-    ? 'Your main is marked below. Pick another character and save to switch: the current main then becomes an alt.'
-    : 'You have more than one character and none is marked as your main yet. Pick your main; the others become alts.';
-  list.innerHTML = mine.map((c, i) => `<label style="display:flex;align-items:center;gap:10px;margin:0"><input type="radio" name="main-pick" value="${esc(c.name)}" ${current ? (c === current ? 'checked' : '') : ''} style="width:auto"><span><strong>${esc(c.name)}</strong> <span class="muted">${esc([c.race, c.class, c.level ? 'level ' + c.level : ''].filter(Boolean).join(' · '))}</span></span></label>`).join('');
-  save.addEventListener('click', async () => {
+  if (!current) {
+    const list = document.getElementById('main-choice-list');
+    const save = document.getElementById('main-choice-save');
+    const note = document.getElementById('main-choice-msg');
+    document.getElementById('main-choice').hidden = false;
+    document.getElementById('main-choice-text').textContent = 'You have more than one character and none is marked as your main yet. Pick your main; the others become alts.';
+    pickList(list, mine);
+    save.addEventListener('click', () => {
+      const pick = list.querySelector('input[name="main-pick"]:checked')?.value;
+      if (!pick) { note.textContent = 'Pick a character first.'; return; }
+      saveMain(pick, note, save);
+    });
+    return;
+  }
+  const btn = document.getElementById('switch-main');
+  const panel = document.getElementById('switch-panel');
+  const list = document.getElementById('switch-list');
+  const note = document.getElementById('switch-msg');
+  const save = document.getElementById('switch-save');
+  btn.hidden = false;
+  const toggle = (open) => { panel.hidden = !open; panel.style.display = open ? 'flex' : 'none'; note.textContent = ''; };
+  btn.addEventListener('click', () => { pickList(list, mine.filter((c) => c !== current)); toggle(panel.hidden); });
+  document.getElementById('switch-cancel').addEventListener('click', () => toggle(false));
+  save.addEventListener('click', () => {
     const pick = list.querySelector('input[name="main-pick"]:checked')?.value;
     if (!pick) { note.textContent = 'Pick a character first.'; return; }
-    if (current && pick === current.name) { note.textContent = 'That is already your main.'; return; }
-    if (!confirm(`Are you sure you want to make ${pick} your main? Your other characters become alts.`)) return;
-    save.disabled = true;
-    const { error } = await supabase.rpc('set_main_character', { p_character: pick });
-    if (error) {
-      save.disabled = false;
-      note.textContent = /set_main_character|schema cache|Could not find/i.test(error.message)
-        ? 'Choosing a main is not switched on yet: a developer has to run supabase/schema.sql in Supabase.' : `Could not save: ${error.message}`;
-      return;
-    }
-    note.textContent = 'Saved! Updating your profile…';
-    location.reload();
+    saveMain(pick, note, save);
   });
 }
 
@@ -202,7 +233,7 @@ function updateAlts() {
   altMsg.textContent = (cards.length ? '' : 'No alts yet. ') + altMsgExtra;
 }
 
-function addAltCard(alt) {
+function addAltCard(alt, lock = null) {
   const card = document.createElement('form');
   card.className = 'box';
   card.innerHTML = `
@@ -218,15 +249,29 @@ function addAltCard(alt) {
     </div>`;
   const fields = wireCharacterFields(card);
   if (alt) { fields.set(alt); card.dataset.id = alt.id; }
+  // Name, race and class are fixed: from the guild sheet (always), or once the alt has been saved here. Only the role can be changed.
+  // (A typo? Remove the alt and add it again. Alts that come from the sheet can't be removed here.)
+  let fixed = lock;
+  const lockFields = (why) => {
+    card.character_name.readOnly = true; card.race.disabled = true; card.class.disabled = true;
+    card.querySelector('.lock-note')?.remove();
+    card.querySelector('h2').insertAdjacentHTML('afterend', `<p class="muted lock-note" style="font-size:14px;margin:0">Name, race and class ${why} and can't be changed here. You can change the role.</p>`);
+  };
+  if (lock) { lockFields('come from the guild sheet'); card.querySelector('[data-remove]').hidden = true; }
+  else if (alt) { fixed = { character_name: alt.character_name, race: alt.race, class: alt.class }; lockFields('are fixed once an alt is saved'); }
   const cardMsg = card.querySelector('.card-msg');
 
   card.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const values = fields.values();
+    const values = { ...fields.values(), ...(fixed ?? {}) };
+    if (!fixed && (!values.character_name || !values.race || !values.class)) { cardMsg.textContent = 'Fill in the name, race and class first: they are fixed once the alt is saved.'; return; }
     const { data, error } = card.dataset.id
       ? await supabase.from('alts').update(values).eq('id', card.dataset.id).select().single()
       : await supabase.from('alts').insert(values).select().single();
-    if (!error && data) card.dataset.id = data.id;
+    if (!error && data) {
+      card.dataset.id = data.id;
+      if (!fixed) { fixed = { character_name: data.character_name, race: data.race, class: data.class }; lockFields('are fixed once an alt is saved'); }
+    }
     cardMsg.textContent = error ? `Could not save: ${error.message}` : 'Saved!';
   });
 
