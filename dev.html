@@ -224,7 +224,16 @@ const user = await renderHeader();
 // This is read before the tab marks itself as seen, so the cards keep their "New" label for this visit.
 let seenState = null;
 const seenReady = (async () => { try { seenState = (await supabase.rpc('dev_ticket_news')).data; } catch { /* not switched on yet */ } })();
-const isNewTicket = (t) => !!seenState && t.created_by !== user.player && t.created_at > seenState[t.kind === 'idea' ? 'ideas_seen_at' : 'fixes_seen_at'];
+// Same rule as dev_ticket_news(): someone else's card, or my own card sent in with the account-menu buttons (source 'player')
+const isNewTicket = (t) => !!seenState && (t.created_by !== user.player || t.source === 'player') && t.created_at > seenState[t.kind === 'idea' ? 'ideas_seen_at' : 'fixes_seen_at'];
+// Leaving the Ideas / Fixes tab: the cards that were new are no longer marked when you come back
+function clearNew(kind) {
+  if (!seenState || !tickets?.length) return;
+  const last = tickets.filter((t) => t.kind === kind).reduce((m, t) => (t.created_at > m ? t.created_at : m), '');
+  const key = kind === 'idea' ? 'ideas_seen_at' : 'fixes_seen_at';
+  if (last > seenState[key]) seenState[key] = last;
+  drawBoard(kind);
+}
 async function markSeen(kind) {
   await seenReady;
   try { await supabase.rpc('dev_mark_tickets_seen', { p_kind: kind }); } catch { /* not switched on yet */ }
@@ -247,8 +256,11 @@ document.getElementById('dev-off').addEventListener('click', () => {
 });
 
 // Tabs (Changes, Fixes, Ideas, Checks); dev.html#fixes etc. opens a tab directly
+let currentTab = null;
 function showTab(tab) {
-  const b = document.querySelector(`.dev-tabs [data-tab="${tab}"]`);
+  if (currentTab === 'fixes' || currentTab === 'ideas') { if (tab !== currentTab) clearNew(currentTab === 'fixes' ? 'fix' : 'idea'); }
+  currentTab = tab;
+  const b =document.querySelector(`.dev-tabs [data-tab="${tab}"]`);
   if (!b) return;
   document.querySelectorAll('.dev-tabs [data-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
   document.querySelectorAll('.dev-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; });
@@ -508,7 +520,7 @@ function ticketCard(t) {
   ].filter(Boolean).join(' · ');
   const areaChip = t.area ? `<span class="area">${esc(t.area)}</span>` : '';
   const automatic = t.created_by === 'Deploy check';
-  const fromPlayer = t.created_by && !DEVS.includes(t.created_by) && !automatic;
+  const fromPlayer = (t.source === 'player' || (t.created_by && !DEVS.includes(t.created_by))) && !automatic;
   const newChip = (isNewTicket(t) ? '<span class="chip-new">New</span>' : '') + (fromPlayer ? '<span class="from-player" title="Sent in through the account menu by a player">From player</span>' : '') + (automatic ? '<span class="from-player" title="Made by the automatic check after a deploy">Automatic check</span>' : '');
   const head = `<div class="top"><button type="button" class="t-title" data-act="expand" data-id="${t.id}" aria-expanded="${isOpen}" title="${esc(t.title)}"><span class="caret">${isOpen ? '▾' : '▸'}</span><span class="t-text">${esc(t.title)}</span></button>${t.status === 'done' ? '' : `<button type="button" class="urg urg-${urg(t)}" data-act="urgency" data-id="${t.id}" title="Click to change the urgency">${URGENCY[urg(t)]}</button>`}</div>`;
   if (!isOpen) return `<article class="ticket compact ${t.kind} ${t.status} ${mine && t.status === 'doing' ? 'mine' : ''}">${head}<div class="meta">${newChip}${claimedChip}${areaChip}<span>${summary}</span></div></article>`;

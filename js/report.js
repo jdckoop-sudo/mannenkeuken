@@ -17,7 +17,7 @@ const TEXT = {
     title: 'Report a problem',
     titleHint: 'e.g. The Reserve button does nothing on my phone',
     bodyHint: 'What did you do, what happened, and what did you expect? The more exact, the faster it is fixed.',
-    note: 'We add the page you are on and your browser, so the developers can find the problem.',
+    note: 'We add your name, the page you are on and the site version, so the developers can find the problem.',
     done: 'Thanks! Your report is on the developers\' list of fixes.',
   },
   idea: {
@@ -29,7 +29,7 @@ const TEXT = {
   },
 };
 
-export function openReport(kind) {
+export function openReport(kind, siteVersion = '') {
   const t = TEXT[kind];
   if (!t || !supabase) return;
   document.getElementById('report-dialog')?.remove();
@@ -57,8 +57,8 @@ export function openReport(kind) {
     const d = new FormData(form);
     const title = d.get('title').trim();
     let body = d.get('body').trim();
-    // For a problem the developers get the page and the device along, so they can reproduce it
-    if (kind === 'fix') body += `${body ? '\n\n' : ''}— Sent from: ${pageLabel()} (${pageFile()}) · screen ${screen.width}×${screen.height} · ${navigator.userAgent}`;
+    // For a problem the developers get the page and the site version along (who sent it is on the card already); no device details
+    if (kind === 'fix') body += `${body ? '\n\n' : ''}— Sent from: ${pageLabel()} (${pageFile()})${siteVersion && !siteVersion.startsWith('_') ? ` · site version ${siteVersion}` : ''}`;
     send.disabled = true;
     msg.textContent = 'Sending…';
     const { error } = await supabase.rpc('submit_ticket', { p_kind: kind, p_title: title, p_body: body, p_page: pageLabel() });

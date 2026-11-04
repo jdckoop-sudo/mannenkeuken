@@ -623,6 +623,10 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$, $q$Developer mode$q$, 'check', $q$Try every button on dev.html → Ideas and Fixes once, as Jelle and as Justin.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$);
 
+-- 2026-11-04: where a card came from: 'board' = added on dev.html itself, 'player' = sent in with "Report a problem" / "Suggest a feature"
+-- (also when a developer used those buttons: that card does count as new for the developer who sent it).
+alter table public.dev_tickets add column if not exists source text not null default 'board' check (source in ('board', 'player'));
+
 -- 2026-11-04: every logged-in player can report a problem or suggest a feature (account menu → "Report a problem" / "Suggest a feature").
 -- It becomes a card on the Fixes or Ideas board (dev_tickets) with the player's name as created_by. Players cannot read or change
 -- the boards themselves (only is_dev()); they only hand a ticket in through this function, which takes the name from `members`
@@ -640,8 +644,8 @@ begin
   if (select count(*) from public.dev_tickets where created_by = me and created_at > now() - interval '1 hour') >= 10 then
     raise exception 'That is a lot of reports in an hour, try again later';
   end if;
-  insert into public.dev_tickets (kind, title, area, body, created_by, updated_by)
-  values (p_kind, left(t, 120), nullif(left(btrim(coalesce(p_page, '')), 40), ''), nullif(left(b, 6000), ''), me, me)
+  insert into public.dev_tickets (kind, title, area, body, created_by, updated_by, source)
+  values (p_kind, left(t, 120), nullif(left(btrim(coalesce(p_page, '')), 40), ''), nullif(left(b, 6000), ''), me, me, 'player')
   returning id into new_id;
   return new_id;
 end $$;
@@ -665,8 +669,8 @@ begin
   select player_name into me from public.members where user_id = auth.uid() limit 1;
   insert into public.dev_seen (player_name) values (me) on conflict (player_name) do nothing;
   select * into s from public.dev_seen where player_name = me;
-  select count(*) into ni from public.dev_tickets where kind = 'idea' and created_at > s.ideas_seen_at and coalesce(created_by, '') <> me;
-  select count(*) into nf from public.dev_tickets where kind = 'fix' and created_at > s.fixes_seen_at and coalesce(created_by, '') <> me;
+  select count(*) into ni from public.dev_tickets where kind = 'idea' and created_at > s.ideas_seen_at and (coalesce(created_by, '') <> me or source = 'player');
+  select count(*) into nf from public.dev_tickets where kind = 'fix' and created_at > s.fixes_seen_at and (coalesce(created_by, '') <> me or source = 'player');
   return jsonb_build_object('ideas', ni, 'fixes', nf, 'ideas_seen_at', s.ideas_seen_at, 'fixes_seen_at', s.fixes_seen_at);
 end $$;
 
