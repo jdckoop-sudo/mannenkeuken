@@ -187,6 +187,13 @@
   .comment-head { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--muted); }
   .comment-head .link-btn { font-size: 12px; margin-left: auto; }
   .comment .body { margin: 2px 0 0; font-size: 14px; }
+  .history summary { cursor: pointer; font-size: 13px; color: var(--gold-bright); }
+  .history summary .muted { color: var(--muted); font-size: 12px; }
+  .history[open] { border-top: 1px solid var(--border); padding-top: 6px; }
+  .log { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; }
+  .log li { display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; padding: 3px 0; border-bottom: 1px dotted var(--border); }
+  .log li:last-child { border-bottom: 0; }
+  .log time { color: var(--muted); font-size: 12px; margin-left: auto; }
   .comment-form { display: flex; gap: 6px; align-items: flex-end; margin-top: 8px; }
   .comment-form textarea { flex: 1; min-height: 0; font-size: 14px; }
   .comment-form .btn { padding: 4px 12px; font-size: 13px; }
@@ -473,15 +480,19 @@ for (const [kind, host] of Object.entries(hosts)) {
   </section>`;
 }
 let comments = [];
+let ticketLog = [];
+const openHistory = new Set(); // ticket ids whose history is open
 const openComments = new Set(); // ticket ids whose comments are open (stay open after a redraw)
 const when = (iso) => new Date(iso).toLocaleString('en-GB', { ...TZ, hourCycle: 'h23', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 async function loadTickets() {
-  const [{ data, error }, cm] = await Promise.all([
+  const [{ data, error }, cm, lg] = await Promise.all([
     supabase.from('dev_tickets').select('*').order('created_at', { ascending: true }),
     supabase.from('dev_ticket_comments').select('*').order('created_at', { ascending: true }),
+    supabase.from('dev_ticket_log').select('*').order('created_at', { ascending: true }),
   ]);
   tickets = data ?? [];
   comments = cm.data ?? [];
+  ticketLog = lg.data ?? []; // empty until the change-log part of schema.sql has been run
   if (error) {
     const msg = /dev_tickets/.test(error.message) ? 'The table dev_tickets is not in the database yet: run supabase/schema.sql in the Supabase SQL Editor.' : `Could not load: ${error.message}`;
     Object.values(hosts).forEach((h) => { h.querySelector('.board').innerHTML = `<p class="muted">${esc(msg)}</p>`; });
@@ -509,6 +520,15 @@ function commentsBlock(t) {
       <textarea name="text" required maxlength="2000" rows="2" placeholder="Write a comment…"></textarea>
       <button class="btn" type="submit">Post</button>
     </form>
+  </details>`;
+}
+function historyBlock(t) {
+  const list = ticketLog.filter((l) => l.ticket_id === t.id);
+  if (!list.length) return '';
+  const items = list.map((l) => `<li><span class="dev-who ${esc((l.actor ?? '').toLowerCase())}" style="margin:0">${esc(l.actor ?? '?')}</span><span>${esc(l.text)}</span><time>${esc(when(l.created_at))}</time></li>`).join('');
+  return `<details class="history" data-ticket="${t.id}" ${openHistory.has(t.id) ? 'open' : ''}>
+    <summary>🕘 History (${list.length})</summary>
+    <ul class="log">${items}</ul>
   </details>`;
 }
 const expanded = new Set(); // ids of cards that are open
@@ -545,6 +565,7 @@ function ticketCard(t) {
     ${claim}${body}
     ${reactionsRow(t)}
     ${commentsBlock(t)}
+    ${historyBlock(t)}
     <div class="actions">${actions.join('')}</div>
   </article>`;
 }
@@ -674,7 +695,7 @@ for (const [kind, host] of Object.entries(hosts)) {
   // draggable is switched on at mouse-down, and not on form fields, so text in the comment box can still be selected.
   host.addEventListener('mousedown', (e) => {
     const card = e.target.closest?.('.ticket[data-id]');
-    if (card) card.draggable = !e.target.closest('input, textarea, select, summary, .comments');
+    if (card) card.draggable = !e.target.closest('input, textarea, select, summary, .comments, .history');
   });
   host.addEventListener('dragstart', (e) => {
     const card = e.target.closest?.('.ticket[data-id]');
@@ -724,6 +745,7 @@ for (const [kind, host] of Object.entries(hosts)) {
   // Comments: remember which are open, and post new ones (the author is set by the database)
   host.addEventListener('toggle', (e) => {
     const d = e.target;
+    if (d.matches?.('details.history')) { if (d.open) openHistory.add(d.dataset.ticket); else openHistory.delete(d.dataset.ticket); return; }
     if (!d.matches?.('details.comments')) return;
     if (d.open) openComments.add(d.dataset.ticket); else openComments.delete(d.dataset.ticket);
   }, true);

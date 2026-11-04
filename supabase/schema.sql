@@ -775,3 +775,70 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Choose your main character (My profile)$q$, $q$Profile$q$, 'check',
   $q$Player with 2+ characters: pick a main on My profile, then check Roster / Home / Overview (main + alts). Switch to another main and back. Player with 1 character: automatically main. Then run a guild sync: the sheet's Status column follows the choice.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Choose your main character (My profile)$q$);
+
+-- 2026-11-04: Change log per ticket (dev.html → Ideas / Fixes → card → History). A trigger on dev_tickets writes a line for
+-- every real change (created, taken, let go, done, reopened, urgency, edited), whoever or whatever made it (dev.html,
+-- submit_ticket(), SQL). Reactions and plain "updated_at" bumps are not logged. Only is_dev() can read it; nobody writes it by hand.
+create table if not exists public.dev_ticket_log (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references public.dev_tickets (id) on delete cascade,
+  actor text,
+  text text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists dev_ticket_log_ticket on public.dev_ticket_log (ticket_id, created_at);
+alter table public.dev_ticket_log enable row level security;
+drop policy if exists "read devs" on public.dev_ticket_log;
+create policy "read devs" on public.dev_ticket_log for select to authenticated using (public.is_dev());
+
+create or replace function public.log_ticket_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare me text; urgs text[] := array['Low', 'Normal', 'High', 'Urgent'];
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if tg_op = 'INSERT' then
+    insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+    values (new.id, coalesce(new.created_by, me), case when new.source = 'player' then 'Reported it' else 'Added it' end, new.created_at);
+    return new;
+  end if;
+  me := coalesce(me, new.updated_by);
+  if new.status is distinct from old.status or new.claimed_by is distinct from old.claimed_by then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, case
+      when new.status = 'done' then 'Marked it done' || coalesce(' (on ' || new.claimed_by || '''s name)', '')
+      when new.status = 'doing' and old.status = 'doing' and old.claimed_by is not null then 'Took it over from ' || old.claimed_by
+      when new.status = 'doing' then 'Took it ("I''ll take this")'
+      when new.status = 'open' and old.status = 'done' then 'Reopened it'
+      when new.status = 'open' and old.status = 'doing' then 'Let go of it' || coalesce(' (was on ' || old.claimed_by || '''s name)', '')
+      else 'Status: ' || old.status || ' → ' || new.status end);
+  end if;
+  if new.urgency is distinct from old.urgency then
+    insert into public.dev_ticket_log (ticket_id, actor, text)
+    values (new.id, me, 'Urgency: ' || urgs[old.urgency] || ' → ' || urgs[new.urgency]);
+  end if;
+  if new.title is distinct from old.title then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Changed the title (was "' || old.title || '")');
+  end if;
+  if new.area is distinct from old.area then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Area: ' || coalesce(old.area, '–') || ' → ' || coalesce(new.area, '–'));
+  end if;
+  if new.body is distinct from old.body then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Edited the details');
+  end if;
+  return new;
+end $$;
+drop trigger if exists log_ticket_change on public.dev_tickets;
+create trigger log_ticket_change after insert or update on public.dev_tickets for each row execute function public.log_ticket_change();
+
+-- Tickets from before this log existed: one "created" line (and "done" if it is done), so every card has a start.
+insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+select t.id, t.created_by, case when t.source = 'player' then 'Reported it' else 'Added it' end, t.created_at
+from public.dev_tickets t where not exists (select 1 from public.dev_ticket_log l where l.ticket_id = t.id);
+insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+select t.id, coalesce(t.claimed_by, t.updated_by), 'Marked it done', coalesce(t.done_at, t.updated_at)
+from public.dev_tickets t where t.status = 'done'
+  and not exists (select 1 from public.dev_ticket_log l where l.ticket_id = t.id and l.text like 'Marked it done%');
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ticket history (Ideas + Fixes cards)$q$, $q$Developer mode$q$, 'check',
+  $q$After running schema.sql: open a card → 🕘 History shows who created it. Take it, change urgency, edit, let go, done, reopen: each adds a line with the right name and time. Reactions add nothing. A report sent in through the account menu shows "Reported it".$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ticket history (Ideas + Fixes cards)$q$);
