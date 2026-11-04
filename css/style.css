@@ -153,7 +153,10 @@ h2 { margin: 0; font-size: 20px; }
 .stat { min-width: 0; gap: 6px; }
 .stat strong { font-family: var(--font-display); font-size: clamp(24px, 3.2vw, 32px); line-height: 1.15; color: var(--gold-bright); overflow-wrap: anywhere; }
 /* Text values (a profession, a name) are smaller than numbers so they fit the tile */
-.stat strong.stat-text { font-size: clamp(17px, 2vw, 22px); letter-spacing: .02em; }
+.stat strong.stat-text { font-size: clamp(15px, 1.3vw, 18px); letter-spacing: .01em; overflow-wrap: break-word; }
+/* Number tiles in one row: every label gets room for two lines, so the values start at the same height (not on phones, where the tiles stack) */
+.grid:not(.glance) > .stat > .muted:first-child { line-height: 1.3; min-height: 2.6em; }
+@media (max-width: 560px) { .grid:not(.glance) > .stat > .muted:first-child { min-height: 0; } }
 .stat .stat-sub { font-size: 14px; color: var(--muted); }
 /* Key-number tiles: two per row on phones instead of one */
 .grid:has(> .stat) { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
