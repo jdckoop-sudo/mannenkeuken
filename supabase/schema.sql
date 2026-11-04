@@ -691,3 +691,51 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Report a problem / Suggest a feature from the account menu, with the orange count next to DEV$q$, $q$Developer mode$q$, 'check',
   $q$As a player (not Jelle or Justin): menu → Report a problem and Suggest a feature, send one of each. As a developer: the orange count shows up next to DEV, the cards are on Fixes / Ideas with the player's name and a New label, and the count is gone after opening the tab.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Report a problem / Suggest a feature from the account menu, with the orange count next to DEV$q$);
+
+-- 2026-11-04: automatic check after every deploy (workflow "Check site after deploy", tools/check-site.mjs).
+-- The workflow reports its result with report_deploy_check(). It has no login, so it proves itself with a secret that is stored
+-- only as a hash (like the guild code). Set it once (Jelle or Justin, in the SQL Editor), and put the SAME secret in GitHub as the
+-- Actions secret DEPLOY_CHECK_SECRET (use a long random one, e.g. 40 characters):
+--   insert into private.settings (key, value)
+--   values ('deploy_check_hash', extensions.crypt('A-LONG-RANDOM-SECRET', extensions.gen_salt('bf')))
+--   on conflict (key) do update set value = excluded.value;
+-- Result: one line in Checks ("Automatic check after every deploy": red when broken, green when fine) and, while it is broken,
+-- one open card in Fixes (made by "Deploy check", kept up to date; closed again when the check is green and nobody picked it up).
+create or replace function public.report_deploy_check(p_secret text, p_ok boolean, p_summary text, p_details text, p_commit text) returns void
+language plpgsql security definer set search_path = public, private, extensions as $$
+declare h text; chk constant text := 'Automatic check after every deploy'; note_text text; card text; open_id uuid;
+begin
+  select value into h from private.settings where key = 'deploy_check_hash';
+  if h is null or extensions.crypt(coalesce(p_secret, ''), h) <> h then raise exception 'Not allowed'; end if;
+  note_text := left(coalesce(p_summary, '') || case when coalesce(p_commit, '') <> '' then ' · ' || p_commit else '' end, 500);
+  card := left(coalesce(p_summary, '') || E'\n\n' || coalesce(p_details, '') || E'\n\n' || coalesce(p_commit, ''), 6000);
+
+  update public.dev_checks set status = case when p_ok then 'ok' else 'broken' end, note = note_text, updated_by = 'Deploy check', updated_at = now()
+  where title = chk;
+  if not found then
+    insert into public.dev_checks (title, area, status, note, updated_by)
+    values (chk, 'Deploy', case when p_ok then 'ok' else 'broken' end, note_text, 'Deploy check');
+  end if;
+
+  select id into open_id from public.dev_tickets
+  where kind = 'fix' and created_by = 'Deploy check' and status in ('open', 'doing') order by created_at desc limit 1;
+  if not p_ok then
+    if open_id is null then
+      insert into public.dev_tickets (kind, title, area, body, urgency, created_by, updated_by)
+      values ('fix', 'The automatic check after the deploy found errors', 'Deploy', card, 3, 'Deploy check', 'Deploy check');
+    else
+      update public.dev_tickets set body = card, updated_by = 'Deploy check', updated_at = now() where id = open_id;
+    end if;
+  elsif open_id is not null then
+    update public.dev_tickets set status = 'done', done_at = now(), updated_by = 'Deploy check', updated_at = now()
+    where id = open_id and status = 'open';
+  end if;
+end $$;
+revoke all on function public.report_deploy_check(text, boolean, text, text, text) from public;
+grant execute on function public.report_deploy_check(text, boolean, text, text, text) to anon, authenticated;
+
+-- Checklist item for this feature.
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$, $q$Deploy$q$, 'check',
+  $q$1) Put a long random secret in GitHub as DEPLOY_CHECK_SECRET. 2) Run the SQL in the comment above report_deploy_check in schema.sql with the same secret. 3) GitHub → Actions → Check site after deploy → Run workflow: the line "Automatic check after every deploy" appears here, green.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$);

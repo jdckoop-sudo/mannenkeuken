@@ -1,0 +1,34 @@
+# After every deploy: open the most important pages of the live site in a real (headless) Chrome and look for errors
+# (tools/check-site.mjs). Something broken → this run turns red and, when DEPLOY_CHECK_SECRET is set, the result is reported to the
+# dashboard: a red line in Checks and a card in Fixes (database function report_deploy_check(), see supabase/schema.sql).
+# One-time setup: put the same secret in GitHub (Settings → Secrets and variables → Actions → DEPLOY_CHECK_SECRET)
+# and, as a hash, in Supabase (the SQL is in the comment above report_deploy_check in supabase/schema.sql).
+name: Check site after deploy
+on:
+  workflow_run:
+    workflows: ["Deploy site"]
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: post-deploy-check
+  cancel-in-progress: true
+jobs:
+  check:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Open the pages and look for errors
+        run: node tools/check-site.mjs
+        env:
+          CHROME_PATH: google-chrome
+          EXPECT_VERSION: ${{ github.event.workflow_run.head_sha }}
+          DEPLOY_CHECK_SECRET: ${{ secrets.DEPLOY_CHECK_SECRET }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
