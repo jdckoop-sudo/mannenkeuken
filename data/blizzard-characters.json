@@ -1,0 +1,176 @@
+{
+ "source": "Blizzard API",
+ "region": "eu",
+ "namespace": "profile-forever-eu",
+ "realm": "",
+ "updated": "2026-11-05T11:00:14.433Z",
+ "characters": {
+  "bunte bapsimus": {
+   "name": "Bunte Bapsimus",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "henk spasmebal": {
+   "name": "Henk Spasmebal",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "shoarma boer": {
+   "name": "Shoarma Boer",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "bertrand bakkebaard": {
+   "name": "Bertrand Bakkebaard",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "nazeebo trollock": {
+   "name": "Nazeebo Trollock",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "willem één": {
+   "name": "Willem Één",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "murn rogue": {
+   "name": "Murn",
+   "status": "ok",
+   "level": 16,
+   "race": "Orc",
+   "class": "Rogue",
+   "faction": "Horde",
+   "guild": null,
+   "lastLogin": "2026-11-05T10:36:35.000Z",
+   "professions": [
+    {
+     "name": "Skinning",
+     "kind": "primary",
+     "skill": 82,
+     "max": 150,
+     "tiers": [
+      {
+       "name": "Skinning",
+       "skill": 82,
+       "max": 150
+      }
+     ]
+    },
+    {
+     "name": "Mining",
+     "kind": "primary",
+     "skill": 57,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Mining",
+       "skill": 57,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Cooking",
+     "kind": "secondary",
+     "skill": 23,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Cooking",
+       "skill": 23,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Fishing",
+     "kind": "secondary",
+     "skill": 21,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Fishing",
+       "skill": 21,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "First Aid",
+     "kind": "secondary",
+     "skill": 15,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "First Aid",
+       "skill": 15,
+       "max": 75
+      }
+     ]
+    }
+   ],
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "maerwyn vangent": {
+   "name": "Maerwyn vanGent",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "gul'dan ramsay": {
+   "name": "Gul'dan Ramsay",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "mayo menaise": {
+   "name": "Mayo Menaise",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "pala pim": {
+   "name": "Pala",
+   "status": "ok",
+   "level": 10,
+   "race": "Undead",
+   "class": "Paladin",
+   "faction": "Horde",
+   "guild": null,
+   "lastLogin": "2026-11-05T02:18:49.000Z",
+   "professions": [
+    {
+     "name": "Mining",
+     "kind": "primary",
+     "skill": 7,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Mining",
+       "skill": 7,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Cooking",
+     "kind": "secondary",
+     "skill": 3,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Cooking",
+       "skill": 3,
+       "max": 75
+      }
+     ]
+    }
+   ],
+   "fetched": "2026-11-05T11:00:14.433Z"
+  },
+  "maerwyn van gent": {
+   "name": "Maerwyn van Gent",
+   "status": "not_found",
+   "fetched": "2026-11-05T11:00:14.433Z"
+  }
+ }
+}
