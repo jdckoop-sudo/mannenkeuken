@@ -607,16 +607,8 @@ Events and raids
 - Earlier proposal (docs/instructies.md): a countdown until the launch, then a message of the day members can edit + the next event with "Sign up".$q$)
 on conflict (id) do nothing;
 
--- An example fix, so the Fixes tab shows what a fix ticket looks like (remove it when you like).
-insert into public.dev_tickets (id, kind, title, area, created_by, body) values
-('6f1d2a10-0001-4c3e-9a51-000000000101', 'fix', $q$Example: how to write a fix ticket$q$, $q$Example$q$, $q$Jelle$q$, $q$This is an example – remove it when you like.
-
-What is wrong: one line, e.g. "The Reserve button on the Market does nothing on my phone".
-Where: page + device/browser (e.g. market.html, iPhone Safari).
-How to see it: the steps (1. open the Market, 2. tap Reserve on any listing, 3. nothing happens).
-Expected: what should happen instead (a dialog to pick your character).
-Screenshot: a link to it, if you have one.$q$)
-on conflict (id) do nothing;
+-- The example fix card is gone: this file used to add it again on every run, also after someone removed it. This removes the last copy.
+delete from public.dev_tickets where id = '6f1d2a10-0001-4c3e-9a51-000000000101';
 
 -- Checklist item for the new boards.
 insert into public.dev_checks (title, area, status, note, updated_by)
