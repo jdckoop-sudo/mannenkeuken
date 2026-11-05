@@ -824,6 +824,14 @@ async function loadWorkflows() {
   } catch (e) { el.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
 }
 
+// Character data: from the database every 15 minutes (older than an hour = something is wrong), or still the old file.
+function blizzardRow(bz, row, old) {
+  if (!bz) return row('check', 'Blizzard characters', 'No data yet: the update has not run (see docs/instructies.md)');
+  if (bz.source !== 'database') return row('check', 'Blizzard characters (old file)', `Not from the database yet: the 15-minute update is not running. File updated ${bz.updated ?? '?'}`);
+  const when = bz.updated ? new Date(bz.updated).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?';
+  const stale = !bz.updated || old(bz.updated, 1 / 24);
+  return row(stale || bz.message ? 'check' : 'ok', 'Blizzard characters (database)', `Updated ${when} · ${bz.ok ?? '?'} found · ${bz.notFound ?? '?'} not found (under level 10?) · ${bz.errors ?? '?'} errors${bz.message ? ` · ${bz.message}` : ''}`);
+}
 async function loadSources() {
   const el = document.getElementById('sources');
   const row = (s, name, text) => `<div class="dev-row"><span>${badge(s)}</span><span><strong>${esc(name)}</strong><br><span class="muted" style="font-size:13px">${esc(text)}</span></span><span></span></div>`;
@@ -839,7 +847,7 @@ async function loadSources() {
     row(items ? (old(items.updated, 2) ? 'check' : 'ok') : 'broken', 'Item list (items.json)', items ? `${items.items?.length ?? 0} items · build ${items.build} · updated ${items.updated}` : 'Missing'),
     row(tradeable ? 'ok' : 'check', 'Tradeable items (tradeable-items.json)', tradeable ? `${tradeable.items?.length ?? 0} items` : 'Missing – the Trade Market falls back to the full list'),
     row(quests ? (old(quests.updated, 2) ? 'check' : 'ok') : 'broken', 'Quest list (quests.json)', quests ? `${quests.quests?.length ?? 0} quests · updated ${quests.updated}` : 'Missing'),
-    row(bz ? (old(bz.updated ?? bz.generated, 1) ? 'check' : 'ok') : 'check', 'Blizzard characters (blizzard-characters.json)', bz ? `Updated ${bz.updated ?? bz.generated ?? '?'}` : 'Not there yet (expected until after the launch)'),
+    blizzardRow(bz, row, old),
   ].join('');
 }
 

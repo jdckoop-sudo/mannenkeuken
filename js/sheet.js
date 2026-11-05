@@ -4,11 +4,23 @@ import { supabase } from './supabase.js?v=__V__';
 // Reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
 // Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
 // I Prof 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated (set automatically by the sheet's onEdit script), P Status, Q Notes.
-// Character data from the Blizzard API (data/blizzard-characters.json, filled by the "Update characters" workflow).
-// null while that file does not exist yet. Entries are keyed by the lowercase character name.
+// Character data from the Blizzard API: the tables blizzard_characters + blizzard_update, filled every 15 minutes by the Edge Function
+// supabase/functions/update-characters. While those are empty or not there, the old file data/blizzard-characters.json is used.
+// Result: { source, updated, ok, notFound, errors, message, characters }, or null when there is no data. Entries are keyed by the lowercase character name.
+async function blizzardFromDatabase() {
+  if (!supabase) return null;
+  try {
+    const [{ data: rows, error }, { data: run }] = await Promise.all([
+      supabase.from('blizzard_characters').select('key,data'),
+      supabase.from('blizzard_update').select('*').eq('id', 1).maybeSingle(),
+    ]);
+    if (error || !rows?.length) return null;
+    return { source: 'database', updated: run?.updated_at ?? null, ok: run?.ok ?? null, notFound: run?.not_found ?? null, errors: run?.errors ?? null, message: run?.message ?? null, characters: Object.fromEntries(rows.map((r) => [r.key, r.data])) };
+  } catch { return null; }
+}
 let blizzardPromise = null;
 export function loadBlizzard() {
-  blizzardPromise ??= fetch('data/blizzard-characters.json?v=__V__').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  blizzardPromise ??= blizzardFromDatabase().then((data) => data ?? fetch('data/blizzard-characters.json?v=__V__').then((r) => (r.ok ? r.json() : null)).catch(() => null));
   return blizzardPromise;
 }
 
