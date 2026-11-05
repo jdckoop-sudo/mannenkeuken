@@ -1,8 +1,10 @@
 # Fetch level, professions and last login of all guild characters from the Blizzard API into data/blizzard-characters.json.
 # Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. The API is leading: the values are also written into the guild
 # sheet when SHEET_SYNC_URL and SHEET_SYNC_SECRET are set (see docs/instructies.md, "API → sheet"). Settings: data/blizzard-config.json.
-# Manual only for now. The config already points at WoW: Forever (profile-forever-eu, realmless character names). Run it once by hand
-# (first with "Dry run" ticked), and if the result is right, switch the schedule below on (remove the leading "# ").
+# Runs every 15 minutes, and by hand (tick "Dry run" to only print). Blizzard refreshes a character after it logs out, so running more often
+# is no use; a run costs about 110 calls (the limit is 36,000 per hour). The config points at WoW: Forever (profile-forever-eu, realmless names).
+# Only when the data file changed: it is committed to main and the site is published again. (A commit made with the workflow token does not
+# start the deploy by itself, so the last step starts it.)
 name: Update characters
 on:
   workflow_dispatch:
@@ -11,10 +13,11 @@ on:
         description: 'Dry run: only print what would be stored (writes and commits nothing)'
         type: boolean
         default: false
-  # schedule:
-  #   - cron: '23 * * * *'   # hourly, at :23
+  schedule:
+    - cron: '*/15 * * * *'
 permissions:
   contents: write
+  actions: write   # to start the deploy after a commit
 concurrency: update-characters
 jobs:
   update:
@@ -32,6 +35,8 @@ jobs:
           SHEET_SYNC_URL: ${{ secrets.SHEET_SYNC_URL }}        # Apps Script web app (tools/sheet-script/ApiSync.gs): writes the API values into the sheet
           SHEET_SYNC_SECRET: ${{ secrets.SHEET_SYNC_SECRET }}
       - name: Commit if changed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if git diff --quiet -- data/blizzard-characters.json && [ -z "$(git ls-files --others --exclude-standard data)" ]; then
             echo "No changes"; exit 0
@@ -41,3 +46,4 @@ jobs:
           git add data/blizzard-characters.json
           git commit -m "Update characters from the Blizzard API"
           git push
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main   # publish the new data
