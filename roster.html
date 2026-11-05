@@ -41,7 +41,7 @@
     <label>Role<select id="role"><option value="">All roles</option><option>Tank</option><option>Healer</option><option>DPS</option></select></label>
     <label>Status<select id="status"><option value="" selected>All</option><option>Main</option><option>Alt</option><option value="Gestopt">Quit</option></select></label>
   </form>
-  <p role="note" style="margin:0;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:6px;font-size:14px"><strong>Note:</strong> character information (level, race, class and professions) is only updated automatically once a character reaches level 10. Until then the table shows what is filled in by hand in the guild sheet.</p>
+  <p role="note" style="margin:0;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:6px;font-size:14px"><strong>Note:</strong> character information (level, race, class and professions) is only updated automatically once a character reaches level 10. Every 15 minutes an automatic update will be done. Please be aware that numbers will only update after a player has logged out in order for the API to retrieve most recent information.</p>
   <div class="table-wrap">
     <table>
       <thead><tr id="head"></tr></thead>
