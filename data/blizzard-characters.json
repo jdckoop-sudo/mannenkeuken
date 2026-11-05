@@ -3,7 +3,7 @@
  "region": "eu",
  "namespace": "profile-forever-eu",
  "realm": "",
- "updated": "2026-11-05T11:00:14.433Z",
+ "updated": "2026-11-05T17:49:24.061Z",
  "characters": {
   "bunte bapsimus": {
    "name": "Bunte Bapsimus",
@@ -21,9 +21,82 @@
    "fetched": "2026-11-05T11:00:14.433Z"
   },
   "bertrand bakkebaard": {
-   "name": "Bertrand Bakkebaard",
-   "status": "not_found",
-   "fetched": "2026-11-05T11:00:14.433Z"
+   "name": "Bertrand",
+   "status": "ok",
+   "level": 14,
+   "race": "Windshaper Skyborne",
+   "class": "Warrior",
+   "faction": "Horde",
+   "guild": null,
+   "lastLogin": "2026-11-05T16:26:30.000Z",
+   "professions": [
+    {
+     "name": "Mining",
+     "kind": "primary",
+     "skill": 73,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Mining",
+       "skill": 73,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Blacksmithing",
+     "kind": "primary",
+     "skill": 48,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Blacksmithing",
+       "skill": 48,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Cooking",
+     "kind": "secondary",
+     "skill": 25,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Cooking",
+       "skill": 25,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Fishing",
+     "kind": "secondary",
+     "skill": 39,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Fishing",
+       "skill": 39,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "First Aid",
+     "kind": "secondary",
+     "skill": 54,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "First Aid",
+       "skill": 54,
+       "max": 75
+      }
+     ]
+    }
+   ],
+   "fetched": "2026-11-05T17:49:24.061Z"
   },
   "nazeebo trollock": {
    "name": "Nazeebo Trollock",
@@ -38,22 +111,22 @@
   "murn rogue": {
    "name": "Murn",
    "status": "ok",
-   "level": 16,
+   "level": 18,
    "race": "Orc",
    "class": "Rogue",
    "faction": "Horde",
    "guild": null,
-   "lastLogin": "2026-11-05T10:36:35.000Z",
+   "lastLogin": "2026-11-05T16:28:34.000Z",
    "professions": [
     {
      "name": "Skinning",
      "kind": "primary",
-     "skill": 82,
+     "skill": 113,
      "max": 150,
      "tiers": [
       {
        "name": "Skinning",
-       "skill": 82,
+       "skill": 113,
        "max": 150
       }
      ]
@@ -61,13 +134,13 @@
     {
      "name": "Mining",
      "kind": "primary",
-     "skill": 57,
-     "max": 75,
+     "skill": 65,
+     "max": 150,
      "tiers": [
       {
        "name": "Mining",
-       "skill": 57,
-       "max": 75
+       "skill": 65,
+       "max": 150
       }
      ]
     },
@@ -87,31 +160,31 @@
     {
      "name": "Fishing",
      "kind": "secondary",
-     "skill": 21,
-     "max": 75,
+     "skill": 86,
+     "max": 150,
      "tiers": [
       {
        "name": "Fishing",
-       "skill": 21,
-       "max": 75
+       "skill": 86,
+       "max": 150
       }
      ]
     },
     {
      "name": "First Aid",
      "kind": "secondary",
-     "skill": 15,
+     "skill": 32,
      "max": 75,
      "tiers": [
       {
        "name": "First Aid",
-       "skill": 15,
+       "skill": 32,
        "max": 75
       }
      ]
     }
    ],
-   "fetched": "2026-11-05T11:00:14.433Z"
+   "fetched": "2026-11-05T17:49:24.061Z"
   },
   "maerwyn vangent": {
    "name": "Maerwyn vanGent",
@@ -131,22 +204,35 @@
   "pala pim": {
    "name": "Pala",
    "status": "ok",
-   "level": 10,
+   "level": 13,
    "race": "Undead",
    "class": "Paladin",
    "faction": "Horde",
    "guild": null,
-   "lastLogin": "2026-11-05T02:18:49.000Z",
+   "lastLogin": "2026-11-05T11:30:15.000Z",
    "professions": [
     {
-     "name": "Mining",
+     "name": "Alchemy",
      "kind": "primary",
-     "skill": 7,
+     "skill": 1,
      "max": 75,
      "tiers": [
       {
-       "name": "Mining",
-       "skill": 7,
+       "name": "Alchemy",
+       "skill": 1,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Herbalism",
+     "kind": "primary",
+     "skill": 14,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Herbalism",
+       "skill": 14,
        "max": 75
       }
      ]
@@ -165,7 +251,7 @@
      ]
     }
    ],
-   "fetched": "2026-11-05T11:00:14.433Z"
+   "fetched": "2026-11-05T17:49:24.061Z"
   },
   "maerwyn van gent": {
    "name": "Maerwyn van Gent",
