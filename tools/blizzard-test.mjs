@@ -27,8 +27,8 @@ if (!id || !secret) {
   console.error('BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET are not set. On GitHub: Settings → Secrets and variables → Actions. Locally: node --env-file=<your private .env> tools/blizzard-test.mjs <character> <realm> [region] (see .env.example).');
   process.exit(1);
 }
-if (!character || !realm) {
-  console.error('Give a character and a realm: node tools/blizzard-test.mjs <character> <realm> [region]');
+if (!character) {
+  console.error('Give a character (and a realm if you know it): node tools/blizzard-test.mjs <character> [realm] [region]');
   process.exit(1);
 }
 
@@ -64,8 +64,39 @@ const short = (body) => JSON.stringify(body ?? '').slice(0, 220);
   console.log(`Game data check (WoW token): HTTP ${r.status}${r.status === 200 ? ' – the API answers' : ` – ${short(r.body)}`}`);
 }
 
+// 2b. WoW: Forever realms: the realm list of the Forever game data (needed for the realm slug in the character URL).
+//     Tried with the realm index and the connected-realm index; prints the names and slugs it finds.
+const foreverRealms = [];
+for (const path of ['/data/wow/realm/index', '/data/wow/connected-realm/index']) {
+  const r = await get(path, `dynamic-forever-${region}`);
+  if (r.status !== 200) { console.log(`Forever ${path}: HTTP ${r.status} ${short(r.body)}`); continue; }
+  const list = r.body.realms ?? r.body.connected_realms ?? [];
+  console.log(`Forever ${path}: ${list.length} entries`);
+  for (const x of list.slice(0, 60)) console.log(`  - ${x.name ?? x.href ?? JSON.stringify(x)}${x.slug ? ` (slug: ${x.slug})` : ''}`);
+  for (const x of list) if (x.slug) foreverRealms.push(x.slug);
+}
+// Connected realms only give a link: follow the first ones so their realm names and slugs show up
+{
+  const r = await get('/data/wow/connected-realm/index', `dynamic-forever-${region}`);
+  for (const x of (r.body?.connected_realms ?? []).slice(0, 15)) {
+    const res = await fetch(`${x.href}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+    const b = res?.ok ? await res.json().catch(() => null) : null;
+    for (const rr of b?.realms ?? []) { console.log(`  connected realm ${b.id}: ${rr.name} (slug: ${rr.slug})`); foreverRealms.push(rr.slug); }
+  }
+}
+
 // 3. The character, per namespace: retail, Classic, Classic Era, Forever, and any extra ones given
 const namespaces = [`profile-${region}`, `profile-classic-${region}`, `profile-classic1x-${region}`, `profile-forever-${region}`, ...extra];
+if (!realm) {
+  // No realm given: look for the character on every Forever realm slug found above
+  const slugs = [...new Set(foreverRealms)];
+  console.log(`\nNo realm given: looking for "${character}" on ${slugs.length} Forever realm(s)`);
+  for (const rs of slugs) {
+    const r = await get(`/profile/wow/character/${rs}/${nameKey(character)}`, `profile-forever-${region}`);
+    console.log(`- ${rs}: HTTP ${r.status}${r.status === 200 ? ` – FOUND: ${r.body.name}, level ${r.body.level}, ${r.body.character_class?.name}, last login ${r.body.last_login_timestamp ? new Date(r.body.last_login_timestamp).toISOString() : 'unknown'}` : ''}`);
+  }
+  process.exit(0);
+}
 const base = `/profile/wow/character/${slug(realm)}/${nameKey(character)}`;
 console.log(`\nCharacter: ${character} on ${realm} (${base})`);
 
