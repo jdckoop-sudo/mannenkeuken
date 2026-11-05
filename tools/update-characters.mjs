@@ -10,6 +10,11 @@
 //        only the given character(s), "Name:realm-slug" (comma separated); the realm part is optional
 //
 // Needs BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET (GitHub Actions secrets, or your private .env file).
+//
+// The API is leading: after the run, the values (level, race, class, professions + skill) are also written into the guild sheet through
+// the Apps Script web app (tools/sheet-script/ApiSync.gs). That needs SHEET_SYNC_URL and SHEET_SYNC_SECRET (GitHub Actions secrets).
+// Without them the run still updates data/blizzard-characters.json and says that the sheet was skipped. With --dry-run the web app is
+// asked for a dry run: it answers what it would change and writes nothing.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 const CONFIG_FILE = 'data/blizzard-config.json';
@@ -169,6 +174,33 @@ for (const ch of characters) {
 
 console.log(`\nDone: ${counts.ok} ok, ${counts.not_found} not found, ${counts.error} errors (of ${characters.length}).`);
 
+// ---- 2b. The API is leading: write the values into the guild sheet (Apps Script web app) ----------------------
+async function syncSheet() {
+  const url = process.env.SHEET_SYNC_URL;
+  const key = process.env.SHEET_SYNC_SECRET;
+  if (!url || !key) { console.log('\nSheet: SHEET_SYNC_URL / SHEET_SYNC_SECRET are not set, so the sheet is not updated.'); return; }
+  // One update per character that the API knows (the sheet name is the key; the web app ignores names that are not in the sheet)
+  const updates = characters.map((ch) => ({ ch, e: result[norm(ch.name)] })).filter(({ e }) => e?.status === 'ok').map(({ ch, e }) => ({
+    character: ch.name, level: e.level, race: e.race, class: e.class,
+    professions: (e.professions ?? []).filter((p) => p.skill !== null).map((p) => ({ name: p.name, kind: p.kind, skill: p.skill })),
+  }));
+  if (!updates.length) { console.log('\nSheet: nothing to send.'); return; }
+  try {
+    const res = await fetch(url, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ secret: key, dryRun, updates }) });
+    const text = await res.text();
+    let out = null;
+    try { out = JSON.parse(text); } catch { /* not JSON */ }
+    if (!res.ok || !out?.ok) {
+      console.log(`::warning::Sheet not updated: ${out?.error ?? `HTTP ${res.status}`}`);
+      return;
+    }
+    console.log(`\nSheet${out.dryRun ? ' (dry run, nothing written)' : ''}: ${out.changedCharacters} character(s) changed of ${out.checked} sent${out.notFound?.length ? `; not in the sheet: ${out.notFound.join(', ')}` : ''}`);
+    for (const c of out.changes.filter((x) => x.field !== 'Last updated').slice(0, 60)) console.log(`  ${c.character}: ${c.field} ${c.from ?? '–'} → ${c.to}`);
+  } catch (e) {
+    console.log(`::warning::Sheet not updated: ${e.message}`);
+  }
+}
+
 // ---- 3. Write (only when something changed, so the repo does not get a commit on every run) ---------------
 const strip = (o) => JSON.stringify(o, (k, v) => (k === 'fetched' || k === 'updated' ? undefined : v));
 const output = { source: 'Blizzard API', region, namespace, realm: defaultRealm, updated: now, characters: only ? { ...(previous?.characters ?? {}), ...result } : result };
@@ -181,3 +213,5 @@ if (dryRun) {
   writeFileSync(OUT, `${JSON.stringify(output, null, 1)}\n`);
   console.log(`Written ${OUT}.`);
 }
+
+await syncSheet();

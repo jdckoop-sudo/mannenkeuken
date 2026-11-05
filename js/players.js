@@ -1,5 +1,5 @@
 // Players and their characters, merged from the guild sheet (Members tab) and the site's profiles/alts.
-// The sheet is leading for levels and professions; the site fills in what the sheet does not have.
+// The sheet has the levels and professions (the Blizzard API is leading and is written into the sheet by "Update characters"); the site fills in what the sheet does not have.
 import { supabase } from './supabase.js?v=__V__';
 import { loadMembers } from './sheet.js?v=__V__';
 
