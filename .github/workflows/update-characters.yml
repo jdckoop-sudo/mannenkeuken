@@ -1,10 +1,15 @@
 # Fetch level, professions and last login of all guild characters from the Blizzard API into data/blizzard-characters.json.
 # Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. Settings: data/blizzard-config.json.
-# Manual only for now. At the WoW: Forever launch: fix the namespace/realm in the config, run it once by hand, and if the result
-# is right, switch the schedule below on (remove the leading "# ").
+# Manual only for now. The config already points at WoW: Forever (profile-forever-eu, realmless character names). Run it once by hand
+# (first with "Dry run" ticked), and if the result is right, switch the schedule below on (remove the leading "# ").
 name: Update characters
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: only print what would be stored (writes and commits nothing)'
+        type: boolean
+        default: false
   # schedule:
   #   - cron: '23 * * * *'   # hourly, at :23
 permissions:
@@ -19,7 +24,7 @@ jobs:
         with:
           node-version: 20
       - name: Fetch the characters
-        run: node tools/update-characters.mjs
+        run: node tools/update-characters.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
           BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}

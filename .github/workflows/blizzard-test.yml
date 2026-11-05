@@ -9,9 +9,9 @@ on:
         required: true
         default: 'Markrutte'
       realm:
-        description: 'Realm name (e.g. Outland); for WoW: Forever the ruleset or whatever replaces the realm'
-        required: true
-        default: 'Outland'
+        description: 'Realm name (e.g. Outland). Leave empty to look for the character on every WoW: Forever realm (the realm list is printed too)'
+        required: false
+        default: ''
       region:
         description: 'Region'
         required: true

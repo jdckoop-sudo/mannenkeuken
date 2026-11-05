@@ -1,8 +1,8 @@
 {
-  "_comment": "Settings for tools/update-characters.mjs. Today: regular (retail) WoW. At the WoW: Forever launch: set namespace to profile-forever-eu, realm to the slug of our PvE realm (see /data/wow/realm/index?namespace=dynamic-forever-eu) and check nameFormat (encode | hyphen | nospace).",
+  "_comment": "Settings for tools/update-characters.mjs. WoW: Forever (since the launch, 5 Nov 2026): namespace profile-forever-<region>, no realm: characters are looked up as /profile/wow/character/<first>-<surname> (nameFormat \"realmless\"; public profiles exist from level 10). For regular (retail) WoW use namespace profile-eu, a realm slug and nameFormat \"encode\". Other name formats for realm-based versions: hyphen | nospace.",
   "region": "eu",
-  "namespace": "profile-eu",
-  "realm": "outland",
-  "nameFormat": "encode",
+  "namespace": "profile-forever-eu",
+  "realm": "",
+  "nameFormat": "realmless",
   "delayMs": 150
 }
