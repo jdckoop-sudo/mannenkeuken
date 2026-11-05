@@ -30,10 +30,13 @@ const api = `https://${region}.api.blizzard.com`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const norm = (s) => String(s ?? '').trim().toLowerCase();
 
-// "Bertrand Bakkebaard" -> how the API wants it in the URL (the Forever format is not known yet: see nameFormat in the config)
+// "Bertrand Bakkebaard" -> how the API wants it in the URL: see nameFormat in the config.
+// WoW: Forever ("realmless"): /profile/wow/character/<first>-<surname>, lowercase, no realm, in profile-forever-<region>.
+// Public profiles exist from level 10, so a 404 there can simply mean "below level 10".
+const realmless = nameFormat === 'realmless';
 const nameForUrl = (name) => {
   const n = norm(name);
-  if (nameFormat === 'hyphen') return encodeURIComponent(n.replace(/\s+/g, '-'));
+  if (nameFormat === 'hyphen' || realmless) return encodeURIComponent(n.replace(/\s+/g, '-'));
   if (nameFormat === 'nospace') return encodeURIComponent(n.replace(/\s+/g, ''));
   return encodeURIComponent(n);
 };
@@ -136,7 +139,7 @@ const counts = { ok: 0, not_found: 0, error: 0 };
 
 for (const ch of characters) {
   const key = norm(ch.name);
-  const base = `/profile/wow/character/${realmSlug(ch.realm || defaultRealm)}/${nameForUrl(ch.name)}`;
+  const base = realmless ? `/profile/wow/character/${nameForUrl(ch.name)}` : `/profile/wow/character/${realmSlug(ch.realm || defaultRealm)}/${nameForUrl(ch.name)}`;
   const old = previous?.characters?.[key];
   const summary = await call(base);
   let entry;
@@ -160,7 +163,8 @@ for (const ch of characters) {
   }
   if (entry.status === 'ok' || !old) entry.fetched = now; else entry.fetched = old.fetched ?? now;
   result[key] = entry;
-  console.log(`${ch.name}: ${entry.status}${entry.status === 'ok' ? ` – level ${entry.level} ${entry.race} ${entry.class}, ${entry.professions.length} profession(s)` : ''}`);
+  console.log(`${ch.name}: ${entry.status}${entry.status === 'ok' ? ` – level ${entry.level} ${entry.race} ${entry.class}, ${entry.professions.length} profession(s)` : entry.status === 'not_found' && realmless ? ' (not known yet: under level 10, or the name is spelled differently)' : ''}`);
+  if (dryRun && entry.status === 'ok') console.log(`    last login ${entry.lastLogin}; ${entry.professions.map((p) => `${p.name} ${p.skill ?? '?'}/${p.max ?? '?'}`).join(', ') || 'no professions'}`);
 }
 
 console.log(`\nDone: ${counts.ok} ok, ${counts.not_found} not found, ${counts.error} errors (of ${characters.length}).`);
