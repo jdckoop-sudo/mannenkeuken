@@ -75,12 +75,12 @@ loadMembers().then((members) => {
   }
   const mainNames = Object.keys(byProf).filter((p) => !SECONDARY.includes(p)).sort((a, b) => byProf[b].length - byProf[a].length || a.localeCompare(b));
   const secNames = SECONDARY.filter((p) => byProf[p]);
-  // Per profession: character → player → level (highest first), skill alongside
+  // Per profession: character → player → level, skill alongside; sorted by skill (highest first), then level
   const card = (p) => `
     <section class="box">
       <div><h2>${professionLabel(p, { size: 28 })}</h2><p class="muted" style="font-size:13px;margin-top:2px">${byProf[p].length} character${byProf[p].length === 1 ? '' : 's'}</p></div>
       <div class="prof-table-wrap"><table class="prof-table"><thead><tr><th>Character</th><th>Player</th><th class="num">Lvl</th><th class="num">Skill</th></tr></thead><tbody>
-      ${byProf[p].sort((a, b) => b.level - a.level || b.skill - a.skill || String(a.name).localeCompare(String(b.name))).map((c) => `<tr>
+      ${byProf[p].sort((a, b) => b.skill - a.skill || b.level - a.level || String(a.name).localeCompare(String(b.name))).map((c) => `<tr>
         <td>${c.name ? `<a class="char" href="${characterUrl(c.name)}" style="color:${classColor(c.cls) || 'inherit'}">${classIcon(c.cls, 18)}${esc(c.name)}</a>` : '<span class="muted">(no name yet)</span>'}</td>
         <td><a class="player" href="${playerUrl(c.player)}">${esc(c.player)}</a></td>
         <td class="num"><strong>${c.level || '–'}</strong></td>
