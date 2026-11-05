@@ -14,13 +14,8 @@ const num = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v)
 export const playerUrl = (name) => `player.html?name=${encodeURIComponent(name)}`;
 export const characterUrl = (name) => `character.html?name=${encodeURIComponent(name)}`;
 
-// Character data from the Blizzard API (data/blizzard-characters.json, filled by the "Update characters" workflow).
-// null while that file does not exist yet. Entries are keyed by the lowercase character name.
-let blizzardPromise = null;
-export function loadBlizzard() {
-  blizzardPromise ??= fetch('data/blizzard-characters.json?v=__V__').then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  return blizzardPromise;
-}
+// Character data from the Blizzard API: loadBlizzard() lives in js/sheet.js (loadMembers() uses it to let the API lead); re-exported here.
+export { loadBlizzard } from './sheet.js?v=__V__';
 
 // How active is a character? From the last login (data/blizzard-characters.json, lastLogin as ISO text).
 // One place for the thresholds, so Roster, Home, player pages and checks all agree.
@@ -69,7 +64,7 @@ export async function loadCharacters() {
     byName.set(norm(name), {
       name, player: m.player, kind: m.status === 'Alt' ? 'Alt' : 'Main', status: m.status || 'Main',
       race: m.race, class: m.cls, role: m.role, level: num(m.level), profs, recipes: m.recipes, notes: m.notes, updated: m.updated,
-      inSheet: true, onSite: false, hasName: !!m.character, needsMain: !!m.needsMain,
+      inSheet: true, onSite: false, hasName: !!m.character, needsMain: !!m.needsMain, fromApi: !!m.fromApi,
     });
   }
   const addSite = (row, kind) => {

@@ -4,10 +4,48 @@ import { supabase } from './supabase.js?v=__V__';
 // Reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
 // Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
 // I Prof 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated (set automatically by the sheet's onEdit script), P Status, Q Notes.
+// Character data from the Blizzard API (data/blizzard-characters.json, filled by the "Update characters" workflow).
+// null while that file does not exist yet. Entries are keyed by the lowercase character name.
+let blizzardPromise = null;
+export function loadBlizzard() {
+  blizzardPromise ??= fetch('data/blizzard-characters.json?v=__V__').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  return blizzardPromise;
+}
+
+// The Blizzard API is leading, the sheet is the fallback (decided 5 Nov 2026):
+//  - the API knows the character (status "ok"): level, race, class and the professions (with skill) come from the API.
+//    The profession columns are replaced: other professions in the sheet are overwritten; Cooking / First Aid / Fishing that the API does not
+//    report are emptied. If the API gave no professions at all (call failed, or none learned yet) the sheet's professions stay.
+//  - the API does not know the character (not found: e.g. under level 10, or an error, or no data file yet): everything stays as typed in the sheet.
+// Player, Role, Status, Notes and the key recipes always come from the sheet (the API has no such data).
+export function applyApi(rows, blizzard) {
+  const entries = blizzard?.characters;
+  if (!entries) return rows;
+  for (const r of rows) {
+    const e = entries[String(r.character ?? '').trim().toLowerCase()];
+    if (!e || e.status !== 'ok') continue;
+    r.fromApi = true;
+    if (e.level != null) r.level = e.level;
+    if (e.race) r.race = e.race;
+    if (e.class) r.cls = e.class;
+    const profs = (e.professions ?? []).filter((p) => p.skill !== null && p.skill !== undefined);
+    if (!profs.length) continue;
+    const primaries = profs.filter((p) => p.kind === 'primary');
+    const [p1, p2] = primaries;
+    r.prof1 = p1?.name ?? ''; r.skill1 = p1?.skill ?? '';
+    r.prof2 = p2?.name ?? ''; r.skill2 = p2?.skill ?? '';
+    for (const [field, name] of [['cooking', 'Cooking'], ['firstAid', 'First Aid'], ['fishing', 'Fishing']]) {
+      const p = profs.find((x) => x.name === name);
+      r[field] = p ? p.skill : '';
+    }
+  }
+  return rows;
+}
+
 // One request per page load: everybody who asks shares it (Home used to fetch the sheet twice). A failed request is tried again next time.
 let membersPromise = null;
 export function loadMembers() {
-  membersPromise ??= Promise.all([fetchMembers(), fetchMainChoices()]).then(([rows, choices]) => applyMainChoices(rows, choices)).catch((err) => { membersPromise = null; throw err; });
+  membersPromise ??= Promise.all([fetchMembers(), fetchMainChoices(), loadBlizzard()]).then(([rows, choices, blizzard]) => applyMainChoices(applyApi(rows, blizzard), choices)).catch((err) => { membersPromise = null; throw err; });
   return membersPromise.then((rows) => rows.map((r) => ({ ...r }))); // copies, so a page that sorts or edits its list leaves the others alone
 }
 // The main a player chose on My profile (table main_characters; empty when nothing is chosen or the table is not there yet).
