@@ -83,8 +83,8 @@ loadMembers().then((members) => {
       ${byProf[p].sort((a, b) => b.skill - a.skill || b.level - a.level || String(a.name).localeCompare(String(b.name))).map((c) => `<tr>
         <td>${c.name ? `<a class="char" href="${characterUrl(c.name)}" style="color:${classColor(c.cls) || 'inherit'}">${classIcon(c.cls, 18)}${esc(c.name)}</a>` : '<span class="muted">(no name yet)</span>'}</td>
         <td><a class="player" href="${playerUrl(c.player)}">${esc(c.player)}</a></td>
-        <td class="num"><strong>${c.level || '–'}</strong></td>
-        <td class="num"><span class="muted">${c.skill} / ${MAX}</span></td></tr>`).join('')}
+        <td class="num">${c.level || '–'}</td>
+        <td class="num"><strong>${c.skill}</strong><span class="muted"> / ${MAX}</span></td></tr>`).join('')}
       </tbody></table></div>
     </section>`;
   // Main professions first; Cooking, First Aid and Fishing in their own row of 3 below
