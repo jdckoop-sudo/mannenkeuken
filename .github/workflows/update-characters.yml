@@ -1,7 +1,8 @@
 # Fetch level, professions and last login of all guild characters from the Blizzard API into data/blizzard-characters.json.
 # Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. The API is leading: the values are also written into the guild
 # sheet when SHEET_SYNC_URL and SHEET_SYNC_SECRET are set (see docs/instructies.md, "API → sheet"). Settings: data/blizzard-config.json.
-# Runs every 15 minutes, and by hand (tick "Dry run" to only print). Blizzard refreshes a character after it logs out, so running more often
+# Started every 15 minutes by an external scheduler (POST to the workflow_dispatch API, see docs/instructies.md, "Update characters: elke 15 minuten"),
+# because GitHub's own schedule below runs only every few hours in this repo; it stays as a safety net. Also by hand (tick "Dry run" to only print). Blizzard refreshes a character after it logs out, so running more often
 # is no use; a run costs about 110 calls (the limit is 36,000 per hour). The config points at WoW: Forever (profile-forever-eu, realmless names).
 # Only when the data file changed: it is committed to main and the site is published again. (A commit made with the workflow token does not
 # start the deploy by itself, so the last step starts it.)
