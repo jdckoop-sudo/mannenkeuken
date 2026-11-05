@@ -3,12 +3,72 @@
  "region": "eu",
  "namespace": "profile-forever-eu",
  "realm": "",
- "updated": "2026-11-05T17:49:24.061Z",
+ "updated": "2026-11-05T18:51:22.604Z",
  "characters": {
   "bunte bapsimus": {
-   "name": "Bunte Bapsimus",
-   "status": "not_found",
-   "fetched": "2026-11-05T11:00:14.433Z"
+   "name": "Bunte",
+   "status": "ok",
+   "level": 12,
+   "race": "Troll",
+   "class": "Shaman",
+   "faction": "Horde",
+   "guild": null,
+   "lastLogin": "2026-11-05T18:15:41.000Z",
+   "professions": [
+    {
+     "name": "Leatherworking",
+     "kind": "primary",
+     "skill": 24,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Leatherworking",
+       "skill": 24,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Skinning",
+     "kind": "primary",
+     "skill": 54,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Skinning",
+       "skill": 54,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "Cooking",
+     "kind": "secondary",
+     "skill": 1,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "Cooking",
+       "skill": 1,
+       "max": 75
+      }
+     ]
+    },
+    {
+     "name": "First Aid",
+     "kind": "secondary",
+     "skill": 56,
+     "max": 75,
+     "tiers": [
+      {
+       "name": "First Aid",
+       "skill": 56,
+       "max": 75
+      }
+     ]
+    }
+   ],
+   "fetched": "2026-11-05T18:51:22.604Z"
   },
   "henk spasmebal": {
    "name": "Henk Spasmebal",
@@ -96,7 +156,7 @@
      ]
     }
    ],
-   "fetched": "2026-11-05T17:49:24.061Z"
+   "fetched": "2026-11-05T18:51:22.604Z"
   },
   "nazeebo trollock": {
    "name": "Nazeebo Trollock",
@@ -116,7 +176,7 @@
    "class": "Rogue",
    "faction": "Horde",
    "guild": null,
-   "lastLogin": "2026-11-05T16:28:34.000Z",
+   "lastLogin": "2026-11-05T17:52:16.000Z",
    "professions": [
     {
      "name": "Skinning",
@@ -160,12 +220,12 @@
     {
      "name": "Fishing",
      "kind": "secondary",
-     "skill": 86,
+     "skill": 150,
      "max": 150,
      "tiers": [
       {
        "name": "Fishing",
-       "skill": 86,
+       "skill": 150,
        "max": 150
       }
      ]
@@ -184,7 +244,7 @@
      ]
     }
    ],
-   "fetched": "2026-11-05T17:49:24.061Z"
+   "fetched": "2026-11-05T18:51:22.604Z"
   },
   "maerwyn vangent": {
    "name": "Maerwyn vanGent",
@@ -251,7 +311,7 @@
      ]
     }
    ],
-   "fetched": "2026-11-05T17:49:24.061Z"
+   "fetched": "2026-11-05T18:51:22.604Z"
   },
   "maerwyn van gent": {
    "name": "Maerwyn van Gent",
