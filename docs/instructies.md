@@ -80,6 +80,18 @@ Besloten op 5 nov 2026. De regels staan op één plek: `applyApi()` in `js/sheet
 
 ---
 
+## Update characters: elke 15 minuten (externe scheduler)
+Het GitHub-schema (`schedule` in `update-characters.yml`, `*/15 * * * *`) is **niet betrouwbaar**: op 5 nov 2026 bleek dat GitHub in deze repo geplande runs maar om de paar uur uitvoert of overslaat (ook *Update items*, dat elk uur zou draaien). Daarom start een **externe scheduler** de workflow elke 15 minuten via de GitHub-API (`workflow_dispatch`). Het GitHub-schema blijft als vangnet staan; de workflow heeft `concurrency: update-characters`, dus twee starts tegelijk lopen niet door elkaar.
+- **Aanroep**: `POST https://api.github.com/repos/jdckoop-sudo/mannenkeuken/actions/workflows/update-characters.yml/dispatches` met body `{"ref":"main"}` en headers `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`. Antwoord bij succes: **HTTP 204** (geen inhoud). In Actions staat de run als *Manually run by <eigenaar van het token>*.
+- **Eenmalig instellen** (Jelle of Justin; Claude maakt het token niet aan en typt het nergens in):
+  1. **Token maken** in GitHub (Settings → Developer settings → Personal access tokens → *Fine-grained tokens*): *Resource owner* = de eigenaar van de repo (Jelle; een fine-grained token kan geen repo van iemand anders kiezen), *Repository access* = alleen `mannenkeuken`, *Repository permissions* → **Actions: Read and write** (verder niets), verloopdatum bijvoorbeeld 1 jaar (zet een herinnering om het te vernieuwen).
+  2. **Scheduler**: een account op https://cron-job.org (gratis) → *Create cronjob* → URL en methode **POST** als hierboven, onder *Advanced* de vier headers en de body, schema **elke 15 minuten**, en zet de melding bij mislukken aan.
+  3. **Controleren**: *Test run* in cron-job.org moet **204** geven, en in Actions → *Update characters* verschijnt een nieuwe run.
+- **Het token hoort alleen in de scheduler** (nooit in de repo of in een chat). Is het verlopen of ingetrokken, dan geeft de scheduler 401/403 en stopt de update; maak dan een nieuw token en vervang het in de scheduler.
+- Uitleg voor spelers staat op Members (de note boven de tabel): elke 15 minuten, en cijfers veranderen pas nadat een speler is uitgelogd.
+
+---
+
 ## Wie is wie (sheet ↔ Discord)
 
 | Sheet (Player) | Discord |
@@ -211,7 +223,7 @@ Kijk op GitHub naar de open draft-PR's met `[bezig]` in de titel (dat is altijd 
 - Wachtwoorden, de guildcode, geheime sleutels en Supabase-instellingen opslaan doet de gebruiker zelf.
 
 ## Na de launch (todo) – Claude: noem deze punten bij de eerste sync of update na 5 nov 2026
-1. ~~Blizzard-koppeling aanzetten~~ **Aan sinds 5 nov 2026**: *Update characters* draait **elke 15 minuten** (cron in `update-characters.yml`; Blizzard ververst een character pas na uitloggen, dus vaker heeft geen zin; een run kost ±110 calls, de limiet is 36.000 per uur). Alleen als `data/blizzard-characters.json` verandert wordt er gecommit en de site opnieuw gepubliceerd (de workflow start `pages.yml` zelf, omdat een commit met het workflow-token geen deploy start). Een update-knop of Discord-`/update` is niet nodig.
+1. ~~Blizzard-koppeling aanzetten~~ **Aan sinds 5 nov 2026**: *Update characters* wordt elke 15 minuten gestart door een **externe scheduler** (zie *Update characters: elke 15 minuten*). Blizzard ververst een character pas na uitloggen, dus vaker heeft geen zin; een run kost ±110 calls (limiet 36.000 per uur). Alleen als `data/blizzard-characters.json` verandert wordt er gecommit en de site opnieuw gepubliceerd (de workflow start `pages.yml` zelf, omdat een commit met het workflow-token geen deploy start). Een update-knop of Discord-`/update` is niet nodig.
 2. **Recepten-hover bij spelers**: in `tools/update-characters.mjs` (Jelle of Justin; afstemmen via een `[bezig]`-draft-PR) per beroep ook `known_recipes` uit de Blizzard-professions bewaren in `data/blizzard-characters.json`. Daarna op Professions, Roster, characterpagina en bij "Requests you can craft" een hover tonen met wat iemand echt kan maken (Wowhead-links).
 3. ~~Welk is leidend bij verschil sheet ↔ Blizzard~~ **Besloten op 5 nov 2026**: de API is leidend waar hij iets weet, de sheet is de terugval (zie *API of sheet: wie is leidend*). De sheet zelf wordt niet door de API bijgewerkt.
 4. **Laatste login openbaar?** Beslissen: tonen, weglaten, of repo privé (de repo is openbaar, `data/blizzard-characters.json` dus ook).
