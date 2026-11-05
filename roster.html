@@ -80,8 +80,8 @@ const cols = [
 ];
 
 let members = [];
-let sortKey = null;
-let sortDir = 1; // 1 = low → high, -1 = high → low
+let sortKey = 'level'; // default: highest level on top
+let sortDir = -1; // 1 = low → high, -1 = high → low
 
 function drawHead() {
   document.getElementById('head').innerHTML = cols.map(([key, label, , , , cls]) => {
