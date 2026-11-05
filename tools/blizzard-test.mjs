@@ -64,36 +64,43 @@ const short = (body) => JSON.stringify(body ?? '').slice(0, 220);
   console.log(`Game data check (WoW token): HTTP ${r.status}${r.status === 200 ? ' – the API answers' : ` – ${short(r.body)}`}`);
 }
 
-// 2b. WoW: Forever realms: the realm list of the Forever game data (needed for the realm slug in the character URL).
-//     Tried with the realm index and the connected-realm index; prints the names and slugs it finds.
-const foreverRealms = [];
-for (const path of ['/data/wow/realm/index', '/data/wow/connected-realm/index']) {
-  const r = await get(path, `dynamic-forever-${region}`);
-  if (r.status !== 200) { console.log(`Forever ${path}: HTTP ${r.status} ${short(r.body)}`); continue; }
-  const list = r.body.realms ?? r.body.connected_realms ?? [];
-  console.log(`Forever ${path}: ${list.length} entries`);
-  for (const x of list.slice(0, 60)) console.log(`  - ${x.name ?? x.href ?? JSON.stringify(x)}${x.slug ? ` (slug: ${x.slug})` : ''}`);
-  for (const x of list) if (x.slug) foreverRealms.push(x.slug);
-}
-// Connected realms only give a link: follow the first ones so their realm names and slugs show up
-{
-  const r = await get('/data/wow/connected-realm/index', `dynamic-forever-${region}`);
-  for (const x of (r.body?.connected_realms ?? []).slice(0, 15)) {
-    const res = await fetch(`${x.href}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
-    const b = res?.ok ? await res.json().catch(() => null) : null;
-    for (const rr of b?.realms ?? []) { console.log(`  connected realm ${b.id}: ${rr.name} (slug: ${rr.slug})`); foreverRealms.push(rr.slug); }
+// 2b. Realm lists per game family (WoW: Forever should be "forever", but it may sit under another namespace than we think):
+//     realm index and connected-realm index. Retail has hundreds of realms, so only a count (and names that look like Forever/test realms) is printed there.
+const FAMILIES = ['forever', 'classic1x', 'classic', ''];
+const looksSpecial = /forever|cam|ruleset|pve|pvp|hardcore|anniversary|guild|mannen|test/i;
+const foundRealms = []; // { family, slug }
+for (const family of FAMILIES) {
+  const dyn = family ? `dynamic-${family}-${region}` : `dynamic-${region}`;
+  for (const path of ['/data/wow/realm/index', '/data/wow/connected-realm/index']) {
+    const r = await get(path, dyn);
+    if (r.status !== 200) { console.log(`${dyn} ${path}: HTTP ${r.status} ${short(r.body)}`); continue; }
+    const list = r.body.realms ?? r.body.connected_realms ?? [];
+    console.log(`${dyn} ${path}: ${list.length} entries`);
+    const show = family === '' ? list.filter((x) => looksSpecial.test(x.name ?? '')) : list;
+    for (const x of show.slice(0, 80)) console.log(`  - ${x.name ?? x.href ?? JSON.stringify(x)}${x.slug ? ` (slug: ${x.slug})` : ''}`);
+    if (family) for (const x of list) if (x.slug) foundRealms.push({ family, slug: x.slug });
+  }
+  // Connected realms only give a link: follow the first ones so the realm names and slugs show up
+  if (family) {
+    const r = await get('/data/wow/connected-realm/index', dyn);
+    for (const x of (r.body?.connected_realms ?? []).slice(0, 15)) {
+      const res = await fetch(`${x.href}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+      const body = res?.ok ? await res.json().catch(() => null) : null;
+      for (const rr of body?.realms ?? []) { console.log(`  connected realm ${body.id}: ${rr.name} (slug: ${rr.slug})`); foundRealms.push({ family, slug: rr.slug }); }
+    }
   }
 }
 
 // 3. The character, per namespace: retail, Classic, Classic Era, Forever, and any extra ones given
 const namespaces = [`profile-${region}`, `profile-classic-${region}`, `profile-classic1x-${region}`, `profile-forever-${region}`, ...extra];
 if (!realm) {
-  // No realm given: look for the character on every Forever realm slug found above
-  const slugs = [...new Set(foreverRealms)];
-  console.log(`\nNo realm given: looking for "${character}" on ${slugs.length} Forever realm(s)`);
-  for (const rs of slugs) {
-    const r = await get(`/profile/wow/character/${rs}/${nameKey(character)}`, `profile-forever-${region}`);
-    console.log(`- ${rs}: HTTP ${r.status}${r.status === 200 ? ` – FOUND: ${r.body.name}, level ${r.body.level}, ${r.body.character_class?.name}, last login ${r.body.last_login_timestamp ? new Date(r.body.last_login_timestamp).toISOString() : 'unknown'}` : ''}`);
+  // No realm given: look for the character on every non-retail realm slug found above, in the matching profile namespace
+  const seen = new Set();
+  const todo = foundRealms.filter((x) => !seen.has(x.family + x.slug) && seen.add(x.family + x.slug));
+  console.log(`\nNo realm given: looking for "${character}" on ${todo.length} realm(s)`);
+  for (const { family, slug: rs } of todo) {
+    const r = await get(`/profile/wow/character/${rs}/${nameKey(character)}`, `profile-${family}-${region}`);
+    console.log(`- ${family}/${rs}: HTTP ${r.status}${r.status === 200 ? ` – FOUND: ${r.body.name}, level ${r.body.level}, ${r.body.character_class?.name}, last login ${r.body.last_login_timestamp ? new Date(r.body.last_login_timestamp).toISOString() : 'unknown'}` : ''}`);
   }
   process.exit(0);
 }
