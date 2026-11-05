@@ -17,7 +17,7 @@ export const characterUrl = (name) => `character.html?name=${encodeURIComponent(
 // Character data from the Blizzard API: loadBlizzard() lives in js/sheet.js (loadMembers() uses it to let the API lead); re-exported here.
 export { loadBlizzard } from './sheet.js?v=__V__';
 
-// How active is a character? From the last login (data/blizzard-characters.json, lastLogin as ISO text).
+// How active is a character? From the last login (loadBlizzard(), lastLogin as ISO text).
 // One place for the thresholds, so Roster, Home, player pages and checks all agree.
 export const ACTIVITY = { activeDays: 3, quietDays: 14 };
 // level: active | quiet | inactive | unknown (no login known: the file does not exist yet, or the character was not found)

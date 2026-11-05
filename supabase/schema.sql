@@ -849,3 +849,50 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$, $q$Developer mode$q$, 'check',
   $q$Open 🕘 History of all fixes under the board: newest first, who + what + ticket + "now: phase" + time. Click a ticket name: the card opens. Do something to a ticket (take, done, edit): a new line appears on top.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$);
+
+-- 2026-11-05: character data from the Blizzard API, every 15 minutes (GitHub's own schedule proved unreliable, and data in the repo meant a commit
+-- + deploy per update). The Edge Function supabase/functions/update-characters writes these tables with the service key; the site only reads them
+-- (loadBlizzard() in js/sheet.js). blizzard_characters: one row per character, data = the same entry as in data/blizzard-characters.json.
+-- blizzard_update: one row with the last successful run (updated_at), its counts, and the last problem (message).
+create table if not exists public.blizzard_characters (
+  key text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.blizzard_update (
+  id int primary key default 1 check (id = 1),
+  updated_at timestamptz,
+  ok int,
+  not_found int,
+  errors int,
+  message text
+);
+alter table public.blizzard_characters enable row level security;
+alter table public.blizzard_update enable row level security;
+drop policy if exists "read all" on public.blizzard_characters;
+drop policy if exists "read all" on public.blizzard_update;
+create policy "read all" on public.blizzard_characters for select using (true);  -- no write policies: only the service key writes
+create policy "read all" on public.blizzard_update for select using (true);
+grant select on public.blizzard_characters, public.blizzard_update to anon, authenticated;
+grant all on public.blizzard_characters, public.blizzard_update to service_role;
+
+-- The timer: every 15 minutes pg_cron calls the Edge Function. The secret comes from the Vault (never in this file), once, by a developer:
+--   select vault.create_secret('<the same text as the function secret UPDATE_CHARACTERS_SECRET>', 'update_characters_secret');
+-- To change it later:  select vault.update_secret((select id from vault.secrets where name = 'update_characters_secret'), '<new text>');
+-- See what it did:     select * from cron.job_run_details order by start_time desc limit 10;  select * from net._http_response order by created desc limit 10;
+create extension if not exists pg_cron with schema pg_catalog;
+create extension if not exists pg_net with schema extensions;
+select cron.schedule('update-characters', '*/15 * * * *', $job$
+  select net.http_post(
+    url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/update-characters',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+      'x-update-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'update_characters_secret' limit 1)),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 140000
+  )
+$job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character data every 15 minutes (Supabase)$q$, $q$Characters$q$, 'check',
+  $q$After the setup: Checks → Blizzard characters shows "Updated" less than an hour ago and comes from the database. Log out in the game with a character of level 10+, wait up to 15 minutes, reload Members: the new level and skills are there, without a new commit or deploy.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character data every 15 minutes (Supabase)$q$);
