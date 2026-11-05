@@ -206,7 +206,7 @@ create policy "write logged in" on public.players for all to authenticated using
 insert into public.players (player_name, discord_name) values
   ('Jelle', 'Dirk-Christiaan'), ('Justin', 'Dokter Tinus'), ('Bas', 'bas'), ('Rawas', 'Daddy Draven'),
   ('Jermo', 'Eterniity - Jermo'), ('Jacco', 'Jaccico'), ('Laurens', 'Le Noir'), ('Mike', 'VDwerg'),
-  ('Murn', 'MURN'), ('Yvo', 'Skynal'), ('Mees', 'mjezzo'), ('Ian', null)
+  ('Murn', 'MURN'), ('Yvo', 'Skynal'), ('Mees', 'mjezzo'), ('Ian', 'Troy')
 on conflict (player_name) do update set discord_name = excluded.discord_name;
 
 -- The profile remembers which sheet player it belongs to.

@@ -112,7 +112,7 @@ De Blizzard-data komt uit **Supabase**: `pg_cron` start elke 15 minuten de Edge 
 | Murn | MURN |
 | Yvo | Skynal |
 | Mees | mjezzo |
-| Ian | (nog onbekend – vragen) |
+| Ian | Troy |
 
 Deze lijst staat ook in Supabase in **`players`** (keuzelijst bij inloggen, taggen, koppeling). Verandert er iets, pas dan **beide** aan: `insert into public.players (player_name, discord_name) values ('Naam', 'Discordnaam') on conflict (player_name) do update set discord_name = excluded.discord_name;`
 Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag daarna de echte naam. Bij twijfel: vragen, niet gokken.
@@ -120,10 +120,11 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag d
 ---
 
 ## Discord-rollen
-- **Mannen**: iedereen heeft deze rol, bewust met beheerdersrechten. Nieuwe leden krijgen hem via **Onboarding** (vraag 1 "Wat speel je? (Tank / Healer / DPS)" is verplicht en elk antwoord geeft óók Mannen).
+- **Mannen**: iedereen heeft deze rol, bewust met beheerdersrechten, **behalve Lurkers** (zie hieronder). Nieuwe leden krijgen hem via **Onboarding** (vraag 1 "Wat speel je? (Tank / Healer / DPS)" is verplicht en elk antwoord geeft óók Mannen).
 - **Tank / Healer / DPS**: bóven Mannen in de rollenlijst en "afzonderlijk weergeven".
 - **Race-, class- en beroeprollen**: precies dezelfde namen als in de sheet; alleen voor de **Main**.
 - **Alts krijgen géén Discord-rollen** (afspraak 3 nov 2026): alle rollen (Tank/Healer/DPS, race, class, beroep) gaan alleen over de **Main**. Alts staan alleen in de sheet (Status = Alt) en op het dashboard. De rollen Alt Tank / Alt Healer / Alt DPS worden niet gebruikt.
+- **Lurker** (5 nov 2026): voor leden die niet meespelen. Eigen rol, "afzonderlijk weergeven" (eigen groep in de ledenlijst, net als Tank/DPS). Rechten: kanalen bekijken, berichten sturen, berichtgeschiedenis, reacties, ingesloten links en bestanden; **geen** beheerder en geen spraak. Een Lurker heeft **alleen** de rol Lurker: geen Mannen, geen Tank/Healer/DPS, geen race-, class- of beroeprollen. Nu: empaty, MrWallie, Wessah en Skynal (Yvo, nog niet begonnen). Wordt iemand speler, dan haal je Lurker weg en geef je de gewone rollen (incl. Mannen) volgens de sheet. De sync laat Lurkers met rust: ze tellen niet mee bij het gelijktrekken van rollen. Yvo staat wel in de sheet en op het dashboard (met de notitie "Lurker on Discord (has not started playing yet)"); die regels blijven zoals ze zijn.
 
 ---
 
@@ -238,7 +239,6 @@ Kijk op GitHub naar de open draft-PR's met `[bezig]` in de titel (dat is altijd 
 8. Optioneel later: een Discord-bot, alleen als er meer bot-functies komen (bijv. melding bij level 60, events aankondigen).
 
 ## Openstaand
-- Ian: nog geen Discord-account gekoppeld.
 - Yvo (Skynal): race leeg (Skyborne kan geen Priest). Bij de volgende sync vragen: Troll, Undead of Blood Elf.
 - Guildbank: nog niet gekocht (sparen voor 100 gold).
 - Nieuwe Forever-dungeons (Wowhead-id's) toevoegen aan `js/dungeons.js` zodra bekend.
