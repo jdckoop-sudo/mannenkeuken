@@ -76,6 +76,7 @@ Besloten op 5 nov 2026. De regels staan op één plek: `applyApi()` in `js/sheet
 - **De sheet zelf wordt niet aangepast** door de API; dit gaat alleen over wat de site toont. Wil je dat de sheet de API-waarden ook bevat, dan is dat een aparte stap (idee: Apps Script-webapp).
 - **Skill wordt altijd als "/ 300" getoond** (besloten op 5 nov 2026), ook al geeft de API per beroep een lager maximum (in Forever nu 75 of 150). Het echte maximum staat alleen in de ruwe API-data op de characterpagina onder *From the game*.
 - Op de characterpagina staat onder *From the game* nog steeds de ruwe API-data.
+- **Optioneel en niet in gebruik: API → sheet.** In de repo staat ook code die de API-waarden in de sheet kan schrijven (`tools/sheet-script/ApiSync.gs` als Apps Script-webapp, aangeroepen door `tools/update-characters.mjs` met de secrets `SHEET_SYNC_URL` en `SHEET_SYNC_SECRET`). Die secrets zijn niet ingesteld, dus de workflow slaat die stap over ("Sheet: … not set") en de sheet blijft zoals wij hem zelf invullen. Wil je het toch gebruiken: plak `ApiSync.gs` als extra bestand in het Apps Script van de sheet, zet de scripteigenschap `API_SYNC_SECRET`, implementeer als webapp (uitvoeren als: ik, toegang: iedereen) en zet beide secrets in GitHub. Niet nodig voor de weergave op de site.
 
 ---
 
@@ -111,7 +112,7 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als Player en vraag d
 
 ## Sync-werkwijze ("sync de guild")
 
-**De sheet is leidend.** Bij een verschil krijgt Discord de waarde uit de sheet. Alleen regels met Status = Main tellen voor race/class/role/beroep-rollen.
+**De sheet is leidend voor Discord.** Bij een verschil krijgt Discord de waarde uit de sheet (level, race, class en beroepen in de sheet komen zelf uit de API, zie *API → sheet*). Alleen regels met Status = Main tellen voor race/class/role/beroep-rollen.
 
 0. **Vraag eerst of de guildbank al gekocht is** (zolang dat nog niet zo is).
 1. **Sheet lezen**: in een sheet-tabblad `fetch()` op `…/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0` (en `sheet=Lists`).

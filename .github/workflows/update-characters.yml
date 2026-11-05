@@ -1,5 +1,6 @@
 # Fetch level, professions and last login of all guild characters from the Blizzard API into data/blizzard-characters.json.
-# Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. Settings: data/blizzard-config.json.
+# Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. The API is leading: the values are also written into the guild
+# sheet when SHEET_SYNC_URL and SHEET_SYNC_SECRET are set (see docs/instructies.md, "API → sheet"). Settings: data/blizzard-config.json.
 # Manual only for now. The config already points at WoW: Forever (profile-forever-eu, realmless character names). Run it once by hand
 # (first with "Dry run" ticked), and if the result is right, switch the schedule below on (remove the leading "# ").
 name: Update characters
@@ -28,6 +29,8 @@ jobs:
         env:
           BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          SHEET_SYNC_URL: ${{ secrets.SHEET_SYNC_URL }}        # Apps Script web app (tools/sheet-script/ApiSync.gs): writes the API values into the sheet
+          SHEET_SYNC_SECRET: ${{ secrets.SHEET_SYNC_SECRET }}
       - name: Commit if changed
         run: |
           if git diff --quiet -- data/blizzard-characters.json && [ -z "$(git ls-files --others --exclude-standard data)" ]; then
