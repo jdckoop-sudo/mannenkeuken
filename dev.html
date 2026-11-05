@@ -824,6 +824,21 @@ async function loadWorkflows() {
   } catch (e) { el.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
 }
 
+// Item list: "updated" only changes with a new client build, so an old date says nothing. Compare with the newest WoW: Forever build on wago.tools (the same source as tools/update-items.mjs).
+function itemsRow(items, builds, row) {
+  if (!items) return row('broken', 'Item list (items.json)', 'Missing');
+  const count = `${items.items?.length ?? 0} items · build ${items.build}`;
+  const newest = builds?.wowf?.version;
+  if (!newest) return row('check', 'Item list (items.json)', `${count} · could not check the newest build`);
+  return newest === items.build ? row('ok', 'Item list (items.json)', `${count} (the newest)`) : row('check', 'Item list (items.json)', `${count} · the newest build is ${newest}; the next run of Update items should pick it up`);
+}
+// Quest list: "updated" only changes when the list changes, so look at when the workflow last finished well. It runs daily (often hours late): more than 2 days = something is wrong.
+function questsRow(quests, lastRun, row, old) {
+  if (!quests) return row('broken', 'Quest list (quests.json)', 'Missing');
+  const count = `${quests.quests?.length ?? 0} quests · last changed ${quests.updated}`;
+  if (!lastRun) return row('check', 'Quest list (quests.json)', `${count} · could not read the last check`);
+  return row(old(lastRun, 2) ? 'check' : 'ok', 'Quest list (quests.json)', `${count} · last checked ${ago(lastRun)}`);
+}
 // Character data: from the database every 15 minutes (older than an hour = something is wrong), or still the old file.
 function blizzardRow(bz, row, old) {
   if (!bz) return row('check', 'Blizzard characters', 'No data yet: the update has not run (see docs/instructies.md)');
@@ -836,17 +851,19 @@ async function loadSources() {
   const el = document.getElementById('sources');
   const row = (s, name, text) => `<div class="dev-row"><span>${badge(s)}</span><span><strong>${esc(name)}</strong><br><span class="muted" style="font-size:13px">${esc(text)}</span></span><span></span></div>`;
   const json = (p) => fetch(`${p}?v=__V__`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  const [members, items, tradeable, quests, bz, db] = await Promise.all([
+  const [members, items, tradeable, quests, bz, db, builds, questRuns] = await Promise.all([
     loadMembers().catch(() => null), json('data/items.json'), json('data/tradeable-items.json'), json('data/quests.json'), loadBlizzard(),
     supabase ? supabase.from('players').select('player_name', { count: 'exact', head: true }) : null,
+    fetch('https://wago.tools/api/builds/latest').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    gh('actions/workflows/quests.yml/runs?status=success&per_page=1').catch(() => null),
   ]);
   const old = (d, days) => d && (Date.now() - new Date(d).getTime()) / 864e5 > days;
   el.innerHTML = [
     row(members?.length ? 'ok' : 'broken', 'Guild sheet', members ? `${members.length} rows read` : 'Could not read the sheet'),
     row(db && !db.error ? 'ok' : 'broken', 'Supabase', db && !db.error ? `${db.count ?? '?'} players in the database` : `Error: ${db?.error?.message ?? 'not connected'}`),
-    row(items ? (old(items.updated, 2) ? 'check' : 'ok') : 'broken', 'Item list (items.json)', items ? `${items.items?.length ?? 0} items · build ${items.build} · updated ${items.updated}` : 'Missing'),
+    itemsRow(items, builds, row),
     row(tradeable ? 'ok' : 'check', 'Tradeable items (tradeable-items.json)', tradeable ? `${tradeable.items?.length ?? 0} items` : 'Missing – the Trade Market falls back to the full list'),
-    row(quests ? (old(quests.updated, 2) ? 'check' : 'ok') : 'broken', 'Quest list (quests.json)', quests ? `${quests.quests?.length ?? 0} quests · updated ${quests.updated}` : 'Missing'),
+    questsRow(quests, questRuns?.workflow_runs?.[0]?.updated_at, row, old),
     blizzardRow(bz, row, old),
   ].join('');
 }
