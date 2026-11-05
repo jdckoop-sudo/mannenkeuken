@@ -64,6 +64,29 @@ const short = (body) => JSON.stringify(body ?? '').slice(0, 220);
   console.log(`Game data check (WoW token): HTTP ${r.status}${r.status === 200 ? ' – the API answers' : ` – ${short(r.body)}`}`);
 }
 
+// 2a. WoW: Forever (what the community found after the launch, 5 Nov 2026; Blizzard has not documented it):
+//     no realms, only rulesets; characters are looked up without a realm as /profile/wow/character/<first>-<surname> (lowercase,
+//     dash-joined) in profile-forever-<region>; public profiles exist from level 10 (a 404 can mean "below level 10").
+//     Several characters can be given, comma separated. Everything here works with the app token (client credentials).
+console.log('\n== WoW: Forever (realmless) ==');
+for (const path of ['/data/wow/region/index', '/data/wow/ruleset/index']) {
+  const r = await get(path, `dynamic-forever-${region}`);
+  console.log(`dynamic-forever-${region} ${path}: HTTP ${r.status} ${short(r.body)}`);
+}
+for (const name of character.split(',').map((x) => x.trim()).filter(Boolean)) {
+  const key = name.toLowerCase().replace(/\s+/g, '-');
+  const r = await get(`/profile/wow/character/${encodeURIComponent(key)}`, `profile-forever-${region}`);
+  if (r.status === 200) {
+    const c = r.body;
+    console.log(`- ${name} (${key}): FOUND – level ${c.level}, ${c.race?.name ?? '?'} ${c.character_class?.name ?? '?'}, last login ${c.last_login_timestamp ? new Date(c.last_login_timestamp).toISOString() : 'unknown'}`);
+    const p = await get(`/profile/wow/character/${encodeURIComponent(key)}/professions`, `profile-forever-${region}`);
+    console.log(`    professions: HTTP ${p.status} ${p.status === 200 ? JSON.stringify([...(p.body.primaries ?? []), ...(p.body.secondaries ?? [])].map((x) => x.profession?.name)) : short(p.body)}`);
+  } else {
+    console.log(`- ${name} (${key}): HTTP ${r.status} ${short(r.body)}`);
+  }
+}
+if (process.env.ONLY_FOREVER === '1' || !realm) process.exit(0);
+
 // 2b. Realm lists per game family (WoW: Forever should be "forever", but it may sit under another namespace than we think):
 //     realm index and connected-realm index. Retail has hundreds of realms, so only a count (and names that look like Forever/test realms) is printed there.
 const FAMILIES = ['forever', 'classic1x', 'classic', ''];
