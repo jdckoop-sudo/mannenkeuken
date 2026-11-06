@@ -1,4 +1,4 @@
-// Supabase Edge Function "ding-bot": posts a "Ding!" in the Discord channel #dings when a player's character has gone up a level or a player
+// Supabase Edge Function "ding-bot" (the bot in Discord is called Ding Dinky): posts a "Ding!" in the Discord channel #dings when a player's character has gone up a level or a player
 // (or the whole guild) has earned an achievement of the dashboard. Started every 15 minutes by pg_cron (see supabase/schema.sql), a few
 // minutes after update-characters, because the level only changes after the character has logged out.
 //
@@ -141,7 +141,7 @@ export function plan({ core, chars, states, prev, discord }) {
 
 // ---- Discord
 async function post(webhook, m) {
-  const body = { username: 'Ding-bot', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding-bot' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
+  const body = { username: 'Ding Dinky', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding-bot' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(`${webhook}${webhook.includes('?') ? '&' : '?'}wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.status === 429) { const wait = Number((await res.json().catch(() => ({}))).retry_after ?? 1); await sleep(Math.min(5, wait) * 1000 + 100); continue; }
@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
   // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
-      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 De Ding-bot staat aan.', embed: { color: COLOR, title: 'Test', description: 'Als je dit ziet, werkt de webhook. Level-ups en achievements verschijnen vanaf nu hier.' }, allowed: { parse: [] } });
+      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky staat aan.', embed: { color: COLOR, title: 'Test', description: 'Als je dit ziet, werkt de webhook. Level-ups en achievements verschijnen vanaf nu hier.' }, allowed: { parse: [] } });
       return json({ test: 'posted' });
     } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
   }

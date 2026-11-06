@@ -14,7 +14,7 @@ export async function initTree({ user, tree, summary, who, modal, portrait }) {
   const players = [...new Set(data.characters.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))].sort((a, b) => a.localeCompare(b));
   if (!players.length) { tree.innerHTML = '<p class="muted" style="padding:16px">No players yet.</p>'; return; }
   const dev = isDevMode(user);
-  // Deep link from the Ding-bot: achievements.html?a=id1,id2&p=Player -> that player's tree, those achievements highlighted
+  // Deep link from Ding Dinky: achievements.html?a=id1,id2&p=Player -> that player's tree, those achievements highlighted
   const qs = new URLSearchParams(location.search);
   const spotWho = qs.get('p');
   let spot = new Set((qs.get('a') ?? '').split(',').filter((id) => BY_ID.has(id)));

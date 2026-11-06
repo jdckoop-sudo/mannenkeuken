@@ -1,4 +1,4 @@
-// Test of the decision logic of the Ding-bot (supabase/functions/ding-bot/index.ts): what is posted, what is only remembered.
+// Test of the decision logic of Ding Dinky (the bot in Discord) (supabase/functions/ding-bot/index.ts): what is posted, what is only remembered.
 // Run: node tools/test-ding-bot.mjs   (Node 22+, no dependencies, no network)
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -95,4 +95,4 @@ assert.deepEqual(c.profs.map((p) => p.name), ['Herbalism', 'Fishing']);
 const t = characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [{ name: 'Mining', skill: 5, kind: 'primary' }], status: 'Main' }, null);
 assert.equal(t.level, 10);
 
-console.log('Ding-bot tests: all passed');
+console.log('Ding Dinky tests: all passed');
