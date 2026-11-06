@@ -106,7 +106,7 @@ export function plan({ core, chars, states, prev, discord }) {
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
     const lines = [];
-    for (const g of lv) lines.push(`⬆️ **${g.name}** is van level ${g.from} naar **level ${g.to}** gegaan`);
+    for (const g of lv) { const n = g.to - g.from; lines.push(`⬆️ **${g.name}** is ${n} ${n === 1 ? 'level' : 'levels'} omhoog gegaan: van level ${g.from} naar **level ${g.to}** (nu level ${g.to})`); }
     for (const { a, s } of ach) {
       const now = a.meter === 'requiredDone' ? '' : ` · nu: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
       lines.push(`🏆 **${a.title}** (${branchName(a.branch)}) — ${a.desc}${now}`);
