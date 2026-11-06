@@ -841,16 +841,31 @@ function loadChecksTab() {
   loadWorkflows(); loadSources(); loadChecks();
 }
 
+// Workflows that only run when something asks for them: not having run says nothing. Scheduled ones should have finished well in the last 2 days.
+const ON_DEMAND = ['.github/workflows/blizzard-test.yml', '.github/workflows/go-live.yml'];
+const SCHEDULED = ['.github/workflows/items.yml', '.github/workflows/quests.yml'];
+// A skipped or cancelled run is no verdict (a newer deploy cancels the older one; "Go live" skips every ordinary comment): the last real run counts.
+const realRun = (runs) => runs.find((r) => !['skipped', 'cancelled'].includes(r.conclusion));
+function workflowState(w, last, now = Date.now()) {
+  if (!last) return ON_DEMAND.includes(w.path) ? ['ok', 'Runs only when needed'] : ['check', 'No run found'];
+  if (last.status !== 'completed') return ['check', 'Running now'];
+  if (last.conclusion !== 'success') return ['broken', `${last.conclusion} · ${ago(last.updated_at)}`];
+  if (SCHEDULED.includes(w.path) && now - new Date(last.updated_at).getTime() > 2 * 864e5) return ['check', `No run since ${ago(last.updated_at)}`];
+  return ['ok', `${last.conclusion} · ${ago(last.updated_at)}`];
+}
 async function loadWorkflows() {
   const el = document.getElementById('workflows');
   try {
-    const [{ workflows }, { workflow_runs: runs }] = await Promise.all([gh('actions/workflows'), gh('actions/runs?per_page=60')]);
-    el.innerHTML = workflows.map((w) => {
-      const last = runs.find((r) => r.workflow_id === w.id);
-      const s = !last ? 'check' : last.status !== 'completed' ? 'check' : last.conclusion === 'success' ? 'ok' : 'broken';
-      const text = !last ? 'Not run recently' : last.status !== 'completed' ? 'Running now' : `${last.conclusion} · ${ago(last.updated_at)}`;
+    const [{ workflows: all }, { workflow_runs: runs }] = await Promise.all([gh('actions/workflows'), gh('actions/runs?per_page=60')]);
+    const workflows = all.filter((w) => !w.path.startsWith('dynamic/')); // GitHub's own Pages workflow, which we do not use
+    // A workflow that runs rarely is not in the newest 60 runs: ask for it separately
+    const rows = await Promise.all(workflows.map(async (w) => {
+      let last = realRun(runs.filter((r) => r.workflow_id === w.id));
+      if (!last) last = realRun((await gh(`actions/workflows/${w.id}/runs?per_page=20`)).workflow_runs ?? []);
+      const [s, text] = workflowState(w, last);
       return `<div class="dev-row"><span>${badge(s)}</span><span><strong>${esc(w.name)}</strong><br><span class="muted" style="font-size:13px">${esc(text)}${last ? ` · <a href="${last.html_url}" target="_blank" rel="noopener">run</a>` : ''}</span></span><span class="muted" style="font-size:13px">${w.state === 'active' ? '' : esc(w.state)}</span></div>`;
-    }).join('') || '<p class="muted">No workflows.</p>';
+    }));
+    el.innerHTML = rows.join('') || '<p class="muted">No workflows.</p>';
   } catch (e) { el.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
 }
 
