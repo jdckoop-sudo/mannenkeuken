@@ -436,6 +436,7 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .ach-lines path { fill: none; stroke: color-mix(in srgb, var(--ach, var(--border-strong)) 35%, var(--border)); stroke-width: 4; stroke-linecap: round; }
 .ach-lines path.done { stroke: var(--ach, var(--gold)); }
 .ach-lines path.ach-wedge { fill: color-mix(in srgb, var(--ach) 9%, transparent); stroke: color-mix(in srgb, var(--ach) 30%, transparent); stroke-width: 1.5; stroke-dasharray: 4 10; }
+.ach-lines .ach-grid { fill: none; stroke: color-mix(in srgb, var(--ach) 22%, transparent); stroke-width: 1.5; stroke-dasharray: 2 9; }
 .ach-lines .ach-ring { fill: none; stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 3 12; opacity: .55; }
 .ach-branch { position: absolute; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
 .ach-branch h3 { margin: 0; font-family: var(--font-display); font-size: 17px; letter-spacing: .1em; text-transform: uppercase; color: var(--ach, var(--gold)); text-shadow: 0 1px 0 var(--bg); }

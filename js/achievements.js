@@ -90,8 +90,8 @@ const rows = [
   ['f5', 'fellowship', 4, 1, 'trophy', 'crimson', 'Never Misses a Night', 'Sign up for 100 events.', 'events', 100, 50, 300, ['f4']],
   ['f6', 'fellowship', 0, 0, 'party', 'guild', 'Full Party', 'Five players signed up for one event.', 'bigEvent', 5, 20, 0, [], 'guild'],
   ['f7', 'fellowship', 1, 0, 'party', 'guild', 'Raid Ready', 'Ten players signed up for one event.', 'bigEvent', 10, 40, 0, ['f6'], 'guild'],
-  ['f8', 'fellowship', 2, 0, 'tent', 'guild', 'Strength in Numbers', 'Five players have a character at level 40 or higher.', 'playersAt40', 5, 30, 0, ['f6'], 'guild'],
-  ['f9', 'fellowship', 3, 0, 'crown', 'guild', 'The Whole Kitchen', 'Ten players have a character at level 60.', 'playersAt60', 10, 100, 0, ['f7', 'f8'], 'guild'],
+  ['f8', 'fellowship', 2, 0, 'tent', 'guild', 'Strength in Numbers', 'Five players have a character at level 40 or higher.', 'playersAt40', 5, 30, 0, ['f7'], 'guild'],
+  ['f9', 'fellowship', 3, 0, 'crown', 'guild', 'The Whole Kitchen', 'Ten players have a character at level 60.', 'playersAt60', 10, 100, 0, ['f8'], 'guild'],
   ['f10', 'fellowship', 1, 2, 'tankard', 'guild', 'Guild Hall Regular', 'Hold 25 guild events.', 'guildEvents', 25, 30, 0, [], 'guild'],
 
   // ---- Legend --------------------------------------------------------------------------------------------------------------------
