@@ -984,6 +984,54 @@ select $q$Ding-bot: level ups and achievements in #dings$q$, $q$Discord$q$, 'che
   $q$After deploying the Edge Function ding-bot and setting DING_WEBHOOK_URL: select * from ding_status shows a run within 15 minutes (activated_at = first run, which posts nothing). Then let a character level up or earn an achievement: one message per player with an @mention, a link to Achievements with the new ones highlighted. A guild goal gives ONE @everyone message. ding_log lists what was posted.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ding-bot: level ups and achievements in #dings$q$);
 
+-- 2026-11-06: Watch over Ding Dinky. The function can crash before it writes anything (it did: "Module not found"), so the check is done
+-- here in the database: every 15 minutes, 7 minutes after the bot's own run, ding_watch() looks at ding_status. It is a problem when the
+-- last run ended with an error message (for example Discord refused a message) or when there has been no successful run for 35 minutes.
+-- Then ONE open card appears in Fixes (made by "Ding Dinky watch", kept up to date, not repeated every 15 minutes); when the bot is fine
+-- again the card is closed, unless a developer already picked it up (like the deploy check).
+create or replace function public.ding_watch() returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  st public.ding_status%rowtype; ref timestamptz; problem text := ''; hint text; open_id uuid;
+  who constant text := 'Ding Dinky watch';
+begin
+  select * into st from public.ding_status where id = 1;
+  ref := coalesce(st.last_run_at, (select min(d.start_time) from cron.job_run_details d join cron.job j on j.jobid = d.jobid where j.jobname = 'ding-bot'));
+  if ref is null then return; end if; -- the timer has not started yet
+  if st.message is not null then problem := 'The last run could not finish: ' || st.message; end if;
+  if now() - ref > interval '35 minutes' then
+    problem := case when problem = '' then '' else problem || E'\n\n' end
+      || case when st.last_run_at is null then 'The function has never finished a run (the timer started on ' else 'No successful run since ' end
+      || to_char(ref at time zone 'Europe/Amsterdam', 'DD-MM-YYYY HH24:MI') || case when st.last_run_at is null then ', Dutch time).' else ' (Dutch time).' end
+      || ' The timer starts one every 15 minutes.';
+  end if;
+
+  select id into open_id from public.dev_tickets where kind = 'fix' and created_by = who and status in ('open', 'doing') order by created_at desc limit 1;
+  if problem <> '' then
+    select left(content, 300) into hint from net._http_response where status_code >= 400 and created > now() - interval '1 hour' order by created desc limit 1;
+    problem := left(problem
+      || coalesce(E'\n\nLatest failed HTTP answer of a timer call (can also come from update-characters): ' || hint, '')
+      || E'\n\nLook at: Supabase → Edge Functions → ding-bot → Logs, and select * from ding_status;', 6000);
+    if open_id is null then
+      insert into public.dev_tickets (kind, title, area, body, urgency, created_by, updated_by)
+      values ('fix', 'Ding Dinky (the Discord bot) is not working', 'Discord', problem, 3, who, who);
+    else
+      update public.dev_tickets set body = problem, updated_by = who, updated_at = now() where id = open_id and body is distinct from problem;
+    end if;
+  elsif open_id is not null then
+    update public.dev_tickets set status = 'done', done_at = now(), updated_by = who, updated_at = now() where id = open_id and status = 'open';
+  end if;
+end $$;
+revoke all on function public.ding_watch() from public, anon, authenticated;
+
+select cron.unschedule(jobid) from cron.job where jobname = 'ding-watch';
+select cron.schedule('ding-watch', '11-59/15 * * * *', $job$ select public.ding_watch(); $job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky watch: a failed run becomes a card in Fixes$q$, $q$Discord$q$, 'check',
+  $q$Test (SQL Editor, in one go, leaves nothing): begin; insert into public.ding_status (id, last_run_at, message) values (1, now() - interval '2 hours', 'test') on conflict (id) do update set last_run_at = excluded.last_run_at, message = excluded.message; select public.ding_watch(); select title, status from public.dev_tickets where created_by = 'Ding Dinky watch'; rollback; Expected: one card in Fixes.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky watch: a failed run becomes a card in Fixes$q$);
+
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Achievements: player portrait and player page block$q$, $q$Achievements$q$, 'check',
   $q$Achievements: above the tiles is the portrait of the viewed player (picture from the game, or the class icon); a click opens his player page. Switch "Viewing": the portrait changes. Player page: the Achievements block shows Mannenkoker Level, points and his unlocked medals; a medal opens the tree with it highlighted.$q$, 'Claude'
