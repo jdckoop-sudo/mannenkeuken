@@ -42,7 +42,7 @@ const GLYPHS = {
 
 export const ACH_GLYPHS = Object.keys(GLYPHS);
 
-// Medal for an achievement: glyph name + tier (bronze, silver, gold, crimson, guild) + branch (journey, slayer, craft, treasury, fellowship, legend).
+// Medal for an achievement: glyph name + tier (bronze, silver, gold, crimson, guild) + branch (journey, slayer, craft, treasury, legend).
 // The branch gives the colour band and the glyph colour, the tier the metal rim around it.
 export function achIcon(glyph, tier = 'bronze', size = 60, branch = 'legend') {
   const g = GLYPHS[glyph] ?? GLYPHS.star;
@@ -63,6 +63,6 @@ export function achDefs() {
   const band = (name) => grad(`ach-b-${name}`, `var(--ach-${name})`, `color-mix(in srgb, var(--ach-${name}) 40%, var(--bg))`);
   return `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
     ${metal('bronze', '--copper', '--copper-dim')}${metal('silver', '--silver', '--silver-dim')}${metal('gold', '--gold-bright', '--gold-dim')}${metal('crimson', '--crimson-bright', '--crimson')}${metal('guild', '--gold', '--border-strong')}
-    ${['journey', 'slayer', 'craft', 'treasury', 'fellowship', 'legend'].map(band).join('')}
+    ${['journey', 'slayer', 'craft', 'treasury', 'legend'].map(band).join('')}
   </defs></svg>`;
 }

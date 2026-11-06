@@ -2,7 +2,7 @@
 // unlocked, what the developers changed). The look is in achievements.html and css/style.css; the icons are in js/achicons.js.
 //
 // How it works
-//  - Five branches (Journey, Slayer, Craftsman, Treasury, Fellowship) and a Legend on top. Like Minecraft: a node can only be earned once
+//  - Four branches (Journey, Slayer, Craftsman, Treasury) and a Legend on top. Like Minecraft: a node can only be earned once
 //    everything it requires is done ("available"); until then it is locked and its name is hidden.
 //  - Progress comes from data we already have: character levels and professions (table characters + Blizzard API), kills / quests /
 //    deaths / fish (Blizzard statistics), gold donated (gold_donations).
@@ -17,7 +17,6 @@ export const BRANCHES = [
   { key: 'slayer', name: 'Slayer', blurb: 'Kills, quests and the occasional trip back from the graveyard.', rows: 3 },
   { key: 'craft', name: 'Craftsman', blurb: 'Professions, skill points and fishing.', rows: 3 },
   { key: 'treasury', name: 'Treasury', blurb: 'Gold for the guild bank, from the first coin to the full vault.', rows: 3 },
-  { key: 'fellowship', name: 'Fellowship', blurb: 'A guild that grows and levels up together.', rows: 3 },
   { key: 'legend', name: 'Legend', blurb: 'The top of the tree.', rows: 1 },
 ];
 
@@ -26,8 +25,7 @@ export const METERS = {
   maxLevel: 'level (highest character)', totalLevel: 'player level (all characters together)', altBest: 'level (highest alt)', altTotal: 'alt levels together',
   bestSkill: 'skill (best profession)', totalSkill: 'skill points in total', profsAt75: 'professions at skill 75+', profsAt150: 'professions at skill 150+',
   profsAt225: 'professions at skill 225+', kills: 'kills', quests: 'quests completed', deaths: 'deaths', fish: 'fish caught', donated: 'gold donated',
-  guildDonated: 'gold donated by the guild', donors: 'different donors', guildPlayers: 'players in the guild', guildChars: 'characters in the guild',
-  playersAt20: 'players with a character at level 20+', playersAt40: 'players with a character at level 40+', playersAt60: 'players with a character at level 60',
+  guildDonated: 'gold donated by the guild', donors: 'different donors',
   requiredDone: 'achievements done',
 };
 
@@ -80,20 +78,9 @@ const rows = [
   ['d9', 'treasury', 0, 2, 'heart', 'guild', 'Everyone Chips In', 'Eight different players have donated gold.', 'donors', 8, 25, 0, [], 'guild'],
   ['d10', 'treasury', 1, 2, 'coins', 'guild', 'Gold Rush', 'The guild has donated 500 gold together.', 'guildDonated', 500, 35, 0, ['d9'], 'guild'],
 
-  // ---- Fellowship ----------------------------------------------------------------------------------------------------------------
-  ['f1', 'fellowship', 0, 1, 'party', 'guild', 'Roll Call', 'Five players are part of the guild.', 'guildPlayers', 5, 10, 0, [], 'guild'],
-  ['f2', 'fellowship', 1, 1, 'tankard', 'guild', 'Full House', 'Ten players are part of the guild.', 'guildPlayers', 10, 20, 0, ['f1'], 'guild'],
-  ['f3', 'fellowship', 2, 1, 'banner', 'guild', 'Crowded Kitchen', 'Fifteen players are part of the guild.', 'guildPlayers', 15, 40, 0, ['f2'], 'guild'],
-  ['f4', 'fellowship', 3, 1, 'crown', 'guild', 'Overflowing', 'Twenty players are part of the guild.', 'guildPlayers', 20, 60, 0, ['f3'], 'guild'],
-  ['f5', 'fellowship', 4, 1, 'trophy', 'guild', 'A Kitchen Full of Legends', 'Thirty players are part of the guild.', 'guildPlayers', 30, 100, 0, ['f4'], 'guild'],
-  ['f6', 'fellowship', 0, 0, 'party', 'guild', 'Fresh Recruits', 'Five players have a character at level 20 or higher.', 'playersAt20', 5, 15, 0, [], 'guild'],
-  ['f7', 'fellowship', 1, 0, 'tent', 'guild', 'Strength in Numbers', 'Five players have a character at level 40 or higher.', 'playersAt40', 5, 30, 0, ['f6'], 'guild'],
-  ['f8', 'fellowship', 2, 0, 'tankard', 'guild', 'Elite Kitchen', 'Five players have a character at level 60.', 'playersAt60', 5, 60, 0, ['f7'], 'guild'],
-  ['f9', 'fellowship', 3, 0, 'crown', 'guild', 'The Whole Kitchen', 'Ten players have a character at level 60.', 'playersAt60', 10, 100, 0, ['f8'], 'guild'],
-  ['f10', 'fellowship', 1, 2, 'tent', 'guild', 'Alt Army of the Guild', 'The guild has 25 characters together.', 'guildChars', 25, 30, 0, ['f1'], 'guild'],
 
   // ---- Legend --------------------------------------------------------------------------------------------------------------------
-  ['l1', 'legend', 2, 0, 'pot', 'crimson', 'Mannenkeuken Legend', 'Sixty Strong, Slayer, Artisan, Benefactor and a Crowded Kitchen: the whole kitchen, one player.', 'requiredDone', 5, 100, 1000, ['j6', 's4', 'c4', 'd4', 'f3']],
+  ['l1', 'legend', 2, 0, 'pot', 'crimson', 'Mannenkeuken Legend', 'Sixty Strong, Slayer, Artisan and Benefactor: the whole kitchen, one player.', 'requiredDone', 4, 100, 1000, ['j6', 's4', 'c4', 'd4']],
 ];
 
 export const ACHIEVEMENTS = rows.map(([id, branch, col, row, glyph, tier, title, desc, meter, target, points, hours, requires, scope]) => (
@@ -150,15 +137,9 @@ export function playerMeters(data, player) {
 
 // What the guild has reached together (for the guild goals).
 export function guildMeters(data, players) {
-  const perPlayer = players.map((p) => playerMeters(data, p));
   return {
     guildDonated: data.donations.reduce((a, d) => a + d.copper, 0) / GOLD,
     donors: new Set(data.donations.map((d) => d.player_name)).size,
-    guildPlayers: players.length,
-    guildChars: data.characters.filter((c) => c.status !== 'Gestopt').length,
-    playersAt20: perPlayer.filter((m) => m.maxLevel >= 20).length,
-    playersAt40: perPlayer.filter((m) => m.maxLevel >= 40).length,
-    playersAt60: perPlayer.filter((m) => m.maxLevel >= 60).length,
   };
 }
 

@@ -398,9 +398,9 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 @media (max-width: 900px) { .player-char { grid-template-columns: minmax(0, 1fr); } }
 
 /* ---- Achievement branches: one colour each (medal band, glyph, lines, sector, labels) ---- */
-:root { --ach-journey: #6fb7ff; --ach-slayer: #e5575d; --ach-craft: #4fd8cf; --ach-treasury: #f0c14b; --ach-fellowship: #c58bf2; --ach-legend: var(--gold-bright); }
+:root { --ach-journey: #6fb7ff; --ach-slayer: #e5575d; --ach-craft: #4fd8cf; --ach-treasury: #f0c14b; --ach-legend: var(--gold-bright); }
 .b-journey { --ach: var(--ach-journey); } .b-slayer { --ach: var(--ach-slayer); } .b-craft { --ach: var(--ach-craft); }
-.b-treasury { --ach: var(--ach-treasury); } .b-fellowship { --ach: var(--ach-fellowship); } .b-legend { --ach: var(--ach-legend); }
+.b-treasury { --ach: var(--ach-treasury); } .b-legend { --ach: var(--ach-legend); }
 
 /* ---- Achievements: medals (js/achicons.js) and the tree (js/achievement-tree.js) ---- */
 .ach-icon { display: block; flex: none; overflow: visible; }
@@ -477,8 +477,7 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .ach-tree[data-focus="journey"] :is(.ach-node, .ach-branch):not(.b-journey, .b-legend), .ach-tree[data-focus="journey"] .ach-lines path:not(.b-journey),
 .ach-tree[data-focus="slayer"] :is(.ach-node, .ach-branch):not(.b-slayer, .b-legend), .ach-tree[data-focus="slayer"] .ach-lines path:not(.b-slayer),
 .ach-tree[data-focus="craft"] :is(.ach-node, .ach-branch):not(.b-craft, .b-legend), .ach-tree[data-focus="craft"] .ach-lines path:not(.b-craft),
-.ach-tree[data-focus="treasury"] :is(.ach-node, .ach-branch):not(.b-treasury, .b-legend), .ach-tree[data-focus="treasury"] .ach-lines path:not(.b-treasury),
-.ach-tree[data-focus="fellowship"] :is(.ach-node, .ach-branch):not(.b-fellowship, .b-legend), .ach-tree[data-focus="fellowship"] .ach-lines path:not(.b-fellowship) { opacity: .3; }
+.ach-tree[data-focus="treasury"] :is(.ach-node, .ach-branch):not(.b-treasury, .b-legend), .ach-tree[data-focus="treasury"] .ach-lines path:not(.b-treasury) { opacity: .3; }
 @media (prefers-reduced-motion: reduce) { .ach-node, .ach-node .ach-icon, .ach-node .ach-shine, .ach-node.pop, .ach-lines path, .ach-branch { animation: none !important; transition: none !important; } }
 
 .ach-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, var(--bg) 82%, transparent); }
