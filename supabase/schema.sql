@@ -895,7 +895,7 @@ create policy "write devs" on public.achievement_overrides for all to authentica
 
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Achievement tree: unlock flow and progress$q$, $q$Achievements$q$, 'check',
-  $q$After running schema.sql: open Achievements. Everything behind an unfinished achievement shows ???. Progress bars match the Roster (levels, skill), Bank (donations) and Events (sign-ups). Switch "Viewing" to another player: points and unlocks change. Check kills, quests, deaths and fish against From the game numbers.$q$, 'Claude'
+  $q$After running schema.sql: open Achievements. Everything behind an unfinished achievement shows ???. Progress bars match the Roster (levels, skill), Bank (donations). Switch "Viewing" to another player: points and unlocks change. Check kills, quests, deaths and fish against From the game numbers.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Achievement tree: unlock flow and progress$q$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)

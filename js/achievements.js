@@ -5,7 +5,7 @@
 //  - Five branches (Journey, Slayer, Craftsman, Treasury, Fellowship) and a Legend on top. Like Minecraft: a node can only be earned once
 //    everything it requires is done ("available"); until then it is locked and its name is hidden.
 //  - Progress comes from data we already have: character levels and professions (table characters + Blizzard API), kills / quests /
-//    deaths / fish (Blizzard statistics), gold donated (gold_donations), events joined (signups), the guild bank (bank).
+//    deaths / fish (Blizzard statistics), gold donated (gold_donations), the guild bank (bank).
 //  - "player" achievements are earned per player (all his characters together), "guild" goals are shared: everybody sees the same.
 //  - Developers can change every achievement in the table achievement_overrides: switch it off, force it unlocked or locked, enter a
 //    value, or reset it (progress counts from now on). See the dev panel in achievements.html and docs/instructies.md.
@@ -17,7 +17,7 @@ export const BRANCHES = [
   { key: 'slayer', name: 'Slayer', blurb: 'Kills, quests and the occasional trip back from the graveyard.', rows: 3 },
   { key: 'craft', name: 'Craftsman', blurb: 'Professions, skill points and fishing.', rows: 3 },
   { key: 'treasury', name: 'Treasury', blurb: 'Gold for the guild bank, from the first coin to the full vault.', rows: 3 },
-  { key: 'fellowship', name: 'Fellowship', blurb: 'Play together: events, full parties and a guild that shows up.', rows: 3 },
+  { key: 'fellowship', name: 'Fellowship', blurb: 'A guild that grows and levels up together.', rows: 3 },
   { key: 'legend', name: 'Legend', blurb: 'The top of the tree.', rows: 1 },
 ];
 
@@ -26,9 +26,8 @@ export const METERS = {
   maxLevel: 'level (highest character)', totalLevel: 'player level (all characters together)', altBest: 'level (highest alt)', altTotal: 'alt levels together',
   bestSkill: 'skill (best profession)', totalSkill: 'skill points in total', profsAt75: 'professions at skill 75+', profsAt150: 'professions at skill 150+',
   profsAt225: 'professions at skill 225+', kills: 'kills', quests: 'quests completed', deaths: 'deaths', fish: 'fish caught', donated: 'gold donated',
-  events: 'events joined',
-  guildDonated: 'gold donated by the guild', donors: 'different donors', bankBought: 'guild bank bought', bigEvent: 'players signed up for one event',
-  guildEvents: 'events held', playersAt40: 'players with a character at level 40+', playersAt60: 'players with a character at level 60',
+  guildDonated: 'gold donated by the guild', donors: 'different donors', bankBought: 'guild bank bought', guildPlayers: 'players in the guild', guildChars: 'characters in the guild',
+  playersAt20: 'players with a character at level 20+', playersAt40: 'players with a character at level 40+', playersAt60: 'players with a character at level 60',
   requiredDone: 'achievements done',
 };
 
@@ -83,19 +82,19 @@ const rows = [
   ['d10', 'treasury', 1, 2, 'coins', 'guild', 'Gold Rush', 'The guild has donated 500 gold together.', 'guildDonated', 500, 35, 0, ['d9'], 'guild'],
 
   // ---- Fellowship ----------------------------------------------------------------------------------------------------------------
-  ['f1', 'fellowship', 0, 1, 'calendar', 'bronze', 'Join the Party', 'Sign up for your first event.', 'events', 1, 5, 3, []],
-  ['f2', 'fellowship', 1, 1, 'calendar', 'bronze', 'Regular', 'Sign up for 5 events.', 'events', 5, 10, 15, ['f1']],
-  ['f3', 'fellowship', 2, 1, 'tankard', 'silver', 'Dedicated', 'Sign up for 15 events.', 'events', 15, 15, 45, ['f2']],
-  ['f4', 'fellowship', 3, 1, 'banner', 'gold', 'Pillar of the Guild', 'Sign up for 40 events.', 'events', 40, 30, 120, ['f3']],
-  ['f5', 'fellowship', 4, 1, 'trophy', 'crimson', 'Never Misses a Night', 'Sign up for 100 events.', 'events', 100, 50, 300, ['f4']],
-  ['f6', 'fellowship', 0, 0, 'party', 'guild', 'Full Party', 'Five players signed up for one event.', 'bigEvent', 5, 20, 0, [], 'guild'],
-  ['f7', 'fellowship', 1, 0, 'party', 'guild', 'Raid Ready', 'Ten players signed up for one event.', 'bigEvent', 10, 40, 0, ['f6'], 'guild'],
-  ['f8', 'fellowship', 2, 0, 'tent', 'guild', 'Strength in Numbers', 'Five players have a character at level 40 or higher.', 'playersAt40', 5, 30, 0, ['f7'], 'guild'],
+  ['f1', 'fellowship', 0, 1, 'party', 'guild', 'Roll Call', 'Five players are part of the guild.', 'guildPlayers', 5, 10, 0, [], 'guild'],
+  ['f2', 'fellowship', 1, 1, 'tankard', 'guild', 'Full House', 'Ten players are part of the guild.', 'guildPlayers', 10, 20, 0, ['f1'], 'guild'],
+  ['f3', 'fellowship', 2, 1, 'banner', 'guild', 'Crowded Kitchen', 'Fifteen players are part of the guild.', 'guildPlayers', 15, 40, 0, ['f2'], 'guild'],
+  ['f4', 'fellowship', 3, 1, 'crown', 'guild', 'Overflowing', 'Twenty players are part of the guild.', 'guildPlayers', 20, 60, 0, ['f3'], 'guild'],
+  ['f5', 'fellowship', 4, 1, 'trophy', 'guild', 'A Kitchen Full of Legends', 'Thirty players are part of the guild.', 'guildPlayers', 30, 100, 0, ['f4'], 'guild'],
+  ['f6', 'fellowship', 0, 0, 'party', 'guild', 'Fresh Recruits', 'Five players have a character at level 20 or higher.', 'playersAt20', 5, 15, 0, [], 'guild'],
+  ['f7', 'fellowship', 1, 0, 'tent', 'guild', 'Strength in Numbers', 'Five players have a character at level 40 or higher.', 'playersAt40', 5, 30, 0, ['f6'], 'guild'],
+  ['f8', 'fellowship', 2, 0, 'tankard', 'guild', 'Elite Kitchen', 'Five players have a character at level 60.', 'playersAt60', 5, 60, 0, ['f7'], 'guild'],
   ['f9', 'fellowship', 3, 0, 'crown', 'guild', 'The Whole Kitchen', 'Ten players have a character at level 60.', 'playersAt60', 10, 100, 0, ['f8'], 'guild'],
-  ['f10', 'fellowship', 1, 2, 'tankard', 'guild', 'Guild Hall Regular', 'Hold 25 guild events.', 'guildEvents', 25, 30, 0, [], 'guild'],
+  ['f10', 'fellowship', 1, 2, 'tent', 'guild', 'Alt Army of the Guild', 'The guild has 25 characters together.', 'guildChars', 25, 30, 0, ['f1'], 'guild'],
 
   // ---- Legend --------------------------------------------------------------------------------------------------------------------
-  ['l1', 'legend', 2, 0, 'pot', 'crimson', 'Mannenkeuken Legend', 'Sixty Strong, Slayer, Artisan, Benefactor and Pillar of the Guild: the whole kitchen, one player.', 'requiredDone', 5, 100, 1000, ['j6', 's4', 'c4', 'd4', 'f4']],
+  ['l1', 'legend', 2, 0, 'pot', 'crimson', 'Mannenkeuken Legend', 'Sixty Strong, Slayer, Artisan, Benefactor and a Crowded Kitchen: the whole kitchen, one player.', 'requiredDone', 5, 100, 1000, ['j6', 's4', 'c4', 'd4', 'f3']],
 ];
 
 export const ACHIEVEMENTS = rows.map(([id, branch, col, row, glyph, tier, title, desc, meter, target, points, hours, requires, scope]) => (
@@ -119,14 +118,12 @@ export async function loadAchievementData() {
     if (!supabase) return [];
     try { let q = supabase.from(table).select(cols); if (filter) q = filter(q); return (await q).data ?? []; } catch { return []; }
   };
-  const [donations, signups, events, bank, overrides] = await Promise.all([
+  const [donations, bank, overrides] = await Promise.all([
     read('gold_donations', 'player_name,copper'),
-    read('signups', 'event_id,author_name,answer', (q) => q.eq('answer', 'yes')),
-    read('events', 'id,starts_at'),
     read('bank', 'guild_bank_bought'),
     read('achievement_overrides', '*'),
   ]);
-  return { characters, blizzard, donations, signups, events, bank: bank[0] ?? null, overrides };
+  return { characters, blizzard, donations, bank: bank[0] ?? null, overrides };
 }
 
 // What a player has reached, per meter.
@@ -150,22 +147,19 @@ export function playerMeters(data, player) {
     profsAt225: primary.filter((p) => p.skill >= 225).length,
     kills: game.kills, quests: game.quests, deaths: game.deaths, fish: game.fish,
     donated: sum(data.donations.filter((d) => d.player_name === player).map((d) => d.copper)) / GOLD,
-    events: data.signups.filter((s) => s.author_name === player).length,
   };
 }
 
 // What the guild has reached together (for the guild goals).
 export function guildMeters(data, players) {
   const perPlayer = players.map((p) => playerMeters(data, p));
-  const perEvent = new Map();
-  for (const s of data.signups) perEvent.set(s.event_id, (perEvent.get(s.event_id) ?? 0) + 1);
-  const now = Date.now();
   return {
     guildDonated: data.donations.reduce((a, d) => a + d.copper, 0) / GOLD,
     donors: new Set(data.donations.map((d) => d.player_name)).size,
     bankBought: data.bank?.guild_bank_bought ? 1 : 0,
-    bigEvent: Math.max(0, ...perEvent.values()),
-    guildEvents: data.events.filter((e) => new Date(e.starts_at).getTime() < now).length,
+    guildPlayers: players.length,
+    guildChars: data.characters.filter((c) => c.status !== 'Gestopt').length,
+    playersAt20: perPlayer.filter((m) => m.maxLevel >= 20).length,
     playersAt40: perPlayer.filter((m) => m.maxLevel >= 40).length,
     playersAt60: perPlayer.filter((m) => m.maxLevel >= 60).length,
   };

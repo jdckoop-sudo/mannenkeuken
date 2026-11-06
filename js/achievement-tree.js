@@ -22,15 +22,18 @@ export async function initTree({ user, tree, summary, who, modal }) {
 
   // ---- layout: a star. The Legend sits in the middle, the five branches run outwards like rays (col = distance from the middle, row = sideways).
   const ANGLE = { journey: -90, slayer: -18, craft: 54, treasury: 126, fellowship: 198 }; // degrees, clockwise from the right; Journey points up
-  const R0 = 300; const STEP = 136; const LAT = 150; const HALF = (34 * Math.PI) / 180; // half the opening of a sector (a branch gets 72 degrees, minus a gap)
+  const R0 = 330; const STEP = 134; const LAT = 125;
   const rad = (key) => (ANGLE[key] * Math.PI) / 180;
   // Lattice point: col = distance along the ray, row = sideways (1 = the middle lane). Columns and rows may be fractions (used by the connectors).
   const at = (key, col, row) => { const t = rad(key); const r = R0 + col * STEP; const side = (row - 1) * LAT; return [Math.cos(t) * r - Math.sin(t) * side, Math.sin(t) * r + Math.cos(t) * side]; };
   const pos = (a) => (a.branch === 'legend' ? [0, 0] : at(a.branch, a.col, a.row));
   const maxCol = (key) => Math.max(...ACHIEVEMENTS.filter((a) => a.branch === key).map((a) => a.col));
-  const labelPos = (key) => { const t = rad(key); return [Math.cos(t) * (R0 - 130), Math.sin(t) * (R0 - 130)]; };
+  const labelPos = (key) => { const t = rad(key); const r = R0 * 0.52; const o = 64; return [Math.cos(t) * r - Math.sin(t) * o, Math.sin(t) * r + Math.cos(t) * o]; }; // beside the trunk, not on it
   const reach = Math.max(...ACHIEVEMENTS.map((a) => Math.hypot(...pos(a)))) + 110;
 
+  const focusBranch = (e) => { const n = e.target.closest?.('.ach-node'); const b = n && [...n.classList].find((c) => c.startsWith('b-') && c !== 'b-legend'); if (b) tree.dataset.focus = b.slice(2); else tree.removeAttribute('data-focus'); };
+  tree.addEventListener('pointerover', focusBranch); tree.addEventListener('pointerleave', () => tree.removeAttribute('data-focus'));
+  let firstRender = true;
   function render() {
     const states = all.get(view);
     const sum = summarize(states);
@@ -40,13 +43,8 @@ export async function initTree({ user, tree, summary, who, modal }) {
       <div class="box stat"><span class="muted">Guild goals reached</span><strong>${sum.guildDone} / ${sum.guildTotal}</strong></div>
       <div class="box stat"><span class="muted">Best next target</span><strong class="stat-text">${esc(nextBig(states))}</strong></div>`;
 
-    const arc = (r, t0, t1) => `A${r} ${r} 0 0 1 ${Math.cos(t1) * r} ${Math.sin(t1) * r}`;
-    const wedges = BRANCHES.filter((b) => b.key !== 'legend').map((b) => {
-      const t = rad(b.key); const ri = R0 - 100; const ro = R0 + maxCol(b.key) * STEP + 100; const p = (r, ang) => `${Math.cos(ang) * r} ${Math.sin(ang) * r}`;
-      const grid = Array.from({ length: maxCol(b.key) + 1 }, (_, c) => { const r = R0 + c * STEP - STEP / 2; return c ? `<path class="ach-grid" d="M${p(r, t - HALF)} ${arc(r, t - HALF, t + HALF)}"/>` : ''; }).join('');
-      return `<path class="ach-wedge b-${b.key}" d="M${p(ri, t - HALF)} L${p(ro, t - HALF)} ${arc(ro, t - HALF, t + HALF)} L${p(ri, t + HALF)} ${arc(ri, t + HALF, t - HALF).replace(' 0 0 1 ', ' 0 0 0 ')} Z"/><g class="b-${b.key}">${grid}</g>`;
-    }).join('');
-    const rings = `<circle class="ach-ring" cx="0" cy="0" r="${R0 - 100}"/>`;
+    const trunks = BRANCHES.filter((b) => b.key !== 'legend').map((b) => { const first = ACHIEVEMENTS.find((x) => x.branch === b.key && x.col === 0 && x.row === 1); const lit = states.get(first.id).done; const [x, y] = pos(first);
+      return `<path class="b-${b.key} trunk${lit ? ' done' : ''}" d="M0 0 L${x} ${y}"/>`; }).join('');
     const lines = [];
     for (const a of ACHIEVEMENTS) {
       for (const r of a.requires) {
@@ -57,8 +55,8 @@ export async function initTree({ user, tree, summary, who, modal }) {
       }
     }
     const labels = BRANCHES.filter((b) => b.key !== 'legend').map((b) => {
-      const mine = ACHIEVEMENTS.filter((a) => a.branch === b.key && !states.get(a.id).disabled); const d = mine.filter((a) => states.get(a.id).done).length; const [x, y] = labelPos(b.key);
-      return `<div class="ach-branch b-${b.key}" style="left:${x}px;top:${y}px"><h3>${esc(b.name)}</h3><span>${d} / ${mine.length}</span></div>`;
+      const mine = ACHIEVEMENTS.filter((a) => a.branch === b.key && !states.get(a.id).disabled); const d = mine.filter((a) => states.get(a.id).done).length; const pts = mine.filter((a) => states.get(a.id).done && a.scope !== 'guild').reduce((n, a) => n + a.points, 0); const [x, y] = labelPos(b.key);
+      return `<div class="ach-branch b-${b.key}" style="left:${x}px;top:${y}px"><h3>${esc(b.name)}</h3><strong>${pts}</strong><span>${d} / ${mine.length}</span></div>`;
     }).join('');
     const nodes = ACHIEVEMENTS.map((a) => {
       const s = states.get(a.id); const [x, y] = pos(a); const big = a.branch === 'legend'; const size = big ? 92 : NODE;
@@ -66,11 +64,12 @@ export async function initTree({ user, tree, summary, who, modal }) {
       const cls = s.disabled ? 'off' : s.done ? 'done' : s.available ? 'avail' : 'locked';
       const name = known ? a.title : '???';
       const tip = s.disabled ? `${a.title}: switched off by the developers` : known ? `${a.title}: ${a.desc}` : `Locked: complete ${a.requires.filter((r) => !states.get(r).done).map((r) => states.get(r).available || states.get(r).done ? BY_ID.get(r).title : '???').join(' and ')} first`;
-      return `<button type="button" class="ach-node b-${a.branch} ${cls} scope-${a.scope}" data-id="${a.id}" style="left:${x - NODE_W / 2}px;top:${y - size / 2 - 4}px;width:${NODE_W}px" title="${esc(tip)}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
+      return `<button type="button" class="ach-node b-${a.branch} ${cls} scope-${a.scope}${firstRender ? ' pop' : ''}" data-id="${a.id}" style="left:${x - NODE_W / 2}px;top:${y - size / 2 - 4}px;width:${NODE_W}px${firstRender ? `;--d:${Math.round(Math.hypot(x, y) * 0.55)}ms` : ''}" title="${esc(tip)}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
         ${achIcon(a.glyph, a.tier, size, a.branch)}<span class="ach-name">${esc(name)}</span>
-        ${s.available && !s.done ? `<span class="ach-mini" aria-hidden="true"><i style="width:${Math.round(s.pct * 100)}%"></i></span>` : (a.scope === 'guild' ? '<span class="ach-tag">Guild goal</span>' : '')}</button>`;
+        ${s.available && !s.done && a.meter !== 'requiredDone' ? `<span class="ach-count">${fmtNum(Math.min(s.value, s.target))}/${fmtNum(s.target)}</span>` : (a.scope === 'guild' && !s.done ? '<span class="ach-tag">Guild goal</span>' : '')}</button>`;
     }).join('');
-    world.innerHTML = `<svg class="ach-lines" width="1" height="1" aria-hidden="true">${wedges}${rings}${lines.join('')}</svg>${labels}${nodes}`;
+    world.innerHTML = `<svg class="ach-lines" width="1" height="1" aria-hidden="true">${trunks}${lines.join('')}</svg>${labels}${nodes}`;
+    firstRender = false;
     world.querySelectorAll('.ach-node').forEach((n) => n.addEventListener('click', () => { if (!dragged) openDetail(n.dataset.id); }));
     if (!modal.hidden && modal.dataset.id) openDetail(modal.dataset.id, true);
   }

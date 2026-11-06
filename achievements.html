@@ -16,7 +16,7 @@
 <main>
   <div>
     <h1>Achievements</h1>
-    <p class="muted" id="intro">Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish), your donations and the events you join.</p>
+    <p class="muted" id="intro">Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish).</p>
   </div>
   <div class="ach-bar">
     <div class="ach-seg" role="group" aria-label="View"><button type="button" id="tab-tree" aria-pressed="true">Achievement tree</button><button type="button" id="tab-records" aria-pressed="false">Records</button></div>
@@ -63,7 +63,7 @@ const user = await getUser();
 const showTab = (tree) => {
   document.getElementById('tree-view').hidden = !tree; document.getElementById('who-wrap').hidden = !tree; document.getElementById('records-view').hidden = tree;
   document.getElementById('tab-tree').setAttribute('aria-pressed', String(tree)); document.getElementById('tab-records').setAttribute('aria-pressed', String(!tree));
-  document.getElementById('intro').textContent = tree ? 'Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish), your donations and the events you join.'
+  document.getElementById('intro').textContent = tree ? 'Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish).'
     : 'Guild records: highest characters, players (all characters together) and professions. Characters with the status Quit don\'t count.';
 };
 document.getElementById('tab-tree').onclick = () => showTab(true);
