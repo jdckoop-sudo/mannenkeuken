@@ -5,21 +5,21 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 
 - **Live site:** https://jdckoop-sudo.github.io/mannenkeuken/
 - **Hosting:** GitHub Pages (branch `main`, map `/`)
-- **Data:** Google Sheet (roster + beroepen) en Supabase (trade market, tips, events)
+- **Data:** Supabase (characters, trade market, tips, events) en de Blizzard-API. De Google Sheet wordt uitgefaseerd (zie `docs/instructies.md`)
 - **Login:** "Choose your player" + gedeelde guildcode (anonieme Supabase-login; `members` koppelt browser ↔ speler, `join_guild()` checkt de code). Geen Discord-login meer.
 
 ## Pagina's
 
 | Pagina | Bestand | Data | Status |
 |---|---|---|---|
-| Home | `index.html` | Sheet + Supabase (+ `gold_donations` voor de topdonor) | basis klaar |
-| Roster | `roster.html` | Google Sheet (tab Members) met de Blizzard-data waar die er is; waarschuwing boven de tabel dat characterinformatie pas vanaf level 10 automatisch wordt bijgewerkt | klaar |
-| Professions | `professions.html` | Google Sheet | klaar |
+| Home | `index.html` | Supabase (+ `gold_donations` voor de topdonor) | basis klaar |
+| Roster | `roster.html` | Supabase `characters` met de Blizzard-data waar die er is; waarschuwing boven de tabel dat characterinformatie pas vanaf level 10 automatisch wordt bijgewerkt | klaar |
+| Professions | `professions.html` | Supabase `characters` | klaar |
 | Trade Market | `market.html` | Supabase `listings`; stapelgrootte per item uit `data/items.json` (niet stapelbaar = aantal 1); plaatsen kan alleen met een item uit de zoeklijst (verhandelbare items uit `data/tradeable-items.json`) | klaar |
 | Raids & Events | `events.html` | Supabase `events` (rollen óf `players_needed` = gewoon spelers; `pinged` = getagde spelers, zien het op Home; `quest_id` = gekozen quest, `dungeon` = gekozen dungeon/raid), `signups`; questzoeker uit `data/quests.json`, dungeonzoeker uit `js/dungeons.js` (met de hand bijhouden) | klaar |
 | Guild Bank | `bank.html` | Supabase `bank_items` (`location` opie/guild, `status` sent/in_stock), `bank` (goud) – Opie Bank-voorraad (bijgehouden door Jelle, leden melden wat ze opsturen), goud-donaties per speler in `gold_donations` (Top donors vanaf de launch) + guildbank (open na aankoop). Activiteit (sign-ups, trades, deposits, tips, addons) op spelerpagina's telt vanaf de launch (`LAUNCH` in `js/releases.js`) | klaar |
-| Player / Character | `player.html?name=…`, `character.html?name=…` | Sheet + Supabase `profiles`, `alts`, `players`, `blizzard_characters` (Blizzard API) | klaar |
-| Achievements | `achievements.html` | Sheet + Supabase | klaar |
+| Player / Character | `player.html?name=…`, `character.html?name=…` | Supabase `characters`, `players`, `blizzard_characters` (Blizzard API) | klaar |
+| Achievements | `achievements.html` | Supabase | klaar |
 | My profile | `profile.html`, `js/my-characters.js` | Supabase `characters` | klaar |
 | Addons & Settings | `setup.html` | Supabase `addons` + `tips`, macros/settings in `js/guides.js` | klaar |
 
@@ -31,7 +31,7 @@ js/classicons.js     onze eigen classicons (SVG, geen Blizzard-afbeeldingen); st
 js/config.js         publieke instellingen (Supabase URL + anon key, sheet-id)
 js/supabase.js       verbinding, inloggen met speler + guildcode, `mine()` (is dit van mijn speler?)
 js/layout.js         menu bovenaan (nieuwe pagina? voeg hem hier toe)
-js/sheet.js          leest de Google Sheet
+js/sheet.js          leest de characters (tabel, met de sheet als terugval) en de Blizzard-data
 supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supabase)
 ```
 
@@ -53,7 +53,7 @@ supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supaba
 
 ## Instellingen
 
-- Google Sheet gedeeld als *Iedereen met de link kan bekijken* (nodig voor Roster/Professions). ✔
+- Google Sheet gedeeld als *Iedereen met de link kan bekijken* (alleen nog nodig als terugval). ✔
 - Supabase-project `mannenkeuken` (regio Europa), `supabase/schema.sql` uitgevoerd. ✔
 - Supabase → Authentication → URL Configuration: Site URL + redirect = de live site. ✔
 - Supabase Auth: *anonymous sign-ins* aan. Guildcode alleen als hash in `private.settings` (wijzigen: zie `supabase/schema.sql`). De oude Discord-app/provider wordt niet meer gebruikt.
