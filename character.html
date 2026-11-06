@@ -30,7 +30,6 @@
     <section class="box" style="flex: 1 1 340px">
       <h2>Details</h2>
       <div class="stat-list" id="details"></div>
-      <p class="muted" id="where" style="font-size:13px;margin:0"></p>
     </section>
   </div>
   <section class="box" id="blizzard" hidden>
@@ -87,7 +86,6 @@ if (!c) {
     document.getElementById('bz-note').textContent = `Read from the Blizzard API, last checked ${when(bz.fetched) ?? 'recently'}. It updates after the player logs out.`;
     document.getElementById('blizzard').hidden = false;
   }
-  document.getElementById('where').textContent = c.inSheet ? 'In the guild list.' : 'Added on My profile – not in the guild list yet (a developer adds it).';
 }
 </script>
 </body>

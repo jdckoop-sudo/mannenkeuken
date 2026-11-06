@@ -20,7 +20,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 | Guild Bank | `bank.html` | Supabase `bank_items` (`location` opie/guild, `status` sent/in_stock), `bank` (goud) – Opie Bank-voorraad (bijgehouden door Jelle, leden melden wat ze opsturen), goud-donaties per speler in `gold_donations` (Top donors vanaf de launch) + guildbank (open na aankoop). Activiteit (sign-ups, trades, deposits, tips, addons) op spelerpagina's telt vanaf de launch (`LAUNCH` in `js/releases.js`) | klaar |
 | Player / Character | `player.html?name=…`, `character.html?name=…` | Sheet + Supabase `profiles`, `alts`, `players`, `blizzard_characters` (Blizzard API) | klaar |
 | Achievements | `achievements.html` | Sheet + Supabase | klaar |
-| My profile | `profile.html` | Supabase `profiles`, `alts` (main automatisch uit de sheet) | klaar |
+| My profile | `profile.html`, `js/my-characters.js` | Supabase `characters` | klaar |
 | Addons & Settings | `setup.html` | Supabase `addons` + `tips`, macros/settings in `js/guides.js` | klaar |
 
 ## Mappen

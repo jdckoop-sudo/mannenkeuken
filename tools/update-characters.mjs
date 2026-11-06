@@ -1,6 +1,6 @@
 // Reads character data (level, race, class, professions, last login, game statistics) from the Blizzard (Battle.net) API
 // for every character of the guild and writes data/blizzard-characters.json.
-// Which characters: the table characters plus the mains and alts on My profile (Supabase).
+// Which characters: the table characters (Supabase).
 // Settings that change per game version (region, namespace, realm, name format) live in data/blizzard-config.json.
 // Runs in GitHub Actions (see .github/workflows/update-characters.yml) or by hand. Node 20+, no dependencies.
 //
@@ -49,19 +49,14 @@ async function guildCharacters() {
   const found = new Map(); // lowercase name -> { name, player }
   const add = (name, player) => { const n = String(name ?? '').trim(); if (n && !found.has(norm(n))) found.set(norm(n), { name: n, player: player || null }); };
 
-  // Mains and alts saved on the dashboard (public read with the anon key, like the site does)
+  // Public read with the anon key, like the site does
   try {
     const url = publicSetting('js/config.js', 'SUPABASE_URL');
     const key = publicSetting('js/config.js', 'SUPABASE_ANON_KEY');
     const main = await fetch(`${url}/rest/v1/characters?select=name,player_name&status=neq.Gestopt`, { headers: { apikey: key } });
     if (main.ok) for (const x of await main.json()) add(x.name, x.player_name);
     console.log(`Table: ${found.size} characters`);
-    for (const [table, withPlayer] of [['profiles', true], ['alts', false]]) {
-      const r = await fetch(`${url}/rest/v1/${table}?select=character_name${withPlayer ? ',player_name' : ''}`, { headers: { apikey: key } });
-      if (r.ok) for (const x of await r.json()) add(x.character_name, x.player_name);
-    }
-    console.log(`With My profile: ${found.size} characters`);
-  } catch (e) { console.warn(`Could not read the dashboard (${e.message}); continuing without it.`); }
+  } catch (e) { console.warn(`Could not read the table characters (${e.message}).`); }
   return [...found.values()];
 }
 

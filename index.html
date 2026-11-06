@@ -100,7 +100,7 @@
 <script type="module">
 import { renderHeader, openPicker } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
-import { supabase, getProfile, mine } from './js/supabase.js?v=__V__';
+import { supabase, getMyCharacters, mine } from './js/supabase.js?v=__V__';
 import { upcomingReleases, releaseWhen, LAUNCH } from './js/releases.js?v=__V__';
 import { goldBar, goldHtml } from './js/gold.js?v=__V__';
 import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, playerForUser, playerUrl } from './js/players.js?v=__V__';
@@ -113,7 +113,7 @@ import { professionLabel } from './js/proficons.js?v=__V__';
 
 const user = await renderHeader();
 const membersPromise = loadMembers().catch(() => []);
-const charactersPromise = loadCharacters().catch(() => ({ characters: [], players: [], profiles: [] }));
+const charactersPromise = loadCharacters().catch(() => ({ characters: [], players: [] }));
 document.getElementById(user ? 'for-member' : 'for-new').hidden = false;
 document.getElementById('start-pick').addEventListener('click', openPicker);
 if (user) document.getElementById('hello').textContent = `Welcome back, ${user.player ?? 'adventurer'}`;
@@ -172,8 +172,9 @@ document.getElementById('stat-level').textContent = levels.length ? Math.round(l
 async function drawMe() {
   const box = document.getElementById('me');
   if (!supabase || !user) { box.innerHTML = '<p class="muted">Choose your player (top right) to see your character here.</p>'; return; }
-  const profile = await getProfile(user);
-  const { data: alts } = await supabase.from('alts').select('*').in('user_id', [...user.ids]).order('created_at');
+  const myList = await getMyCharacters(user);
+  const profile = myList.find((c) => c.status === 'Main') ?? (myList.length === 1 ? myList[0] : null);
+  const alts = myList.filter((c) => c !== profile);
   if (!profile?.character_name) {
     box.innerHTML = '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px"><p class="muted">You have not set your main character yet.</p><a class="btn" href="profile.html">Set up my profile</a></div>';
     return;
@@ -195,7 +196,7 @@ async function drawMe() {
       : '<span class="muted" style="font-size:14px">Not in the guild list yet – ask Jelle or Justin to add this character to see level and professions.</span>'}
     </div>`;
   };
-  box.innerHTML = card(profile, 'Main') + (alts ?? []).filter((a) => a.character_name).map((a) => card(a, 'Alt')).join('')
+  box.innerHTML = card(profile, 'Main') + alts.map((a) => card(a, 'Alt')).join('')
     + `<span style="font-size:14px"><a href="profile.html">Edit my profile</a>${profile.player_name ? ` · <a href="${playerUrl(profile.player_name)}">My player page & stats</a>` : ''}</span>`;
   refreshTooltips();
 }
@@ -213,7 +214,7 @@ async function drawForMe() {
   if (!supabase || !user) return;
   const { characters } = await charactersPromise;
   const me = playerForUser(user);
-  const myChars = characters.filter((c) => c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)));
+  const myChars = characters.filter((c) => c.status !== 'Gestopt' && me && c.player === me);
   const crafts = myChars.flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill ?? 0 })));
   const { data } = await supabase.from('listings').select('*').eq('status', 'open').order('created_at', { ascending: false });
   const open = (data ?? []).filter((l) => !mine(user, l.user_id));

@@ -38,7 +38,7 @@ async function db(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-// Which characters? The table characters (not the ones with Status Gestopt) plus the mains and alts on My profile, until those tables are merged into it.
+// Which characters? The table characters, without the ones with Status Gestopt.
 // complete = false when a source could not be read: then no rows may be removed from the table.
 async function guildCharacters() {
   const found = new Map();
@@ -47,9 +47,6 @@ async function guildCharacters() {
   try {
     for (const x of await db('characters?select=name&status=neq.Gestopt')) add(x.name);
   } catch (e) { complete = false; console.warn(`Could not read the table characters: ${e.message}`); }
-  try {
-    for (const table of ['profiles', 'alts']) for (const x of await db(`${table}?select=character_name`)) add(x.character_name);
-  } catch (e) { complete = false; console.warn(`Could not read the dashboard: ${e.message}`); }
   return { names: [...found.values()], complete };
 }
 

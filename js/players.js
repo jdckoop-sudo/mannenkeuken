@@ -1,4 +1,4 @@
-// Players and their characters, merged from the guild sheet (Members tab) and the site's profiles/alts.
+// Players and their characters, from the table characters (loadMembers).
 // The sheet has the characters; for level, race, class and professions the Blizzard API leads where it knows the character (applyApi() in js/sheet.js); the site fills in what the sheet does not have.
 import { supabase } from './supabase.js?v=__V__';
 import { loadMembers } from './sheet.js?v=__V__';
@@ -59,14 +59,7 @@ export function playerForUser(user) {
 
 // All characters of the guild, one entry per character name.
 export async function loadCharacters() {
-  const [sheet, players, profilesRes, altsRes] = await Promise.all([
-    loadMembers().catch(() => []),
-    loadPlayers(),
-    supabase ? supabase.from('profiles').select('*') : { data: [] },
-    supabase ? supabase.from('alts').select('*') : { data: [] },
-  ]);
-  const profiles = profilesRes.data ?? [];
-  const playerOfUser = new Map(profiles.map((p) => [p.user_id, p.player_name]));
+  const [sheet, players] = await Promise.all([loadMembers().catch(() => []), loadPlayers()]);
   const byName = new Map();
 
   for (const m of sheet) {
@@ -76,28 +69,10 @@ export async function loadCharacters() {
     byName.set(norm(name), {
       name, player: m.player, kind: m.status === 'Alt' ? 'Alt' : 'Main', status: m.status || 'Main',
       race: m.race, class: m.cls, role: m.role, level: num(m.level), profs, recipes: m.recipes, notes: m.notes, updated: m.updated,
-      inSheet: true, onSite: false, hasName: !!m.character, needsMain: !!m.needsMain, fromApi: !!m.fromApi,
+      hasName: !!m.character, needsMain: !!m.needsMain, fromApi: !!m.fromApi,
     });
   }
-  const addSite = (row, kind) => {
-    if (!row.character_name) return;
-    const key = norm(row.character_name);
-    const player = row.player_name ?? playerOfUser.get(row.user_id) ?? null;
-    const existing = byName.get(key);
-    if (existing) {
-      existing.onSite = true;
-      existing.race ||= baseRace(row.race); existing.class ||= row.class; existing.role ||= row.role;
-      existing.player ||= player; existing.userId = row.user_id;
-      return;
-    }
-    byName.set(key, {
-      name: row.character_name, player, kind, status: kind, race: baseRace(row.race), class: row.class, role: row.role,
-      level: null, profs: [], inSheet: false, onSite: true, hasName: true, userId: row.user_id,
-    });
-  };
-  profiles.forEach((p) => addSite(p, 'Main'));
-  (altsRes.data ?? []).forEach((a) => addSite(a, 'Alt'));
-  return { characters: [...byName.values()], players, profiles };
+  return { characters: [...byName.values()], players };
 }
 
 // Summary numbers for a list of characters.

@@ -36,12 +36,17 @@ export function displayName(user) {
   return user?.player || 'Member';
 }
 
-// The player's saved profile (main character) from any of their browsers, or null.
+// The player's characters from the table characters, oldest first; character_name is the same as name (for the pages that use it).
+// Characters with the status Gestopt (Quit) are left out.
+export async function getMyCharacters(user) {
+  if (!supabase || !user?.player) return [];
+  const { data } = await supabase.from('characters').select('*').eq('player_name', user.player).neq('status', 'Gestopt').order('created_at');
+  return (data ?? []).map((c) => ({ ...c, character_name: c.name }));
+}
+// The player's main character, or null. A single character is the main.
 export async function getProfile(user) {
-  if (!supabase || !user) return null;
-  const ids = [...(user.ids ?? [user.id])];
-  const { data } = await supabase.from('profiles').select('*').in('user_id', ids).order('updated_at', { ascending: false }).limit(1);
-  return data?.[0] ?? null;
+  const list = await getMyCharacters(user);
+  return list.find((c) => c.status === 'Main') ?? (list.length === 1 ? list[0] : null);
 }
 
 // Choose a player: sign in anonymously (once per browser) and check the guild code.

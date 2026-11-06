@@ -82,7 +82,7 @@ if (!target) {
   // Activity (Supabase): by this player's logins (browsers) and name
   if (supabase) {
     const { data: logins } = await supabase.from('members').select('user_id').eq('player_name', name);
-    const ids = [...new Set([...chars.map((c) => c.userId), ...(logins ?? []).map((m) => m.user_id)].filter(Boolean))];
+    const ids = [...new Set((logins ?? []).map((m) => m.user_id))];
     const names = [name, p?.discord_name].filter(Boolean); // deposits/addons are stored by name
     const count = async (q) => (await q).count ?? 0;
     const head = { count: 'exact', head: true };
