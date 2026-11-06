@@ -107,9 +107,9 @@ export function plan({ core, chars, states, prev, discord }) {
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
     const lines = [];
-    for (const g of lv) { const n = g.to - g.from; lines.push(`⬆️ **${g.name}** is ${n} ${n === 1 ? 'level' : 'levels'} omhoog gegaan: van level ${g.from} naar **level ${g.to}** (nu level ${g.to})`); }
+    for (const g of lv) { const n = g.to - g.from; lines.push(`⬆️ **${g.name}** gained ${n} ${n === 1 ? 'level' : 'levels'} and is now **level ${g.to}** (was level ${g.from})`); }
     for (const { a, s } of ach) {
-      const now = a.meter === 'requiredDone' ? '' : ` · nu: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
+      const now = a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
       lines.push(`🏆 **${a.title}** (${branchName(a.branch)}) — ${a.desc}${now}`);
     }
     const ids = ach.map(({ a }) => a.id);
@@ -118,19 +118,19 @@ export function plan({ core, chars, states, prev, discord }) {
     messages.push({
       kind: 'player', player: p, discordId: id ?? null,
       content: `${id ? `<@${id}>` : `**${p}**`} Ding! 🔔`,
-      embed: { color: COLOR, title: ach.length ? 'Nieuwe achievement' + (ach.length > 1 ? 's' : '') : 'Level up', url: link, description: lines.join('\n'),
-        fields: [{ name: '​', value: `[Bekijk het op het dashboard](${link})${points ? ` · +${points} punten` : ''}` }] },
+      embed: { color: COLOR, title: ach.length ? 'New achievement' + (ach.length > 1 ? 's' : '') : 'Level up', url: link, description: lines.join('\n'),
+        fields: [{ name: '​', value: `[View it on the dashboard](${link})${points ? ` · +${points} points` : ''}` }] },
       allowed: id ? { users: [id] } : { parse: [] },
       commit: { levels: lv.map((g) => ({ key: g.key, level: g.to })), known: ach.map(({ a }) => ({ player: p, id: a.id })), summary: lines.join(' | ') },
     });
   }
   if (guildGoals.length) {
     const link = `${SITE}/achievements.html?a=${guildGoals.map(({ a }) => a.id).join(',')}`;
-    const lines = guildGoals.map(({ a, s }) => `🏆 **${a.title}** — ${a.desc}${a.meter === 'requiredDone' ? '' : ` · nu: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd()}`);
+    const lines = guildGoals.map(({ a, s }) => `🏆 **${a.title}** — ${a.desc}${a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd()}`);
     messages.push({
       kind: 'guild', player: '', discordId: null,
-      content: '@everyone Ding! De hele guild heeft iets bereikt 🎉',
-      embed: { color: COLOR, title: 'Guild goal' + (guildGoals.length > 1 ? 's' : '') + ' behaald', url: link, description: lines.join('\n'), fields: [{ name: '​', value: `[Bekijk het op het dashboard](${link})` }] },
+      content: '@everyone Ding! The whole guild has reached something 🎉',
+      embed: { color: COLOR, title: 'Guild goal' + (guildGoals.length > 1 ? 's' : '') + ' reached', url: link, description: lines.join('\n'), fields: [{ name: '​', value: `[View it on the dashboard](${link})` }] },
       allowed: { parse: ['everyone'] },
       commit: { levels: [], known: guildGoals.map(({ a }) => ({ player: '', id: a.id })), summary: lines.join(' | ') },
     });
@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
   // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
-      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky staat aan.', embed: { color: COLOR, title: 'Test', description: 'Als je dit ziet, werkt de webhook. Level-ups en achievements verschijnen vanaf nu hier.' }, allowed: { parse: [] } });
+      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky is on.', embed: { color: COLOR, title: 'Test', description: 'If you can see this, the webhook works. Level ups and achievements will show up here from now on.' }, allowed: { parse: [] } });
       return json({ test: 'posted' });
     } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
   }
