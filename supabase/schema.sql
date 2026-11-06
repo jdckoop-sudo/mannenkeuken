@@ -697,6 +697,12 @@ begin
   if char_length(c) < 1 or char_length(c) > 60 then raise exception 'Unknown character'; end if;
   insert into public.main_characters (player_name, character_name, updated_at) values (me, c, now())
   on conflict (player_name) do update set character_name = excluded.character_name, updated_at = now();
+  -- The table characters is the source for the site: the old main becomes an Alt first (one main per player).
+  if exists (select 1 from public.characters ch where ch.player_name = me and lower(btrim(ch.name)) = lower(c)) then
+    perform set_config('app.switching_main', 'on', true);  -- lets characters_guard allow this status change; only for this transaction
+    update public.characters set status = 'Alt' where player_name = me and status = 'Main' and lower(btrim(name)) <> lower(c);
+    update public.characters set status = 'Main' where player_name = me and lower(btrim(name)) = lower(c) and status <> 'Main';
+  end if;
 end $$;
 revoke all on function public.set_main_character(text) from public, anon;
 grant execute on function public.set_main_character(text) to authenticated;
@@ -891,7 +897,8 @@ begin
     return new;
   end if;
   if new.player_name is distinct from old.player_name or new.level is distinct from old.level or new.professions is distinct from old.professions
-     or new.status is distinct from old.status or new.notes is distinct from old.notes or new.recipes is distinct from old.recipes then
+     or (new.status is distinct from old.status and current_setting('app.switching_main', true) is distinct from 'on')
+     or new.notes is distinct from old.notes or new.recipes is distinct from old.recipes then
     raise exception 'Only the name, race, class and role of a character can be changed here';
   end if;
   known := exists (select 1 from public.blizzard_characters b where b.key = lower(btrim(old.name)) and b.data->>'status' = 'ok');

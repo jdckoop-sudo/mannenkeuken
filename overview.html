@@ -16,7 +16,7 @@
 <main>
   <section class="page-head"><div>
     <h1>Guild overview</h1>
-    <p class="muted">The guild in one chart: group by role, class, race, profession or level, from the guild sheet.</p>
+    <p class="muted">The guild in one chart: group by role, class, race, profession or level.</p>
   </div></section>
   <section class="box" aria-label="Guild overview">
         <div class="chart-filters">
@@ -78,9 +78,9 @@ function drawOverview() {
   ovRows = overviewData();
   const cap = isProf ? 300 : 60;
   const max = m === 'n' ? Math.max(1, ...ovRows.map((r) => r.n)) : cap;
-  document.getElementById('ov-caption').textContent = `${ov.measure.selectedOptions[0].textContent} per ${ov.group.selectedOptions[0].textContent.toLowerCase()} · ${ov.who.value === 'all' ? 'Mains and Alts' : 'Main characters'} from the guild sheet${m === 'n' ? '' : ` · scale 0–${cap}`}`;
+  document.getElementById('ov-caption').textContent = `${ov.measure.selectedOptions[0].textContent} per ${ov.group.selectedOptions[0].textContent.toLowerCase()} · ${ov.who.value === 'all' ? 'Mains and Alts' : 'Main characters'}${m === 'n' ? '' : ` · scale 0–${cap}`}`;
   const el = document.getElementById('overview');
-  if (!all.length) { el.innerHTML = '<p class="muted">Could not read the sheet.</p>'; return; }
+  if (!all.length) { el.innerHTML = '<p class="muted">Could not read the characters.</p>'; return; }
   if (!ovRows.length) { el.innerHTML = '<p class="muted">Nothing to show yet.</p>'; return; }
   if (ov.view.getAttribute('aria-pressed') === 'true') {
     el.innerHTML = `<table class="simple-table"><thead><tr><th>${esc(ov.group.selectedOptions[0].textContent)}</th><th class="num">Characters</th><th class="num">Average ${unit}</th><th class="num">Highest ${unit}</th></tr></thead><tbody>

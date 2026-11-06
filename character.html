@@ -72,9 +72,9 @@ if (!c) {
     const best = Math.max(...characters.flatMap((x) => x.profs.filter((q) => q.name === p.name && q.skill !== null).map((q) => q.skill)), 0);
     return `<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${professionLabel(p.name, { size: 20 })}${p.skill && p.skill === best ? ' <span class="badge">Guild best</span>' : ''}</span><span class="muted">${esc(p.skill ?? '–')} / 300</span></div>
       <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, ((p.skill ?? 0) / 300) * 100)}%"></div></div></div>`;
-  }).join('') || '<p class="muted">No professions in the sheet yet.</p>';
+  }).join('') || '<p class="muted">No professions yet: they appear from level 10.</p>';
 
-  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes], ['Sheet last updated', c.updated]]
+  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes], ['Last updated', c.updated]]
     .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
   // Live data from the Blizzard API, when the update workflow has fetched this character
   const bz = (await loadBlizzard())?.characters?.[c.name.toLowerCase()];
@@ -87,7 +87,7 @@ if (!c) {
     document.getElementById('bz-note').textContent = `Read from the Blizzard API, last checked ${when(bz.fetched) ?? 'recently'}. It updates after the player logs out.`;
     document.getElementById('blizzard').hidden = false;
   }
-  document.getElementById('where').textContent = c.inSheet ? (c.onSite ? 'In the guild sheet and on the dashboard.' : 'From the guild sheet.') : 'Added on the dashboard – not in the guild sheet yet (it is added at the next guild sync).';
+  document.getElementById('where').textContent = c.inSheet ? 'In the guild list.' : 'Added on My profile – not in the guild list yet (a developer adds it).';
 }
 </script>
 </body>

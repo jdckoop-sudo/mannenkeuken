@@ -17,7 +17,7 @@
   <div>
     <h1>My profile</h1>
     <p class="muted">Save your main character once. It is used when you sign up for events. Alts are your secondary characters for levelling, collecting items, etc.</p>
-    <p class="muted" id="sync-note" style="font-size:14px">Your main is filled in automatically from the guild sheet (the same as your Discord roles). Alts from the sheet are added here too, and alts you add here are put in the guild sheet at the next guild sync.</p>
+    <p class="muted" id="sync-note" style="font-size:14px">Your main is filled in automatically from the guild list (the same as your Discord roles). Alts from the list are added here too.</p>
     <p id="player-link" style="font-size:14px;margin:0"></p>
   </div>
   <section class="box" id="main-choice" hidden style="max-width: 980px">
@@ -103,7 +103,7 @@ if (!canEdit) {
   profileOwner = profile?.user_id ?? null;
   const { characters } = await loadCharacters();
   me = playerForUser(user);
-  if (me) document.getElementById('player-link').innerHTML = `You are <strong>${esc(me)}</strong> in the guild sheet · <a href="${playerUrl(me)}">View your player page & stats</a>`;
+  if (me) document.getElementById('player-link').innerHTML = `You are <strong>${esc(me)}</strong> in the guild list · <a href="${playerUrl(me)}">View your player page & stats</a>`;
 
   drawMainChoice(characters.filter((c) => me && c.player === me && c.inSheet && c.hasName && c.status !== 'Gestopt'));
 
@@ -112,7 +112,7 @@ if (!canEdit) {
   if (!profile?.character_name && sheetMain) {
     const values = { character_name: sheetMain.name, race: formRace(sheetMain.race), class: sheetMain.class || null, role: sheetMain.role || null };
     const { data, error } = await saveProfileRow(values);
-    if (!error) { profile = data; msg.textContent = 'Your main character was filled in from the guild sheet. Check it and save if something is off.'; }
+    if (!error) { profile = data; msg.textContent = 'Your main character was filled in from the guild list. Check it and save if something is off.'; }
   } else if (me && profile && !profile.player_name) {
     await supabase.from('profiles').update({ player_name: me }).eq('user_id', owner());
   }
@@ -123,7 +123,7 @@ if (!canEdit) {
     if (differs) {
       const { data, error } = await saveProfileRow({ ...locked, role: profile?.role ?? sheetMain.role ?? null });
       if (data) profile = data;
-      else msg.textContent = `Could not update your main from the guild sheet: ${error?.message ?? 'unknown error'}`;
+      else msg.textContent = `Could not update your main from the guild list: ${error?.message ?? 'unknown error'}`;
     }
   }
   main.set(profile);
@@ -132,7 +132,7 @@ if (!canEdit) {
     form.race.disabled = true;
     form.class.disabled = true;
     document.getElementById('clear').hidden = true;
-    form.querySelector('h2').insertAdjacentHTML('afterend', '<p class="muted" style="font-size:14px;margin:0">Name, race and class come from the guild sheet and can\'t be changed here. You can change your role.</p>');
+    form.querySelector('h2').insertAdjacentHTML('afterend', '<p class="muted" style="font-size:14px;margin:0">Name, race and class come from the guild list and can\'t be changed here. You can change your role.</p>');
   }
 
   // 2. Alts in the sheet that are not on the dashboard yet: add them (no limit: only alts made on the site count against MAX_ALTS).
@@ -151,7 +151,7 @@ if (!canEdit) {
     const { data, error } = await supabase.from('alts').insert({ character_name: a.name, race: formRace(a.race), class: a.class || null, role: a.role || null }).select().single();
     if (!error && data) { alts.push(data); added.push(a.name); }
   }
-  if (added.length) altMsgExtra = `Added from the guild sheet: ${added.join(', ')}.`;
+  if (added.length) altMsgExtra = `Added from the guild list: ${added.join(', ')}.`;
   // Alts that are in the guild sheet: name, race and class always follow the sheet (it is leading); only the role can be changed here.
   for (const a of alts) {
     const sc = me ? characters.find((c) => c.player === me && c.inSheet && c.hasName && c.name.toLowerCase() === String(a.character_name ?? '').toLowerCase()) : null;
@@ -265,7 +265,7 @@ function addAltCard(alt, lock = null) {
     card.querySelector('.lock-note')?.remove();
     card.querySelector('h2').insertAdjacentHTML('afterend', `<p class="muted lock-note" style="font-size:14px;margin:0">Name, race and class ${why} and can't be changed here. You can change the role.</p>`);
   };
-  if (lock) { lockFields('come from the guild sheet'); card.dataset.sheet = '1'; card.querySelector('[data-remove]').hidden = true; }
+  if (lock) { lockFields('come from the guild list'); card.dataset.sheet = '1'; card.querySelector('[data-remove]').hidden = true; }
   else if (alt) { fixed = { character_name: alt.character_name, race: alt.race, class: alt.class }; lockFields('are fixed once an alt is saved'); }
   const cardMsg = card.querySelector('.card-msg');
 
