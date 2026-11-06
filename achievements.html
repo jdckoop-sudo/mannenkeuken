@@ -23,6 +23,7 @@
     <label class="ach-who" id="who-wrap">Viewing <select id="ach-who" aria-label="Player"></select></label>
   </div>
   <section id="tree-view">
+    <div class="ach-portrait" id="ach-portrait"></div>
     <div class="grid glance" id="ach-summary"></div>
     <div class="ach-tree" id="ach-tree"></div>
     <p class="muted" style="font-size:13px;margin:0">One tree: scroll down from the root through the four branches to the Legend. Click an achievement for what it asks; locked ones show a question mark until what comes before is done.</p>
@@ -68,7 +69,7 @@ const showTab = (tree) => {
 };
 document.getElementById('tab-tree').onclick = () => showTab(true);
 document.getElementById('tab-records').onclick = () => showTab(false);
-initTree({ user, tree: document.getElementById('ach-tree'), summary: document.getElementById('ach-summary'), who: document.getElementById('ach-who'), modal: document.getElementById('ach-modal') });
+initTree({ user, tree: document.getElementById('ach-tree'), summary: document.getElementById('ach-summary'), who: document.getElementById('ach-who'), portrait: document.getElementById('ach-portrait'), modal: document.getElementById('ach-modal') });
 const { characters } = await loadCharacters();
 const active = characters.filter((c) => c.status !== 'Gestopt' && c.hasName);
 const top = 10;

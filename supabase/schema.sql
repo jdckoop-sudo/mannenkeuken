@@ -983,3 +983,8 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ding-bot: level ups and achievements in #dings$q$, $q$Discord$q$, 'check',
   $q$After deploying the Edge Function ding-bot and setting DING_WEBHOOK_URL: select * from ding_status shows a run within 15 minutes (activated_at = first run, which posts nothing). Then let a character level up or earn an achievement: one message per player with an @mention, a link to Achievements with the new ones highlighted. A guild goal gives ONE @everyone message. ding_log lists what was posted.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ding-bot: level ups and achievements in #dings$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Achievements: player portrait and player page block$q$, $q$Achievements$q$, 'check',
+  $q$Achievements: above the tiles is the portrait of the viewed player (picture from the game, or the class icon); a click opens his player page. Switch "Viewing": the portrait changes. Player page: the Achievements block shows Mannenkoker Level, points and his unlocked medals; a medal opens the tree with it highlighted.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Achievements: player portrait and player page block$q$);

@@ -2,11 +2,13 @@
 import { esc } from './sheet.js?v=__V__';
 import { isDevMode } from './layout.js?v=__V__';
 import { achIcon, achDefs } from './achicons.js?v=__V__';
+import { characterFrame } from './charpicture.js?v=__V__';
+import { playerUrl } from './players.js?v=__V__';
 import { BRANCHES, ACHIEVEMENTS, BY_ID, METERS, fmtNum, loadAchievementData, guildMeters, evaluate, summarize, saveOverrides, clearOverrides, reloadOverrides } from './achievements.js?v=__V__';
 
 const NODE = 66; const NODE_W = 150;
 
-export async function initTree({ user, tree, summary, who, modal }) {
+export async function initTree({ user, tree, summary, who, modal, portrait }) {
   tree.innerHTML = '<p class="muted" style="padding:16px">Loading…</p>';
   const data = await loadAchievementData();
   const players = [...new Set(data.characters.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))].sort((a, b) => a.localeCompare(b));
@@ -83,7 +85,21 @@ export async function initTree({ user, tree, summary, who, modal }) {
       ${achIcon(a.glyph, a.tier, size, a.branch)}${count}<span class="ach-name">${esc(name)}</span>${a.scope === 'guild' && !s.done ? '<span class="ach-tag">Guild</span>' : ''}</button>`;
   }
 
+  // The portrait of the player you are viewing (his main, or his highest character): a click goes to his player page.
+  function renderPortrait() {
+    if (!portrait) return;
+    const mine = data.characters.filter((c) => c.player === view && c.status !== 'Gestopt').sort((a, b) => (b.status === 'Main') - (a.status === 'Main') || (b.level ?? 0) - (a.level ?? 0));
+    const c = mine[0];
+    const link = document.createElement('a'); link.className = 'ach-portrait-link'; link.href = playerUrl(view); link.setAttribute('aria-label', `Open the player page of ${view}`);
+    link.append(characterFrame(c ? data.blizzard?.characters?.[c.name.toLowerCase()] : null, c?.name ?? view, c?.class));
+    const text = document.createElement('div'); text.className = 'ach-portrait-text';
+    text.innerHTML = `<strong>${esc(view)}</strong><span class="muted">${c ? esc([c.name, c.level ? `level ${c.level}` : '', c.class].filter(Boolean).join(' \u00B7 ')) : 'No character yet'}</span><span class="ach-portrait-go">View profile &rarr;</span>`;
+    link.append(text);
+    portrait.replaceChildren(link);
+  }
+
   function render() {
+    renderPortrait();
     const states = all.get(view);
     const sum = summarize(states);
     summary.innerHTML = `
