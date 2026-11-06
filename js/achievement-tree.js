@@ -4,7 +4,7 @@ import { isDevMode } from './layout.js?v=__V__';
 import { achIcon, achDefs } from './achicons.js?v=__V__';
 import { BRANCHES, ACHIEVEMENTS, BY_ID, METERS, fmtNum, loadAchievementData, guildMeters, evaluate, summarize, saveOverrides, clearOverrides, reloadOverrides } from './achievements.js?v=__V__';
 
-const COLW = 156; const ROWH = 130; const HEAD = 46; const NODE = 60; const LANE_GAP = 14;
+const NODE = 60; const NODE_W = 124;
 
 export async function initTree({ user, tree, summary, who, modal }) {
   tree.innerHTML = '<p class="muted" style="padding:16px">Loading…</p>';
@@ -20,13 +20,16 @@ export async function initTree({ user, tree, summary, who, modal }) {
   who.innerHTML = players.map((p) => `<option value="${esc(p)}"${p === view ? ' selected' : ''}>${esc(p)}${p === user?.player ? ' (you)' : ''}</option>`).join('');
   who.onchange = () => { view = who.value; render(); };
 
-  // ---- layout: lanes (branches) from top to bottom, nodes at column / row inside their lane
-  let y = 0;
-  const lane = new Map();
-  for (const b of BRANCHES) { lane.set(b.key, { ...b, y }); y += HEAD + b.rows * ROWH + LANE_GAP; }
-  const totalH = y; const cols = Math.max(...ACHIEVEMENTS.map((a) => a.col)) + 1; const totalW = cols * COLW;
-  const pos = (a) => ({ x: a.col * COLW, y: lane.get(a.branch).y + HEAD + a.row * ROWH });
-  const center = (a) => { const p = pos(a); return [p.x + COLW / 2, p.y + 4 + NODE / 2]; };
+  // ---- layout: a star. The Legend sits in the middle, the five branches run outwards like rays (col = distance from the middle, row = sideways).
+  const ANGLE = { journey: -90, slayer: -18, craft: 54, treasury: 126, fellowship: 198 }; // degrees, clockwise from the right; Journey points up
+  const R0 = 235; const STEP = 128; const LAT = 100;
+  const pos = (a) => {
+    if (a.branch === 'legend') return [0, 0];
+    const t = (ANGLE[a.branch] * Math.PI) / 180; const r = R0 + a.col * STEP; const side = (a.row - 1) * LAT;
+    return [Math.cos(t) * r - Math.sin(t) * side, Math.sin(t) * r + Math.cos(t) * side];
+  };
+  const labelPos = (b) => { const t = (ANGLE[b.key] * Math.PI) / 180; return [Math.cos(t) * (R0 - 112), Math.sin(t) * (R0 - 112)]; };
+  const reach = Math.max(...ACHIEVEMENTS.map((a) => Math.hypot(...pos(a)))) + 90;
 
   function render() {
     const states = all.get(view);
@@ -35,36 +38,71 @@ export async function initTree({ user, tree, summary, who, modal }) {
       <div class="box stat"><span class="muted">Achievement points</span><strong>${fmtNum(sum.points)}</strong></div>
       <div class="box stat"><span class="muted">Unlocked (${esc(view)})</span><strong>${sum.done} / ${sum.total}</strong></div>
       <div class="box stat"><span class="muted">Guild goals reached</span><strong>${sum.guildDone} / ${sum.guildTotal}</strong></div>
-      <div class="box stat"><span class="muted">Hardest still locked</span><strong class="stat-text">${esc(nextBig(states))}</strong></div>`;
+      <div class="box stat"><span class="muted">Best next target</span><strong class="stat-text">${esc(nextBig(states))}</strong></div>`;
 
+    const wedges = BRANCHES.filter((b) => b.key !== 'legend').map((b) => { const t = (ANGLE[b.key] * Math.PI) / 180; const w = Math.PI / 5; const R = reach + 40; const pt = (ang) => `${Math.cos(ang) * R} ${Math.sin(ang) * R}`;
+      return `<path class="ach-wedge b-${b.key}" d="M0 0 L${pt(t - w)} A${R} ${R} 0 0 1 ${pt(t + w)} Z"/>`; }).join('');
+    const rings = [0, 2, 4, 6].map((c) => `<circle class="ach-ring" cx="0" cy="0" r="${R0 + c * STEP - 60}"/>`).join('');
     const lines = [];
     for (const a of ACHIEVEMENTS) {
       for (const r of a.requires) {
-        const from = BY_ID.get(r); const [x1, y1] = center(from); const [x2, y2] = center(a);
-        const dx = Math.max(30, Math.abs(x2 - x1) / 2);
-        if (Math.abs(y2 - y1) > ROWH * 1.6) continue; // across the branches (the Legend): the window lists what it needs instead of a line through other nodes
-        const s = states.get(r);
-        lines.push(`<path class="${s.done || s.disabled ? 'done' : ''}" d="M${x1} ${y1} C${x1 + dx} ${y1} ${x2 - dx} ${y2} ${x2} ${y2}"/>`);
+        const from = BY_ID.get(r); if (from.branch !== a.branch) continue; // the Legend lists what it needs in its window instead of lines across the star
+        const [x1, y1] = pos(from); const [x2, y2] = pos(a); const s = states.get(r);
+        lines.push(`<path class="b-${a.branch}${s.done || s.disabled ? ' done' : ''}" d="M${x1} ${y1} L${x2} ${y2}"/>`);
       }
     }
-    const lanes = BRANCHES.map((b) => { const l = lane.get(b.key); const mine = ACHIEVEMENTS.filter((a) => a.branch === b.key && !states.get(a.id).disabled);
-      const d = mine.filter((a) => states.get(a.id).done).length;
-      return `<div class="ach-lane" style="top:${l.y}px;height:${HEAD + b.rows * ROWH}px"><h3>${esc(b.name)} <span class="muted" style="font-size:12px;letter-spacing:0">${d} / ${mine.length}</span></h3><p>${esc(b.blurb)}</p></div>`; }).join('');
+    const labels = BRANCHES.filter((b) => b.key !== 'legend').map((b) => {
+      const mine = ACHIEVEMENTS.filter((a) => a.branch === b.key && !states.get(a.id).disabled); const d = mine.filter((a) => states.get(a.id).done).length; const [x, y] = labelPos(b);
+      return `<div class="ach-branch b-${b.key}" style="left:${x}px;top:${y}px"><h3>${esc(b.name)}</h3><span>${d} / ${mine.length}</span></div>`;
+    }).join('');
     const nodes = ACHIEVEMENTS.map((a) => {
-      const s = states.get(a.id); const p = pos(a);
+      const s = states.get(a.id); const [x, y] = pos(a); const big = a.branch === 'legend'; const size = big ? 92 : NODE;
       const known = s.done || s.available || s.disabled;
       const cls = s.disabled ? 'off' : s.done ? 'done' : s.available ? 'avail' : 'locked';
       const name = known ? a.title : '???';
       const tip = s.disabled ? `${a.title}: switched off by the developers` : known ? `${a.title}: ${a.desc}` : `Locked: complete ${a.requires.filter((r) => !states.get(r).done).map((r) => states.get(r).available || states.get(r).done ? BY_ID.get(r).title : '???').join(' and ')} first`;
-      return `<button type="button" class="ach-node ${cls} scope-${a.scope}" data-id="${a.id}" style="left:${p.x}px;top:${p.y}px;width:${COLW}px" title="${esc(tip)}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
-        ${achIcon(a.glyph, a.tier, NODE)}<span class="ach-name">${esc(name)}</span>
+      return `<button type="button" class="ach-node b-${a.branch} ${cls} scope-${a.scope}" data-id="${a.id}" style="left:${x - NODE_W / 2}px;top:${y - size / 2 - 4}px;width:${NODE_W}px" title="${esc(tip)}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
+        ${achIcon(a.glyph, a.tier, size, a.branch)}<span class="ach-name">${esc(name)}</span>
         ${s.available && !s.done ? `<span class="ach-mini" aria-hidden="true"><i style="width:${Math.round(s.pct * 100)}%"></i></span>` : (a.scope === 'guild' ? '<span class="ach-tag">Guild goal</span>' : '')}</button>`;
     }).join('');
-    tree.style.minWidth = `${totalW}px`; tree.style.height = `${totalH}px`;
-    tree.innerHTML = `${lanes}<svg class="ach-lines" width="${totalW}" height="${totalH}" aria-hidden="true">${lines.join('')}</svg>${nodes}`;
-    tree.querySelectorAll('.ach-node').forEach((n) => n.addEventListener('click', () => openDetail(n.dataset.id)));
+    world.innerHTML = `<svg class="ach-lines" width="1" height="1" aria-hidden="true">${wedges}${rings}${lines.join('')}</svg>${labels}${nodes}`;
+    world.querySelectorAll('.ach-node').forEach((n) => n.addEventListener('click', () => { if (!dragged) openDetail(n.dataset.id); }));
     if (!modal.hidden && modal.dataset.id) openDetail(modal.dataset.id, true);
   }
+
+  // ---- pan and zoom: drag to move, wheel / pinch / buttons to zoom, arrow keys and + - from the keyboard
+  const world = tree; const stage = tree.parentElement;
+  stage.insertAdjacentHTML('beforeend', `<div class="ach-zoom" role="group" aria-label="Zoom"><button type="button" data-z="in" aria-label="Zoom in" title="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out" title="Zoom out">&minus;</button><button type="button" data-z="center" aria-label="Back to the middle" title="Back to the middle">&#9678;</button><button type="button" data-z="fit" aria-label="Show everything" title="Show everything">&#9635;</button></div><p class="ach-hint muted">Drag to move &middot; scroll or pinch to zoom</p>`);
+  const MIN = 0.28; const MAX = 1.7;
+  let tx = 0; let ty = 0; let k = 0.8; let dragged = false;
+  const apply = () => { world.style.transform = `translate(${tx}px, ${ty}px) scale(${k})`; stage.style.setProperty('--ach-k', String(k)); };
+  const zoomAt = (px, py, factor) => { const nk = Math.min(MAX, Math.max(MIN, k * factor)); const f = nk / k; tx = px - (px - tx) * f; ty = py - (py - ty) * f; k = nk; apply(); };
+  const toCenter = (nk) => { const r = stage.getBoundingClientRect(); k = nk; tx = r.width / 2; ty = r.height / 2; apply(); };
+  const fit = () => { const r = stage.getBoundingClientRect(); toCenter(Math.min(MAX, Math.max(MIN, Math.min(r.width, r.height) / (reach * 2)))); };
+  const home = () => toCenter(stage.clientWidth < 700 ? 0.55 : 0.85);
+  stage.addEventListener('wheel', (e) => { e.preventDefault(); const r = stage.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016))); }, { passive: false });
+  const pointers = new Map(); let startX = 0; let startY = 0; let pinch = 0;
+  stage.addEventListener('pointerdown', (e) => { if (e.target.closest('.ach-zoom')) return; pointers.set(e.pointerId, [e.clientX, e.clientY]); startX = e.clientX; startY = e.clientY; dragged = false; pinch = 0; });
+  stage.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    const [px, py] = pointers.get(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (!dragged && Math.hypot(e.clientX - startX, e.clientY - startY) > 5) { dragged = true; stage.setPointerCapture(e.pointerId); stage.classList.add('moving'); }
+    if (!dragged) return;
+    if (pointers.size === 2) { // pinch
+      const [a, b] = [...pointers.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); const r = stage.getBoundingClientRect();
+      if (pinch) zoomAt((a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top, d / pinch);
+      pinch = d; return;
+    }
+    tx += e.clientX - px; ty += e.clientY - py; apply();
+  });
+  const release = (e) => { pointers.delete(e.pointerId); pinch = 0; if (!pointers.size) { stage.classList.remove('moving'); setTimeout(() => { dragged = false; }, 0); } };
+  stage.addEventListener('pointerup', release); stage.addEventListener('pointercancel', release);
+  stage.addEventListener('click', (e) => { const z = e.target.closest('[data-z]')?.dataset.z; if (!z) return; const r = stage.getBoundingClientRect(); const c = [r.width / 2, r.height / 2];
+    if (z === 'in') zoomAt(...c, 1.25); else if (z === 'out') zoomAt(...c, 0.8); else if (z === 'center') home(); else fit(); });
+  stage.addEventListener('keydown', (e) => { const r = stage.getBoundingClientRect(); const step = 60;
+    if (e.key === '+' || e.key === '=') zoomAt(r.width / 2, r.height / 2, 1.2); else if (e.key === '-') zoomAt(r.width / 2, r.height / 2, 0.83);
+    else if (e.key === 'ArrowLeft') { tx += step; apply(); } else if (e.key === 'ArrowRight') { tx -= step; apply(); } else if (e.key === 'ArrowUp') { tx += 0; ty += step; apply(); } else if (e.key === 'ArrowDown') { ty -= step; apply(); } else if (e.key === '0') home(); else return;
+    e.preventDefault(); });
 
   // The nearest thing worth chasing: the available, not yet done achievement with the highest points.
   function nextBig(states) {
@@ -80,8 +118,8 @@ export async function initTree({ user, tree, summary, who, modal }) {
     const unit = METERS[a.meter];
     const reqs = a.requires.map((r) => { const rs = states.get(r); return `<li class="${rs.done || rs.disabled ? 'ok' : ''}">${rs.done || rs.available || rs.disabled ? esc(BY_ID.get(r).title) : '???'}</li>`; }).join('');
     modal.dataset.id = id;
-    modal.innerHTML = `<div class="ach-card" role="dialog" aria-modal="true" aria-label="${esc(known ? a.title : 'Locked achievement')}">
-      <div class="ach-card-head">${achIcon(a.glyph, a.tier, 84)}<div><h2>${esc(known ? a.title : '???')}</h2>
+    modal.innerHTML = `<div class="ach-card b-${a.branch}" role="dialog" aria-modal="true" aria-label="${esc(known ? a.title : 'Locked achievement')}">
+      <div class="ach-card-head">${achIcon(a.glyph, a.tier, 84, a.branch)}<div><h2>${esc(known ? a.title : '???')}</h2>
         <div class="meta"><span><strong>${a.points}</strong> points</span>${a.hours ? `<span>about <strong>${fmtNum(a.hours)} h</strong> of play</span>` : ''}<span>${a.scope === 'guild' ? 'Guild goal: everybody shares it' : 'Personal: all your characters count'}</span></div></div></div>
       <p style="margin:0">${known ? esc(a.desc) : 'Complete what comes before it to see what this one asks.'}</p>
       ${a.requires.length ? `<div><span class="muted" style="font-size:13px">Requires</span><ul class="ach-req">${reqs}</ul></div>` : ''}
@@ -147,6 +185,7 @@ export async function initTree({ user, tree, summary, who, modal }) {
   }
 
   render();
+  requestAnimationFrame(home);
 }
 
 export { achDefs };

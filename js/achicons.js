@@ -42,22 +42,27 @@ const GLYPHS = {
 
 export const ACH_GLYPHS = Object.keys(GLYPHS);
 
-// Medal for an achievement: glyph name + tier (bronze, silver, gold, crimson, guild).
-export function achIcon(glyph, tier = 'bronze', size = 60) {
+// Medal for an achievement: glyph name + tier (bronze, silver, gold, crimson, guild) + branch (journey, slayer, craft, treasury, fellowship, legend).
+// The branch gives the colour band and the glyph colour, the tier the metal rim around it.
+export function achIcon(glyph, tier = 'bronze', size = 60, branch = 'legend') {
   const g = GLYPHS[glyph] ?? GLYPHS.star;
-  return `<svg class="ach-icon t-${tier}" viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true" focusable="false">
-    <circle cx="24" cy="24" r="22.5" fill="url(#ach-r-${tier})"/>
-    <circle cx="24" cy="24" r="19.3" class="ach-disc"/>
-    <circle cx="24" cy="24" r="19.3" class="ach-rim"/>
-    <g transform="translate(2.9 2.9) scale(.88)">${g}</g>
-    <path class="ach-shine" d="M8.500 18A17 17 0 0 1 30 7.600"/>
+  return `<svg class="ach-icon b-${branch}" viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true" focusable="false">
+    <circle cx="24" cy="24" r="23" fill="url(#ach-r-${tier})"/>
+    <circle cx="24" cy="24" r="20.4" fill="url(#ach-b-${branch})"/>
+    <circle cx="24" cy="24" r="17.6" class="ach-disc"/>
+    <circle cx="24" cy="24" r="17.6" class="ach-rim"/>
+    <g transform="translate(4.3 4.3) scale(.82)">${g}</g>
+    <path class="ach-shine" d="M9.500 18A16 16 0 0 1 29 8.800"/>
   </svg>`;
 }
 
-// The ring gradients, once per page (an svg that is not display:none, or some browsers do not draw the gradients).
+// The gradients, once per page (an svg that is not display:none, or some browsers do not draw the gradients).
 export function achDefs() {
-  const grad = (name, a, b) => `<linearGradient id="ach-r-${name}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(${a})"/><stop offset="1" style="stop-color:var(${b})"/></linearGradient>`;
+  const grad = (id, a, b) => `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:${a}"/><stop offset="1" style="stop-color:${b}"/></linearGradient>`;
+  const metal = (name, a, b) => grad(`ach-r-${name}`, `var(${a})`, `var(${b})`);
+  const band = (name) => grad(`ach-b-${name}`, `var(--ach-${name})`, `color-mix(in srgb, var(--ach-${name}) 40%, var(--bg))`);
   return `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
-    ${grad('bronze', '--copper', '--copper-dim')}${grad('silver', '--silver', '--silver-dim')}${grad('gold', '--gold-bright', '--gold-dim')}${grad('crimson', '--crimson-bright', '--crimson')}${grad('guild', '--gold', '--border-strong')}
+    ${metal('bronze', '--copper', '--copper-dim')}${metal('silver', '--silver', '--silver-dim')}${metal('gold', '--gold-bright', '--gold-dim')}${metal('crimson', '--crimson-bright', '--crimson')}${metal('guild', '--gold', '--border-strong')}
+    ${['journey', 'slayer', 'craft', 'treasury', 'fellowship', 'legend'].map(band).join('')}
   </defs></svg>`;
 }
