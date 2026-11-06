@@ -69,7 +69,7 @@ export async function loadCharacters() {
     byName.set(norm(name), {
       name, player: m.player, kind: m.status === 'Alt' ? 'Alt' : 'Main', status: m.status || 'Main',
       race: m.race, class: m.cls, role: m.role, level: num(m.level), profs, recipes: m.recipes, notes: m.notes, updated: m.updated,
-      hasName: !!m.character, needsMain: !!m.needsMain, fromApi: !!m.fromApi,
+      hasName: !!m.character, needsMain: !!m.needsMain,
     });
   }
   return { characters: [...byName.values()], players };

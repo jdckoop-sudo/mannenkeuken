@@ -1,8 +1,8 @@
-// Developer mode → Characters: view and change the table characters (the list that replaces the Google Sheet).
-// Developers may change everything (database: is_dev() in characters_guard). Where the game (Blizzard API) knows better, a small orange value
-// shows what the site displays instead (applyApi() in js/sheet.js).
+// Developer mode → Characters: view and change the table characters.
+// Developers may change everything the game does not provide (database: is_dev() in characters_guard). The table shows what the site shows:
+// for a character the game knows, level, race, class and professions come from the game (applyApi() in js/sheet.js) and cannot be edited here.
 import { supabase } from './supabase.js?v=__V__';
-import { esc, loadBlizzard, memberFromCharacter } from './sheet.js?v=__V__';
+import { esc, loadBlizzard, memberFromCharacter, applyApi } from './sheet.js?v=__V__';
 import { statusLabel, baseRace, loadPlayers } from './players.js?v=__V__';
 import { RACES, ROLES_BY_CLASS, classesForRace, rolesForClass } from './wowdata.js?v=__V__';
 
@@ -10,6 +10,7 @@ const HORDE_RACES = Object.keys(RACES.Horde).map(baseRace);
 const ROLES = ['Tank', 'Healer', 'DPS'];
 const CLASSES = Object.keys(ROLES_BY_CLASS);
 const MAIN_PROFESSIONS = ['Alchemy', 'Blacksmithing', 'Enchanting', 'Engineering', 'Herbalism', 'Leatherworking', 'Mining', 'Skinning', 'Tailoring'];
+const GAME_FIELDS = ['race', 'cls', 'level', 'prof1', 'skill1', 'prof2', 'skill2', 'cooking', 'firstAid', 'fishing'];
 const SECONDARY = [['cooking', 'Cooking'], ['firstAid', 'First Aid'], ['fishing', 'Fishing']];
 const STATUSES = ['Main', 'Alt', 'Gestopt'];
 const FIELDS = ['player', 'character', 'status', 'race', 'cls', 'role', 'level', 'prof1', 'skill1', 'prof2', 'skill2', 'cooking', 'firstAid', 'fishing', 'recipes', 'notes'];
@@ -18,40 +19,6 @@ const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').
 const blank = (v) => v === null || v === undefined || String(v).trim() === '';
 const numberOrNull = (v) => (blank(v) ? null : Number(v));
 const textOrNull = (v) => (blank(v) ? null : String(v).trim());
-// The game says "Windshaper Skyborne", our list has "Skyborne".
-export const listRace = (race) => (/skyborne/i.test(race ?? '') ? 'Skyborne' : race ?? '');
-
-// What the game says for this row, in the same fields as the row; null when the game does not know the character.
-// Same rules as applyApi(); a profession stays in its own column when the row already has it there, so the order does not count as a difference.
-export function gameValues(row, entry) {
-  if (!entry || entry.status !== 'ok') return null;
-  const out = {};
-  if (entry.level != null) out.level = entry.level;
-  if (entry.race) out.race = listRace(entry.race);
-  if (entry.class) out.cls = entry.class;
-  const profs = (entry.professions ?? []).filter((p) => p.skill !== null && p.skill !== undefined);
-  if (!profs.length) return out;
-  const primaries = profs.filter((p) => p.kind === 'primary').slice(0, 2);
-  const inFirst = primaries.find((p) => same(p.name, row.prof1));
-  const inSecond = primaries.find((p) => same(p.name, row.prof2));
-  const rest = primaries.filter((p) => p !== inFirst && p !== inSecond);
-  const first = inFirst ?? rest.shift();
-  const second = inSecond ?? rest.shift();
-  out.prof1 = first?.name ?? ''; out.skill1 = first?.skill ?? '';
-  out.prof2 = second?.name ?? ''; out.skill2 = second?.skill ?? '';
-  for (const [field, name] of SECONDARY) {
-    const p = profs.find((x) => x.name === name);
-    out[field] = p ? p.skill : '';
-  }
-  return out;
-}
-// The fields where the row and the game differ.
-export function differences(row, game) {
-  if (!game) return [];
-  return Object.keys(game).filter((f) => (['skill1', 'skill2', 'level', 'cooking', 'firstAid', 'fishing'].includes(f)
-    ? String(row[f] ?? '').trim() !== String(game[f] ?? '').trim()
-    : !same(row[f], game[f])));
-}
 // Form values → a row of the table. Professions that the form does not show (none today) stay as they were.
 export function toRow(v, old = null) {
   const professions = [];
@@ -83,19 +50,15 @@ const options = (list, current, label = (x) => x) => {
 export function initCharacters(host) {
   let rows = [];
   let players = [];
-  let bz = null;
   let q = '';
-  let onlyDiff = false;
   let sort = { key: 'player', dir: 1 };
-  const gameOf = (r) => gameValues(r, bz?.characters?.[String(r.character ?? '').trim().toLowerCase()]);
 
   host.innerHTML = `
     <section class="box char-head">
       <div class="page-head"><h2>Characters</h2><button class="btn btn-primary" type="button" data-add>+ Add character</button></div>
-      <p class="muted char-text">All characters of the guild. <span class="char-api">Orange</span> means the game knows better: the site shows that value, whatever is saved here. Characters show up in the game data from level 10.</p>
+      <p class="muted char-text">All characters of the guild, as the site shows them. Characters show up in the game data from level 10: from then on the level, race, class and professions come from the game.</p>
       <div class="char-filters">
         <label>Search<input type="search" data-q placeholder="Player, character or profession"></label>
-        <label class="char-check"><input type="checkbox" data-diff> Only differences with the game</label>
         <button class="btn" type="button" data-reload>Reload</button>
       </div>
       <p class="muted char-text" data-count></p>
@@ -126,23 +89,15 @@ export function initCharacters(host) {
   ];
   const NUMERIC = ['level', 'cooking', 'firstAid', 'fishing'];
 
-  function cell(r, game, diff, [key, , fn, skill]) {
+  function cell(r, [key, , fn, skill]) {
     let html = fn ? fn(r) : esc(r[key] ?? '');
     if (skill && !blank(r[skill])) html += ` <span class="muted">(${esc(r[skill])})</span>`;
-    if (diff.includes(key) || (skill && diff.includes(skill))) {
-      const skillText = skill && !blank(game[skill]) ? `(${game[skill]})` : '';
-      // Same profession, other skill: only the skill is news
-      const shown = skill ? (same(r[key], game[key]) ? skillText : `${game[key] || '–'} ${skillText}`.trim()) : (blank(game[key]) ? '–' : game[key]);
-      html += ` <span class="char-api" title="The site shows this value from the game">${esc(shown)}</span>`;
-    }
     return `<td class="${NUMERIC.includes(key) ? 'num' : ''}${key === 'recipes' || key === 'notes' ? ' wrap' : ''}">${html}</td>`;
   }
 
   function draw() {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    const withDiff = rows.filter((r) => differences(r, gameOf(r)).length).length;
     let list = rows.filter((r) => {
-      if (onlyDiff && !differences(r, gameOf(r)).length) return false;
       const hay = `${r.player} ${r.character} ${r.prof1} ${r.prof2} ${r.race} ${r.cls}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
@@ -150,22 +105,20 @@ export function initCharacters(host) {
       const x = a[sort.key]; const y = b[sort.key];
       return (NUMERIC.includes(sort.key) ? (Number(x) || 0) - (Number(y) || 0) : String(x ?? '').localeCompare(String(y ?? ''))) * sort.dir;
     });
-    $('[data-count]').textContent = `${rows.length} characters · ${withDiff} differ from the game`;
+    $('[data-count]').textContent = `${rows.length} characters`;
     $('[data-head]').innerHTML = `<tr><th></th>${COLS.map(([k, label]) => `<th class="${NUMERIC.includes(k) ? 'num' : ''}"><button type="button" class="link-btn char-sort" data-sort="${k}">${label}${sort.key === k ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>`;
     $('[data-rows]').innerHTML = list.map((r) => {
-      const game = gameOf(r);
       const i = rows.indexOf(r);
-      return `<tr><td class="char-actions"><button type="button" class="link-btn" data-edit="${i}">Edit</button> <button type="button" class="link-btn" data-del="${i}">Delete</button></td>${COLS.map((c) => cell(r, game, differences(r, game), c)).join('')}</tr>`;
+      return `<tr><td class="char-actions"><button type="button" class="link-btn" data-edit="${i}">Edit</button> <button type="button" class="link-btn" data-del="${i}">Delete</button></td>${COLS.map((c) => cell(r, c)).join('')}</tr>`;
     }).join('') || `<tr><td colspan="${COLS.length + 1}" class="muted">Nothing matches.</td></tr>`;
   }
 
   async function load() {
     say('');
-    bz = await loadBlizzard();
-    const [{ data, error }, list] = await Promise.all([supabase.from('characters').select('*').order('created_at'), loadPlayers()]);
+    const [{ data, error }, list, bz] = await Promise.all([supabase.from('characters').select('*').order('created_at'), loadPlayers(), loadBlizzard()]);
     players = list.map((p) => p.player_name);
     if (error) { $('[data-rows]').innerHTML = `<tr><td class="muted">Could not read the characters: ${esc(error.message)}</td></tr>`; return; }
-    rows = (data ?? []).map((c) => ({ ...memberFromCharacter(c), id: c.id, raw: c, updatedBy: c.updated_by }));
+    rows = applyApi((data ?? []).map((c) => ({ ...memberFromCharacter(c), id: c.id, raw: c, updatedBy: c.updated_by })), bz);
     draw();
   }
 
@@ -178,7 +131,8 @@ export function initCharacters(host) {
       const { error } = await supabase.from('players').insert({ player_name: player });
       if (error) return { error };
     }
-    const record = { ...toRow({ ...values, player: existing ?? player }, row?.raw) };
+    const record = toRow({ ...values, player: existing ?? player }, row?.raw);
+    if (row?.fromApi) for (const k of ['race', 'class', 'level', 'professions']) delete record[k]; // comes from the game
     // The first character of a player is the main (same rule as for players themselves in the database).
     if (!row && record.status === 'Alt' && !rows.some((r) => same(r.player, record.player_name) && r.status === 'Main')) record.status = 'Main';
     if (record.status === 'Main') {
@@ -197,12 +151,11 @@ export function initCharacters(host) {
 
   function openForm(row) {
     const v = row ?? { status: 'Alt' };
-    const game = row ? gameOf(row) : null;
     const num = (name, label, max, min = 0) => `<label>${label}<input name="${name}" type="number" min="${min}" max="${max}" value="${esc(v[name] ?? '')}"></label>`;
     const prof = (name, label) => `<label>${label}<select name="${name}">${options(MAIN_PROFESSIONS, v[name])}</select></label>`;
     form.innerHTML = `
       <h3>${row ? `Edit ${esc(row.character)}` : 'Add a character'}</h3>
-      ${game ? '<p class="muted char-text full">The game knows this character. <button type="button" class="link-btn" data-fill>Fill in the values from the game</button>, then save, to make this list match.</p>' : ''}
+      ${row?.fromApi ? '<p class="muted char-text full">The game knows this character, so the level, race, class and professions come from there.</p>' : ''}
       <label>Player<input name="player" required maxlength="40" list="char-players" value="${esc(v.player ?? '')}"><datalist id="char-players">${[...players].sort().map((p) => `<option value="${esc(p)}">`).join('')}</datalist></label>
       <label>Character<input name="character" required maxlength="60" value="${esc(v.character ?? '')}"></label>
       <label>Status<select name="status">${options(STATUSES, v.status, statusLabel)}</select></label>
@@ -229,14 +182,7 @@ export function initCharacters(host) {
     fillRole(v.role);
     f.race.addEventListener('change', () => fillClass(f.cls.value));
     f.cls.addEventListener('change', () => fillRole(f.role.value));
-    form.querySelector('[data-fill]')?.addEventListener('click', () => {
-      for (const [k, val] of Object.entries(game)) {
-        if (!f[k]) continue;
-        if (f[k].tagName === 'SELECT' && !blank(val) && ![...f[k].options].some((o) => same(o.value, val))) f[k].insertAdjacentHTML('beforeend', `<option value="${esc(val)}">${esc(val)}</option>`);
-        f[k].value = val;
-        if (k === 'race') fillClass(game.cls ?? f.cls.value);
-      }
-    });
+    if (row?.fromApi) for (const k of GAME_FIELDS) f[k].disabled = true;
     form.querySelector('[data-cancel]').addEventListener('click', () => { form.hidden = true; });
     form.onsubmit = async (e) => {
       e.preventDefault();
@@ -281,6 +227,5 @@ export function initCharacters(host) {
     }
   });
   $('[data-q]').addEventListener('input', (e) => { q = e.target.value; draw(); });
-  $('[data-diff]').addEventListener('change', (e) => { onlyDiff = e.target.checked; draw(); });
   load();
 }

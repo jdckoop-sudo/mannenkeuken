@@ -27,7 +27,7 @@ Twee vaste taken:
 | Dashboard (live) | https://jdckoop-sudo.github.io/mannenkeuken/ |
 | GitHub-repo | https://github.com/jdckoop-sudo/mannenkeuken (Jelle = eigenaar, Justin = collaborator) |
 | Supabase-project | `mannenkeuken` (Europa) – SQL Editor: https://supabase.com/dashboard/project/uvnmgyhnqlibnvpivhdf/sql/new |
-| Blizzard-API (experiment) | developer-client op https://develop.battle.net; de geheimen `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan alleen als GitHub Actions-secrets (Claude typt ze nooit in en vraagt er nooit naar). Iedereen met repo-toegang kan de workflows starten met de client in GitHub. Om de scripts **lokaal** te draaien heeft ieder een eigen dev-client op Battle.net (zonder client geen data); zelf aanmaken op develop.battle.net → API Access → Create Client, en ID + secret zelf in een privé `.env` buiten de projectmap zetten. Testen: Actions → *Test Blizzard API* → Run workflow (`tools/blizzard-test.mjs`), of lokaal met `node --env-file=<privé .env buiten de OneDrive-map> tools/blizzard-test.mjs <character> <realm> [regio]` (zie `.env.example`; `.env`-bestanden staan in `.gitignore`; Claude leest zo'n bestand nooit uit). De echte update draait in Supabase (zie *Update characters: elke 15 minuten*); de characterpagina toont die gegevens onder "From the game" |
+| Blizzard-API (experiment) | developer-client op https://develop.battle.net; de geheimen `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan alleen als GitHub Actions-secrets (Claude typt ze nooit in en vraagt er nooit naar). Iedereen met repo-toegang kan de workflows starten met de client in GitHub. Om de scripts **lokaal** te draaien heeft ieder een eigen dev-client op Battle.net (zonder client geen data); zelf aanmaken op develop.battle.net → API Access → Create Client, en ID + secret zelf in een privé `.env` buiten de projectmap zetten. Testen: Actions → *Test Blizzard API* → Run workflow (`tools/blizzard-test.mjs`), of lokaal met `node --env-file=<privé .env buiten de OneDrive-map> tools/blizzard-test.mjs <character> <realm> [regio]` (zie `.env.example`; `.env`-bestanden staan in `.gitignore`; Claude leest zo'n bestand nooit uit). De echte update draait in Supabase (zie *Update characters: elke 15 minuten*) |
 
 ### Characters
 - **Tabel `characters`**: speler, naam, race, class, role, level, beroepen (`professions`, lijst van naam + soort + skill), status (Main / Alt / Gestopt; op de site staat "Gestopt" als **Quit**, de waarde in de database blijft Nederlands), notes en key recipes. Een speler heeft maximaal één Main. Spelers wijzigen hun eigen characters op My profile, Jelle en Justin alles in developer mode (zie *Characters beheren*).
@@ -71,9 +71,9 @@ Besloten op 5 nov 2026. De regels staan op één plek: `applyApi()` in `js/sheet
 - **Kent de API het character** (`loadBlizzard()`, status `ok`): **level, race, class en beroepen met skill komen uit de API**. Andere beroepen in de tabel worden op de site vervangen; Cooking, First Aid en Fishing die de API niet meldt, verdwijnen. Meldt de API helemaal geen beroepen (aanroep mislukt of nog niets geleerd), dan blijven de beroepen uit de tabel staan.
 - **Kent de API het character niet** (nog geen level 10, of een foutmelding): **de tabel is leidend**.
 - **Altijd uit de tabel**: Player, Character (de naam), Role, Status, Notes en Key recipes; de API heeft die gegevens niet.
-- **De tabel zelf wordt niet aangepast** door de API; dit gaat alleen over wat de site toont. Verschillen zie je in developer mode → *Characters*, waar je een character kunt gelijkzetten.
-- **Skill wordt altijd als "/ 300" getoond** (besloten op 5 nov 2026), ook al geeft de API per beroep een lager maximum (in Forever nu 75 of 150). Het echte maximum staat alleen in de ruwe API-data op de characterpagina onder *From the game*.
-- Op de characterpagina staat onder *From the game* nog steeds de ruwe API-data. De kaart **Details** toont, als de API het character kent, ook **Last login** en **Last updated** (het laatste moment waarop de API-data is opgehaald, dus de laatste update van de pijplijn), allebei met datum en tijd in NL-tijd; kent de API het character niet, dan staat er bij *Last updated* de datum van de laatste wijziging in de characterlijst.
+- **De tabel zelf wordt niet aangepast** door de API; dit gaat alleen over wat de site toont. De site toont overal de waarde van de API; er is geen vergelijking met wat in de tabel staat.
+- **Skill wordt altijd als "/ 300" getoond** (besloten op 5 nov 2026), ook al geeft de API per beroep een lager maximum (in Forever nu 75 of 150).
+- De kaart **Details** toont, als de API het character kent, ook **Last login** en **Last updated** (het laatste moment waarop de API-data is opgehaald, dus de laatste update van de pijplijn), allebei met datum en tijd in NL-tijd; kent de API het character niet, dan staat er bij *Last updated* de datum van de laatste wijziging in de characterlijst.
 
 ---
 
@@ -97,7 +97,7 @@ De Blizzard-data komt uit **Supabase**: `pg_cron` start elke 15 minuten de Edge 
 
 ## Characters beheren (developer mode)
 Developer mode → **Characters** toont de tabel `characters`. Jelle en Justin kunnen daar characters toevoegen, aanpassen en verwijderen; dat is meteen live.
-- **Oranje waarde**: de game (API) kent het character en zegt iets anders. De site toont die waarde, wat er ook in de tabel staat (zie *API of tabel*). Bij *Edit* vult **Fill in the values from the game** ze in. Met *Only differences with the game* zie je alleen de characters die afwijken.
+- **Wat je ziet**: de tabel toont wat de site toont. Kent de game een character, dan komen level, race, class en beroepen daarvandaan en zijn die velden bij *Edit* niet aan te passen; player, naam, status, role, notes en key recipes wel.
 - **Main**: een speler heeft maximaal één Main. Zet je een character op Main, dan wordt de vorige Main automatisch Alt. *Switch main* op My profile werkt de tabel ook bij (`set_main_character()`).
 - **Nieuwe speler**: typ je een naam die nog niet in `players` staat, dan vraagt de site of die speler erbij moet. Die staat daarna ook bij "Choose your player". De Discord-naam komt bij de volgende sync.
 - **Nieuwe characters** krijgen API-gegevens zodra ze level 10 zijn: de functie `update-characters` leest de namen uit deze tabel.
@@ -255,7 +255,7 @@ Kijk op GitHub naar de open draft-PR's met `[bezig]` in de titel (dat is altijd 
 3. ~~Welk is leidend bij verschil sheet ↔ Blizzard~~ **Besloten op 5 nov 2026**: de API is leidend waar hij iets weet, de tabel `characters` is de terugval (zie *API of tabel: wie is leidend*).
 4. **Laatste login openbaar?** Beslissen: tonen, weglaten, of repo privé (de tabel `blizzard_characters` is voor iedereen leesbaar).
 5. **Home-intro** ("[Short guild intro / message of the day]"): staat als idee op het Ideas-bord (developer mode). Eerder voorstel = tot de launch een aftelklok, daarna een door leden aanpasbare *Message of the day* + het eerstvolgende event met "Sign up". Nog niet gekozen.
-6. ~~Last seen in de Roster controleren~~ **Vervallen op 5 nov 2026**: de kolom is uit de Roster gehaald, omdat de laatste login uit de API niet zegt of een speler echt online is. De laatste login staat nog wel onder *From the game* op de characterpagina.
+6. ~~Last seen in de Roster controleren~~ **Vervallen op 5 nov 2026**: de kolom is uit de Roster gehaald, omdat de laatste login uit de API niet zegt of een speler echt online is. De laatste login staat nog wel bij Details op de characterpagina.
 7. **Laatste update tonen** op het platform (Justin was ermee bezig op 3 nov): controleren dat het na de launch klopt.
 8. Optioneel later: een Discord-bot, alleen als er meer bot-functies komen (bijv. melding bij level 60, events aankondigen).
 
