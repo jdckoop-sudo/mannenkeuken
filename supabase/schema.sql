@@ -902,3 +902,18 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Achievement tree: developer controls$q$, $q$Achievements$q$, 'check',
   $q$In developer mode click an achievement. Switch off: it greys out, stops counting and does not block the ones behind it. Force unlocked / locked, Set value, Reset progress and Remove all changes each ask for confirmation and change the tree at once. A non-developer cannot save (the database refuses).$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Achievement tree: developer controls$q$);
+
+-- 2026-11-06: only the developers (Jelle and Justin, is_dev()) may change the guild gold: the bank balance / goal / "bought" flag and the gold
+-- donations (Top donors, achievements). Until now any member could, the page only hid the buttons. The database refuses it now.
+-- Reading stays open for everybody. Bank items and reservations are unchanged (any member).
+drop policy if exists "update logged in" on public.bank;
+drop policy if exists "update devs" on public.bank;
+create policy "update devs" on public.bank for update to authenticated using (public.is_dev()) with check (public.is_dev());
+drop policy if exists "write members" on public.gold_donations;
+drop policy if exists "write devs" on public.gold_donations;
+create policy "write devs" on public.gold_donations for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Gold can only be changed by developers$q$, $q$Bank$q$, 'check',
+  $q$After running schema.sql: as Jelle/Justin the Bank manager still works (+ Add with donor, Set, Remove donation, goal, bought). As a normal player (switch player, no developer mode) the manager is hidden; if you try in the browser console `supabase.from('gold_donations').insert(...)` or update `bank`, the database refuses it.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Gold can only be changed by developers$q$);

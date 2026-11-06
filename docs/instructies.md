@@ -57,6 +57,7 @@ Gegevens: voor level, race, class en beroepen geldt **API leidend, tabel `charac
 ### Guildbank en Opie Bank
 De Guild Bank-pagina: bovenaan "How it works", het goud en **Top donors**; daaronder **Guild bank** en **Opie Bank**.
 - **Opie Bank** is de bank-character. Leden mailen spullen **en guildgoud** in-game naar Opie Bank. **Jelle houdt de voorraad en het goudbedrag bij**; het goud wordt pas bijgewerkt als het binnen is.
+- **Alleen Jelle en Justin kunnen goud toevoegen of aanpassen** (saldo, doel, donaties): de database weigert het voor iedereen anders (RLS `is_dev()` op `bank` en `gold_donations`, sinds 6 nov), niet alleen de knoppen. Lezen mag iedereen.
 - **Donaties**: bij **+ Add** kies je onder *From (donor)* van wie het goud komt → telt bij de pot op en komt in `gold_donations`. **Top donors** telt vanaf de launch. Onder *Latest donations* kun je een fout weghalen (gaat ook van de pot af).
 - **"Send to Opie Bank"**: wie iets opstuurt, vult het in (*I sent this to Opie Bank*) → staat bij **"On its way"** tot Jelle op **Received** klikt. *Already in the inventory* = direct in de voorraad.
 - **Guildbank (nu)**: we sparen **100 gold**. Items toevoegen/reserveren in de guildbank is nog dicht.
