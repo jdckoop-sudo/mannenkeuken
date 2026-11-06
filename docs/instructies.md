@@ -156,7 +156,7 @@ Nieuw Discord-lid zonder koppeling: gebruik de Discordnaam als speler en vraag d
 ---
 
 ## Discord-rollen
-- **Mannen**: iedereen heeft deze rol, bewust met beheerdersrechten, **behalve Lurkers** (zie hieronder). Nieuwe leden krijgen hem via **Onboarding** (vraag 1 "Wat speel je? (Tank / Healer / DPS)" is verplicht en elk antwoord geeft óók Mannen).
+- **Mannen**: iedereen heeft deze rol, bewust met beheerdersrechten, **behalve Lurkers** (zie hieronder). Nieuwe leden krijgen hem via **Onboarding** (vraag 1 "Wat speel je? (Tank / Healer / DPS)" is verplicht en elk antwoord geeft óók Mannen). Vraag 1 heeft sinds 6 nov 2026 ook het antwoord **"Lurker (ik kijk alleen mee)"**: dat geeft **alleen** de rol Lurker (geen Mannen). Discord kan niet zelf een rol geven aan iedereen die joint (daarvoor is een bot nodig); wie Onboarding overslaat, krijgt dus geen rol. Vraag 1 staat "meerdere antwoorden toestaan" aan: kiest iemand Lurker én Tank, dan klopt dat niet: bij de sync gewoon rechtzetten volgens het dashboard.
 - **Tank / Healer / DPS**: bóven Mannen in de rollenlijst en "afzonderlijk weergeven".
 - **Race-, class- en beroeprollen**: precies dezelfde namen als op het dashboard; alleen voor de **Main**.
 - **Alts krijgen géén Discord-rollen** (afspraak 3 nov 2026): alle rollen (Tank/Healer/DPS, race, class, beroep) gaan alleen over de **Main**. Alts staan alleen op het dashboard (Status = Alt). De rollen Alt Tank / Alt Healer / Alt DPS worden niet gebruikt.
