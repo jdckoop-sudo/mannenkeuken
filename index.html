@@ -89,6 +89,10 @@
         <a class="box stat" href="bank.html" style="text-decoration:none;color:inherit"><span class="muted">Top donor to the guild bank</span><strong class="stat-text" id="stat-donor">–</strong><span class="stat-sub" id="stat-donor-sub"></span></a>
         <a class="box stat" href="market.html" style="text-decoration:none;color:inherit"><span class="muted">Open trade listings</span><strong id="stat-market">–</strong></a>
       </div>
+      <div id="game-stats-box" hidden style="display:flex;flex-direction:column;gap:10px">
+        <div><h3 style="margin:0;font-size:16px">Activity in the game</h3><span class="muted" style="font-size:14px">All characters from level 10, mains and alts together. Updates after a player logs out.</span></div>
+        <div class="grid glance" id="game-stats"></div>
+      </div>
       <div style="display:flex;flex-direction:column;gap:6px"><span class="muted" style="font-size:14px">Guild bank gold</span><div id="gold"><p class="muted">Loading…</p></div><a href="bank.html">Go to the guild bank</a></div>
     </section>
   </div>
@@ -99,7 +103,7 @@ import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { supabase, getProfile, mine } from './js/supabase.js?v=__V__';
 import { upcomingReleases, releaseWhen, LAUNCH } from './js/releases.js?v=__V__';
 import { goldBar, goldHtml } from './js/gold.js?v=__V__';
-import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, playerForUser, playerUrl } from './js/players.js?v=__V__';
 import { loadItems, qualityColor, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { questUrl } from './js/quests.js?v=__V__';
 import { findDungeon, dungeonUrl } from './js/dungeons.js?v=__V__';
@@ -133,6 +137,13 @@ document.getElementById('stat-level').textContent = levels.length ? Math.round(l
   const { characters } = await charactersPromise;
   const live = characters.filter((c) => c.status !== 'Gestopt');
   document.getElementById('stat-alts').textContent = live.filter((c) => c.kind === 'Alt').length;
+
+  // Activity in the game: all characters (not only mains), so the totals add up to the player pages. Hidden until the first numbers are in.
+  const gameTotal = gameTotals(live, await loadBlizzard());
+  if (gameTotal.known) {
+    document.getElementById('game-stats').innerHTML = gameStatTiles(gameTotal);
+    document.getElementById('game-stats-box').hidden = false;
+  }
 
   // Average profession level: the mean of every profession skill that is filled in (main and secondary professions), mains only
   const skillOf = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v));

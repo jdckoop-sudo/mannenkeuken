@@ -22,6 +22,11 @@
   <section class="grid" id="stats" aria-label="Stats"></section>
   <h2>Characters</h2>
   <div class="grid" id="chars"><p class="muted">Loading…</p></div>
+  <section class="box" id="game-stats-box" aria-label="Activity in the game" hidden>
+    <h2>Activity in the game <span class="muted" style="font-size:14px;font-weight:400">(all characters from level 10)</span></h2>
+    <div class="grid glance" id="game-stats"></div>
+    <p class="muted" style="font-size:13px;margin:0">Updates after the player logs out.</p>
+  </section>
   <section class="box" aria-label="Activity">
     <h2>Activity on the dashboard <span class="muted" style="font-size:14px;font-weight:400">(since WoW: Forever launch)</span></h2>
     <div class="stat-list" id="activity"><span class="muted">Loading…</span></div>
@@ -32,7 +37,7 @@ import { renderHeader } from './js/layout.js?v=__V__';
 import { LAUNCH } from './js/releases.js?v=__V__';
 import { supabase } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
-import { loadCharacters, statsFor, characterUrl, playerForUser, statusLabel } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, statsFor, characterUrl, playerForUser, statusLabel } from './js/players.js?v=__V__';
 
 const user = await renderHeader();
 const name = new URLSearchParams(location.search).get('name');
@@ -51,9 +56,10 @@ if (!target) {
   document.getElementById('title').style.color = `var(--player-${target.toLowerCase().replace(/[^a-z0-9]/g, '')}, inherit)`;
   document.getElementById('sub').textContent = p?.discord_name ? `Discord: ${p.discord_name}` : 'Discord name not linked yet';
 
-  const s = statsFor(chars.filter((c) => c.status !== 'Gestopt'));
+  const liveChars = chars.filter((c) => c.status !== 'Gestopt');
+  const s = statsFor(liveChars);
   const tile = (label, value, sub) => `<div class="box stat"><span class="muted">${label}</span><strong${typeof value === 'string' && !/^[#\d–]/.test(value) ? ' class="stat-text"' : ''}>${esc(value ?? '–')}</strong>${sub ? `<span class="stat-sub">${esc(sub)}</span>` : ''}</div>`;
-  document.getElementById('stats').innerHTML = tile('Characters', s.characters) + tile('Player level (all characters)', s.totalLevel || '–')
+  document.getElementById('stats').innerHTML = tile('Characters', s.characters)
     + tile('Highest character level', s.highestLevel) + tile('Total profession skill', s.totalSkill || '–')
     + tile('Best profession', s.bestProfession ? s.bestProfession.name : '–', s.bestProfession ? `Skill ${s.bestProfession.skill} / 300` : '');
 
@@ -65,6 +71,13 @@ if (!target) {
       <span>Level <strong>${esc(c.level ?? '–')}</strong></span>
       ${c.profs.length ? `<span class="muted" style="font-size:14px">${c.profs.map((x) => `${esc(x.name)} ${esc(x.skill ?? '–')}`).join(' · ')}</span>` : ''}
     </a>`).join('') || '<p class="muted">No characters yet.</p>';
+
+  // Activity in the game (Blizzard API). Hidden until the update has collected numbers for anyone; a player below level 10 then sees dashes.
+  const blizzard = await loadBlizzard();
+  if (gameTotals(characters, blizzard).known) {
+    document.getElementById('game-stats').innerHTML = gameStatTiles(gameTotals(liveChars, blizzard));
+    document.getElementById('game-stats-box').hidden = false;
+  }
 
   // Activity (Supabase): by this player's logins (browsers) and name
   if (supabase) {

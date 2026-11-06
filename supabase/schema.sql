@@ -826,3 +826,8 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Character data every 15 minutes (Supabase)$q$, $q$Characters$q$, 'check',
   $q$After the setup: Checks → Blizzard characters shows "Updated" less than an hour ago and comes from the database. Log out in the game with a character of level 10+, wait up to 15 minutes, reload Members: the new level and skills are there, without a new commit or deploy.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Character data every 15 minutes (Supabase)$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Game statistics on Home and player pages$q$, $q$Characters$q$, 'check',
+  $q$After deploying the Edge Function update-characters again in Supabase: within 15 minutes Home shows Activity in the game (quests, kills, deaths, fish). Compare one player page with that character's in-game statistics, and check that the player pages add up to the guild total.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Game statistics on Home and player pages$q$);
