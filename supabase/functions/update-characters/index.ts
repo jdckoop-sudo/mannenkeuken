@@ -50,6 +50,17 @@ async function guildCharacters() {
   return { names: [...found.values()], complete };
 }
 
+// What the character wears, in the order of the Armory: [{slot, id, name, quality}]. Quality as in data/items.json (0 poor … 5 legendary).
+const SLOTS = ['HEAD', 'NECK', 'SHOULDER', 'BACK', 'CHEST', 'SHIRT', 'TABARD', 'WRIST', 'HANDS', 'WAIST', 'LEGS', 'FEET', 'FINGER_1', 'FINGER_2', 'TRINKET_1', 'TRINKET_2', 'MAIN_HAND', 'OFF_HAND', 'RANGED'];
+const QUALITY = { POOR: 0, COMMON: 1, UNCOMMON: 2, RARE: 3, EPIC: 4, LEGENDARY: 5, ARTIFACT: 6, HEIRLOOM: 7 };
+function equipmentList(body) {
+  const order = (type) => { const i = SLOTS.indexOf(type); return i < 0 ? SLOTS.length : i; };
+  return (body.equipped_items ?? [])
+    .filter((e) => e.item?.id && e.name)
+    .sort((a, b) => order(a.slot?.type) - order(b.slot?.type))
+    .map((e) => ({ slot: e.slot?.type ?? null, id: e.item.id, name: e.name, quality: QUALITY[e.quality?.type] ?? 1 }));
+}
+
 // The character pictures: {avatar, inset, main, ...}. Null when the game has none.
 function pictures(body) {
   const list = (body.assets ?? []).filter((a) => a.key && /^https:\/\//.test(a.value ?? ''));
@@ -116,6 +127,7 @@ async function run(dryRun) {
       const prof = await call(`${base}/professions`);
       const stats = await call(`${base}/achievements/statistics`);
       const media = await call(`${base}/character-media`);
+      const gear = await call(`${base}/equipment`);
       entry = {
         name: b.name ?? name, status: 'ok', level: b.level ?? null, race: b.race?.name ?? null, class: b.character_class?.name ?? null,
         faction: b.faction?.name ?? null, guild: b.guild?.name ?? null,
@@ -123,6 +135,7 @@ async function run(dryRun) {
         professions: prof.status === 200 ? professionList(prof.body) : (old?.professions ?? []),
         stats: stats.status === 200 ? gameStats(stats.body) : (old?.stats ?? null),
         media: media.status === 200 ? pictures(media.body) : (old?.media ?? null),
+        equipment: gear.status === 200 ? equipmentList(gear.body) : (old?.equipment ?? []),
         fetched: now,
       };
       counts.ok += 1;
