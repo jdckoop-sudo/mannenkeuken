@@ -175,7 +175,7 @@ async function drawMe() {
   const profile = await getProfile(user);
   const { data: alts } = await supabase.from('alts').select('*').in('user_id', [...user.ids]).order('created_at');
   if (!profile?.character_name) {
-    box.innerHTML = '<p class="muted">You have not set your main character yet.</p><a class="btn" href="profile.html" style="align-self:flex-start">Set up my profile</a>';
+    box.innerHTML = '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:12px"><p class="muted">You have not set your main character yet.</p><a class="btn" href="profile.html">Set up my profile</a></div>';
     return;
   }
   const find = (name) => all.find((m) => (m.character || '').trim().toLowerCase() === (name || '').trim().toLowerCase());
