@@ -113,6 +113,14 @@ Developer mode → **Characters** toont de tab Members van de sheet. Je kunt daa
 
 ---
 
+## Google Sheet uitfaseren
+Besloten op 6 nov 2026: de sheet verdwijnt en de tabel `characters` in Supabase wordt de bron. Dit gaat in stappen; **tot stap 5 is de sheet nog de bron voor de site.**
+- **Afspraken**: de API blijft altijd leidend als hij een character kent. Een speler wijzigt alleen zijn eigen characters: naam, race, class en role zolang de API het character niet kent (onder level 10), daarna alleen de role. Level en beroepen komen vanzelf uit de API. Jelle en Justin kunnen alles aanpassen in developer mode. Geen limiet op het aantal alts. Quit-characters blijven bewaard (Status Gestopt). Dit wordt afgedwongen in de database (trigger `characters_guard` in `schema.sql`).
+- **Stappen**: 1 keuzes (klaar) · 2 back-up van de sheet · 3 tabel `characters` · 4 eenmalig vullen uit de sheet · 5 `loadMembers()` leest de tabel · 6 tab Characters schrijft naar de tabel · 7 My profile: `profiles`, `alts` en `main_characters` samenvoegen (ook de oude alt-limiet weg) · 8 character-update haalt de namen uit de tabel · 9 teksten op de site · 10 *Sync de guild* volgt de tabel · 11 nieuwe spelers via de tabel · 12 een week parallel, sheet alleen-lezen · 13 sheetcode, `sheet-edit` en `SheetEdit.gs` weg · 14 sheet archiveren.
+- **Vullen**: `node tools/import-characters.mjs` maakt `supabase/import-characters.sql` uit de sheet en meldt wat aandacht vraagt. Voer dat bestand uit in de SQL Editor, na `schema.sql`. Controleren: `node tools/import-characters.mjs --check`. Opnieuw draaien mag: regels die op de site zijn gewijzigd blijven staan. Draai het vlak voor stap 5 nog een keer, want de sheet kan intussen veranderen.
+
+---
+
 ## Wie is wie (sheet ↔ Discord)
 
 | Sheet (Player) | Discord |

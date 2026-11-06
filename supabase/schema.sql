@@ -831,3 +831,79 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Game statistics on Home and player pages$q$, $q$Characters$q$, 'check',
   $q$After deploying the Edge Function update-characters again in Supabase: within 15 minutes Home shows Activity in the game (quests, kills, deaths, fish). Compare one player page with that character's in-game statistics, and check that the player pages add up to the guild total.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Game statistics on Home and player pages$q$);
+
+-- 2026-11-06: phasing out the Google Sheet (docs/instructies.md, "Google Sheet uitfaseren"). All characters in one table. The site does not read it yet.
+-- Everyone can read. The API stays leading on the site where it knows a character (applyApi() in js/sheet.js); these rows are what the API cannot tell.
+-- Who may change what is enforced by the trigger below:
+--   developers (is_dev()): everything; a player: only their own characters.
+--   a player, API does not know the character yet (under level 10): name, race, class and role.
+--   a player, API knows the character: only the role.
+-- Level and professions come from the API. professions: [{"name": "Mining", "kind": "primary" | "secondary", "skill": 12}]. No limit on the number of alts.
+create table if not exists public.characters (
+  id uuid primary key default gen_random_uuid(),
+  player_name text not null references public.players(player_name) on update cascade,
+  name text not null check (char_length(btrim(name)) between 1 and 60),
+  race text check (char_length(race) <= 40),
+  class text check (char_length(class) <= 40),
+  role text check (role in ('Tank', 'Healer', 'DPS')),
+  level int check (level between 1 and 60),
+  professions jsonb not null default '[]'::jsonb check (jsonb_typeof(professions) = 'array'),
+  status text not null default 'Alt' check (status in ('Main', 'Alt', 'Gestopt')),
+  notes text check (char_length(notes) <= 500),
+  recipes text check (char_length(recipes) <= 500),
+  updated_at timestamptz not null default now(),
+  updated_by text,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists characters_name_key on public.characters ((lower(btrim(name))));  -- the name is the key on the site and in the API
+create unique index if not exists characters_one_main on public.characters (player_name) where status = 'Main';
+alter table public.characters enable row level security;
+
+create or replace function public.current_player() returns text
+language sql stable security definer set search_path = public as $$
+  select player_name from public.members where user_id = auth.uid() limit 1 $$;
+grant execute on function public.current_player() to anon, authenticated;
+
+drop policy if exists "read all" on public.characters;
+drop policy if exists "insert own" on public.characters;
+drop policy if exists "update own" on public.characters;
+drop policy if exists "delete devs" on public.characters;
+create policy "read all" on public.characters for select using (true);
+create policy "insert own" on public.characters for insert to authenticated with check (public.is_dev() or player_name = public.current_player());
+create policy "update own" on public.characters for update to authenticated using (public.is_dev() or player_name = public.current_player()) with check (public.is_dev() or player_name = public.current_player());
+create policy "delete devs" on public.characters for delete to authenticated using (public.is_dev());
+grant select on public.characters to anon, authenticated;
+grant insert, update, delete on public.characters to authenticated;
+grant all on public.characters to service_role;
+
+create or replace function public.characters_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare known boolean;
+begin
+  if auth.uid() is null then return new; end if;  -- SQL Editor (import, which keeps the sheet's date) and the service key
+  new.updated_at := now();
+  new.updated_by := public.current_player();
+  if public.is_dev() then return new; end if;
+  if tg_op = 'INSERT' then
+    -- A player only gives name, race, class and role. The first character of a player is the main.
+    new.level := null; new.professions := '[]'::jsonb; new.notes := null; new.recipes := null;
+    new.status := case when exists (select 1 from public.characters c where c.player_name = new.player_name and c.status = 'Main') then 'Alt' else 'Main' end;
+    return new;
+  end if;
+  if new.player_name is distinct from old.player_name or new.level is distinct from old.level or new.professions is distinct from old.professions
+     or new.status is distinct from old.status or new.notes is distinct from old.notes or new.recipes is distinct from old.recipes then
+    raise exception 'Only the name, race, class and role of a character can be changed here';
+  end if;
+  known := exists (select 1 from public.blizzard_characters b where b.key = lower(btrim(old.name)) and b.data->>'status' = 'ok');
+  if known and (new.name is distinct from old.name or new.race is distinct from old.race or new.class is distinct from old.class) then
+    raise exception 'The game knows this character: only the role can be changed';
+  end if;
+  return new;
+end $$;
+drop trigger if exists characters_guard on public.characters;
+create trigger characters_guard before insert or update on public.characters for each row execute function public.characters_guard();
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Table characters: import from the sheet$q$, $q$Characters$q$, 'check',
+  $q$After schema.sql and supabase/import-characters.sql: node tools/import-characters.mjs --check shows no differences. The site still reads the sheet.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Table characters: import from the sheet$q$);
