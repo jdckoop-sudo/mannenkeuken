@@ -871,3 +871,34 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Update characters every 15 minutes (Edge Function)$q$, $q$Characters$q$, 'check',
   $q$Developer mode > Checks: the Blizzard data line is green and not older than about 15 minutes. Level, professions and last login change after a player logs out. If you changed supabase/functions/update-characters, deploy it in Supabase first.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Update characters every 15 minutes (Edge Function)$q$);
+
+-- 2026-11-06: achievement tree (achievements.html, js/achievements.js). The catalogue lives in the code; this table holds what the developers
+-- changed: switch an achievement off (player_name '' only), force it unlocked / locked, enter a value, or reset it (baseline = what the
+-- player had at that moment, progress counts from there). player_name '' = everyone / a guild goal; a player's own row wins over it.
+create table if not exists public.achievement_overrides (
+  achievement_id text not null check (char_length(achievement_id) <= 40),
+  player_name text not null default '' check (char_length(player_name) <= 40),
+  disabled boolean not null default false,
+  forced text check (forced in ('unlocked', 'locked')),
+  value numeric check (value >= 0),
+  baseline numeric not null default 0 check (baseline >= 0),
+  note text check (char_length(note) <= 200),
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  primary key (achievement_id, player_name)
+);
+alter table public.achievement_overrides enable row level security;
+drop policy if exists "read all" on public.achievement_overrides;
+drop policy if exists "write devs" on public.achievement_overrides;
+create policy "read all" on public.achievement_overrides for select using (true);
+create policy "write devs" on public.achievement_overrides for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Achievement tree: unlock flow and progress$q$, $q$Achievements$q$, 'check',
+  $q$After running schema.sql: open Achievements. Everything behind an unfinished achievement shows ???. Progress bars match the Roster (levels, skill), Bank (donations) and Events (sign-ups). Switch "Viewing" to another player: points and unlocks change. Check kills, quests, deaths and fish against From the game numbers.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Achievement tree: unlock flow and progress$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Achievement tree: developer controls$q$, $q$Achievements$q$, 'check',
+  $q$In developer mode click an achievement. Switch off: it greys out, stops counting and does not block the ones behind it. Force unlocked / locked, Set value, Reset progress and Remove all changes each ask for confirmation and change the tree at once. A non-developer cannot save (the database refuses).$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Achievement tree: developer controls$q$);

@@ -16,8 +16,19 @@
 <main>
   <div>
     <h1>Achievements</h1>
-    <p class="muted">Guild records: highest characters, players (all characters together) and professions. Characters with the status Quit don't count.</p>
+    <p class="muted" id="intro">Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish), your donations and the events you join.</p>
   </div>
+  <div class="ach-bar">
+    <div class="ach-seg" role="group" aria-label="View"><button type="button" id="tab-tree" aria-pressed="true">Achievement tree</button><button type="button" id="tab-records" aria-pressed="false">Records</button></div>
+    <label class="ach-who" id="who-wrap">Viewing <select id="ach-who" aria-label="Player"></select></label>
+  </div>
+  <section id="tree-view">
+    <div class="grid glance" id="ach-summary"></div>
+    <div class="ach-scroll" tabindex="0" aria-label="Achievement tree, scrolls sideways"><div class="ach-tree" id="ach-tree"></div></div>
+    <p class="muted" style="font-size:13px;margin:0">Click an achievement for what it asks. Locked ones show a question mark until what comes before them is done. Characters with the status Quit don't count. Guild goals are shared by everybody.</p>
+  </section>
+  <div class="ach-modal" id="ach-modal" hidden></div>
+  <div id="records-view" hidden>
   <div class="grid">
     <section class="box"><div><h2>Highest level</h2><p class="muted sub">Single characters</p></div><ol id="chars" class="board"></ol></section>
     <section class="box"><div><h2>Player level</h2><p class="muted sub">All characters added together</p></div><ol id="players" class="board"></ol></section>
@@ -25,6 +36,7 @@
   </div>
   <h2>Best per profession</h2>
   <div class="grid" id="profs"><p class="muted">Loading…</p></div>
+  </div>
 </main>
 <style>
   .sub { font-size: 13px; margin-top: 2px; }
@@ -41,9 +53,22 @@
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
+import { getUser } from './js/supabase.js?v=__V__';
+import { initTree, achDefs } from './js/achievement-tree.js?v=__V__';
 import { loadCharacters, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
 
 await renderHeader();
+document.body.insertAdjacentHTML('beforeend', achDefs());
+const user = await getUser();
+const showTab = (tree) => {
+  document.getElementById('tree-view').hidden = !tree; document.getElementById('who-wrap').hidden = !tree; document.getElementById('records-view').hidden = tree;
+  document.getElementById('tab-tree').setAttribute('aria-pressed', String(tree)); document.getElementById('tab-records').setAttribute('aria-pressed', String(!tree));
+  document.getElementById('intro').textContent = tree ? 'Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish), your donations and the events you join.'
+    : 'Guild records: highest characters, players (all characters together) and professions. Characters with the status Quit don\'t count.';
+};
+document.getElementById('tab-tree').onclick = () => showTab(true);
+document.getElementById('tab-records').onclick = () => showTab(false);
+initTree({ user, tree: document.getElementById('ach-tree'), summary: document.getElementById('ach-summary'), who: document.getElementById('ach-who'), modal: document.getElementById('ach-modal') });
 const { characters } = await loadCharacters();
 const active = characters.filter((c) => c.status !== 'Gestopt' && c.hasName);
 const top = 10;

@@ -396,3 +396,76 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .player-char { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 620px); gap: 24px; align-items: start; }
 .player-char-text { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 @media (max-width: 900px) { .player-char { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Achievements: medals (js/achicons.js) and the tree (js/achievement-tree.js) ---- */
+.ach-icon { display: block; flex: none; overflow: visible; }
+.ach-icon .ach-disc { fill: var(--panel-2); }
+.ach-icon .ach-rim { fill: none; stroke: var(--bg); stroke-width: 1.2; opacity: .7; }
+.ach-icon .ach-shine { fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; opacity: .35; }
+.ach-icon .l { fill: currentColor; }
+.ach-icon .m { fill: currentColor; opacity: .5; }
+.ach-icon .d { fill: var(--bg); }
+.ach-icon .w { fill: var(--text); }
+.ach-icon .sl { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.ach-icon .sd { fill: none; stroke: var(--bg); stroke-linecap: round; stroke-linejoin: round; }
+.ach-icon .sw { fill: none; stroke: var(--text); stroke-linecap: round; opacity: .7; }
+.ach-icon.t-bronze { color: var(--copper); }
+.ach-icon.t-silver { color: var(--silver); }
+.ach-icon.t-gold, .ach-icon.t-guild { color: var(--gold-bright); }
+.ach-icon.t-crimson { color: var(--gold-bright); }
+
+.ach-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.ach-branches { display: flex; flex-wrap: wrap; gap: 8px; }
+.ach-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--muted); background: var(--panel); }
+.ach-chip strong { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+.ach-who { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+.ach-who select { background: var(--field); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font: inherit; }
+.ach-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.ach-seg button { background: var(--panel); color: var(--muted); border: 0; padding: 9px 16px; min-height: 40px; font: inherit; font-weight: 600; cursor: pointer; }
+.ach-seg button + button { border-left: 1px solid var(--border); }
+.ach-seg button[aria-pressed="true"] { background: var(--panel-3); color: var(--gold-bright); }
+
+.ach-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 8px 0 12px; }
+.ach-tree { position: relative; width: 100%; }
+.ach-lines { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.ach-lines path { fill: none; stroke: var(--border-strong); stroke-width: 3; stroke-linecap: round; }
+.ach-lines path.done { stroke: var(--gold); }
+.ach-lines path.far { stroke-dasharray: 2 8; opacity: .6; }
+.ach-lane { position: absolute; left: 0; right: 0; padding: 6px 14px 0; border-top: 1px solid var(--border); }
+.ach-lane:first-child { border-top: 0; }
+.ach-lane h3 { margin: 0; font-family: var(--font-display); font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+.ach-lane p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.ach-node { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 4px 6px; background: none; border: 0; color: var(--text); font: inherit; cursor: pointer; text-align: center; border-radius: 10px; }
+.ach-node:hover, .ach-node:focus-visible { background: var(--panel-2); outline: 1px solid var(--gold-dim); }
+.ach-node .ach-name { font-size: 12.5px; line-height: 1.25; font-weight: 600; max-width: 130px; overflow-wrap: anywhere; }
+.ach-node .ach-mini { width: 64px; height: 5px; border-radius: 3px; background: var(--field); border: 1px solid var(--border); overflow: hidden; }
+.ach-node .ach-mini i { display: block; height: 100%; background: linear-gradient(var(--gold-bright), var(--gold-dim)); }
+.ach-node.done .ach-icon { filter: drop-shadow(0 0 6px var(--gold-dim)); }
+.ach-node.done .ach-name { color: var(--gold-bright); }
+.ach-node.avail .ach-icon { opacity: .92; }
+.ach-node.locked .ach-icon, .ach-node.off .ach-icon { filter: grayscale(1) brightness(.55); }
+.ach-node.locked .ach-name, .ach-node.off .ach-name { color: var(--muted); }
+.ach-node.off { opacity: .6; }
+.ach-node .ach-tag { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ach-node.scope-guild .ach-tag { color: var(--gold-dim); }
+
+.ach-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, var(--bg) 82%, transparent); }
+.ach-modal[hidden] { display: none; }
+.ach-card { width: min(560px, 100%); max-height: 92vh; overflow: auto; background: var(--panel); border: 1px solid var(--border-strong); border-top: 2px solid var(--gold); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.ach-card-head { display: flex; gap: 16px; align-items: center; }
+.ach-card-head h2 { margin: 0; }
+.ach-card .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.ach-card .meta strong { color: var(--gold-bright); }
+.ach-prog { height: 12px; border-radius: 6px; background: var(--field); border: 1px solid var(--border); overflow: hidden; }
+.ach-prog i { display: block; height: 100%; background: linear-gradient(var(--gold-bright), var(--gold-dim)); }
+.ach-req { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.ach-req li::before { content: '\25CB  '; color: var(--muted); }
+.ach-req li.ok::before { content: '\2713  '; color: var(--good); }
+.ach-dev { border: 1px dashed var(--gold-dim); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.ach-dev h3 { margin: 0; font-size: 14px; color: var(--gold); }
+.ach-dev .row-ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ach-dev select, .ach-dev input { background: var(--field); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font: inherit; max-width: 100%; }
+.ach-dev input[type="number"] { width: 110px; }
+.ach-dev .msg { font-size: 13px; min-height: 1.2em; }
+.ach-dev .msg.bad { color: var(--bad); }
+.ach-dev .msg.ok { color: var(--good); }
