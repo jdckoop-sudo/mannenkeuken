@@ -75,7 +75,7 @@ Besloten op 5 nov 2026. De regels staan op één plek: `applyApi()` in `js/sheet
 - **Altijd uit de sheet**: Player, Character (de naam: wij passen die zelf aan), Role, Status, Notes en Key recipes; de API heeft die gegevens niet.
 - **De sheet zelf wordt niet aangepast** door de API; dit gaat alleen over wat de site toont. Verschillen zie je in developer mode → *Characters*, waar je de sheet per character kunt gelijkzetten.
 - **Skill wordt altijd als "/ 300" getoond** (besloten op 5 nov 2026), ook al geeft de API per beroep een lager maximum (in Forever nu 75 of 150). Het echte maximum staat alleen in de ruwe API-data op de characterpagina onder *From the game*.
-- Op de characterpagina staat onder *From the game* nog steeds de ruwe API-data.
+- Op de characterpagina staat onder *From the game* nog steeds de ruwe API-data. De kaart **Details** toont, als de API het character kent, ook **Last login** en **Last updated** (het laatste moment waarop de API-data is opgehaald, dus de laatste update van de pijplijn), allebei met datum en tijd in NL-tijd; kent de API het character niet, dan staat er bij *Last updated* de datum van de laatste wijziging in de characterlijst.
 
 ---
 

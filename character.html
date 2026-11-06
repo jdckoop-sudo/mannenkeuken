@@ -73,17 +73,22 @@ if (!c) {
       <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, ((p.skill ?? 0) / 300) * 100)}%"></div></div></div>`;
   }).join('') || '<p class="muted">No professions yet: they appear from level 10.</p>';
 
-  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes], ['Last updated', c.updated]]
+  // Live data from the Blizzard API, when the update has fetched this character
+  const blizzard = await loadBlizzard();
+  const bz = blizzard?.characters?.[c.name.toLowerCase()];
+  const when = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', day: 'numeric', month: 'short', year: 'numeric' }) : null);
+  const whenTime = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null);
+  // Last login and Last updated (the last time the game data was fetched) come from the API; for a character the API does not know, the date it was last changed here is left.
+  const apiOk = bz?.status === 'ok';
+  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes],
+    ['Last login', apiOk ? whenTime(bz.lastLogin) : null], ['Last updated', apiOk ? whenTime(blizzard?.updated ?? bz.fetched) : c.updated]]
     .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
-  // Live data from the Blizzard API, when the update workflow has fetched this character
-  const bz = (await loadBlizzard())?.characters?.[c.name.toLowerCase()];
-  if (bz?.status === 'ok') {
-    const when = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', day: 'numeric', month: 'short', year: 'numeric' }) : null);
-    document.getElementById('bz-details').innerHTML = [['Level', bz.level], ['Race', bz.race], ['Class', bz.class], ['Faction', bz.faction], ['Guild', bz.guild], ['Last login', when(bz.lastLogin)]]
+  if (apiOk) {
+    document.getElementById('bz-details').innerHTML = [['Level', bz.level], ['Race', bz.race], ['Class', bz.class], ['Faction', bz.faction], ['Guild', bz.guild], ['Last login', whenTime(bz.lastLogin)]]
       .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
     document.getElementById('bz-profs').innerHTML = (bz.professions ?? []).filter((p) => p.skill !== null).map((p) => `<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${esc(p.name)}</span><span class="muted">${esc(p.skill)} / ${esc(p.max)}</span></div>
       <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, p.max ? (p.skill / p.max) * 100 : 0)}%"></div></div></div>`).join('');
-    document.getElementById('bz-note').textContent = `Read from the Blizzard API, last checked ${when(bz.fetched) ?? 'recently'}. It updates after the player logs out.`;
+    document.getElementById('bz-note').textContent = `Read from the Blizzard API, last checked ${whenTime(bz.fetched) ?? 'recently'}. It updates after the player logs out.`;
     document.getElementById('blizzard').hidden = false;
   }
 }
