@@ -22,6 +22,11 @@
     <p class="muted" id="sub"></p>
   </div>
   <section class="grid" id="stats" aria-label="Stats"></section>
+  <section class="box" id="game-stats-box" aria-label="Activity in the game" hidden>
+    <h2>Activity in the game</h2>
+    <div class="grid trio" id="game-stats"></div>
+    <p class="muted" style="font-size:13px;margin:0">Counted by the game and ranked against the other characters of the guild. Updates after the player logs out.</p>
+  </section>
   <div class="row">
     <section class="box" id="equipment-box" style="flex: 1 1 560px; max-width: 680px" hidden>
       <h2>Equipment</h2>
@@ -84,6 +89,29 @@ if (!c) {
     document.getElementById('equipment').append(characterDoll(bz, c.name, c.class));
     document.getElementById('equipment-box').hidden = false;
     refreshTooltips();
+  }
+  // Activity in the game (Blizzard API): this character's counters, each ranked against the other guild characters that have numbers
+  if (apiOk && bz.stats) {
+    const stat = (x) => blizzard?.characters?.[x.name.toLowerCase()]?.stats;
+    const pool = characters.filter((x) => x.status !== 'Gestopt' && stat(x));
+    const metrics = [
+      ['Quests completed', (s) => s.quests, 'Most in the guild'],
+      ['Kills', (s) => s.kills, 'Most in the guild'],
+      ['Deaths', (s) => s.deaths, 'Most in the guild: the Hall of Shame'],
+      ['Fish caught', (s) => s.fish, 'Most in the guild'],
+      ['Kills per death', (s) => (s.deaths > 0 ? s.kills / s.deaths : null), 'Best in the guild'],
+      ['Quests per level', (s, x) => (x.level > 0 ? s.quests / x.level : null), 'Most in the guild'],
+    ];
+    const show = (v) => v.toLocaleString('en-GB', { maximumFractionDigits: 1 });
+    document.getElementById('game-stats').innerHTML = metrics.map(([label, f, top]) => {
+      const mine = f(bz.stats, c);
+      if (mine === null) return tile(label, '–', label === 'Kills per death' ? 'No deaths yet' : '');
+      const all = pool.map((x) => f(stat(x), x)).filter((v) => v !== null);
+      const rank = 1 + all.filter((v) => v > mine).length;
+      const sub = label === 'Deaths' && mine === 0 ? 'No deaths yet' : all.length < 2 ? '' : rank === 1 ? top : label === 'Deaths' ? `#${rank} most deaths of ${all.length}` : `#${rank} of ${all.length} in the guild`;
+      return tile(label, show(mine), sub);
+    }).join('');
+    document.getElementById('game-stats-box').hidden = false;
   }
   document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Faction', apiOk ? bz.faction : null], ['Guild', apiOk ? bz.guild : null], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes],
     ['Last login', apiOk ? whenTime(bz.lastLogin) : null], ['Last updated', apiOk ? whenTime(blizzard?.updated ?? bz.fetched) : c.updated]]

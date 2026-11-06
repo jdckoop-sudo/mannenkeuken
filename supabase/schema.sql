@@ -1038,6 +1038,11 @@ select $q$Home: portrait of the main character$q$, $q$Home$q$, 'check',
 where not exists (select 1 from public.dev_checks where title = $q$Home: portrait of the main character$q$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character page: Activity in the game$q$, $q$Roster$q$, 'check',
+  $q$Open a character page (Guild → Members → a name): under the top tiles is Activity in the game with Quests, Kills, Deaths, Fish, Kills per death and Quests per level, each with its place in the guild. A character the game does not know yet has no block. On a phone: two tiles per row.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character page: Activity in the game$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Achievements: player portrait and player page block$q$, $q$Achievements$q$, 'check',
   $q$Achievements: above the tiles is the portrait of the viewed player (picture from the game, or the class icon); a click opens his player page. Switch "Viewing": the portrait changes. Player page: the Achievements block shows Mannenkoker Level, points and his unlocked medals; a medal opens the tree with it highlighted.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Achievements: player portrait and player page block$q$);
