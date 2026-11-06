@@ -845,3 +845,29 @@ drop table if exists public.profiles;
 drop table if exists public.alts;
 drop table if exists public.main_characters;
 delete from public.dev_checks where title = $q$Table characters: import from the sheet$q$;
+
+-- 2026-11-06: test points for Justin's changes (sheet removed, characters table, character pictures, Details card).
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Google Sheet gone: site works without it$q$, $q$Characters$q$, 'check',
+  $q$Open Home, Roster, Professions, Overview and a player page: all show the characters (levels, professions, roles) without errors. Nothing mentions the sheet any more. Developer mode > Checks: no red lines for old sheet or import checks.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Google Sheet gone: site works without it$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$My profile: main + alts, character picture$q$, $q$My profile$q$, 'check',
+  $q$Open My profile: cards are equal and narrower, the main and its alts (sorted by level) sit under each other with the items around the character picture from the game. Switch main still works. Set up a new character (not known to the game yet): rules still allow editing race, class and role.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$My profile: main + alts, character picture$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character picture on the player and character pages$q$, $q$Characters$q$, 'check',
+  $q$Player page: full-width character cards with the items around the picture. Character page: stat tiles on top, picture fits its frame. A character the game does not know yet shows no broken image.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character picture on the player and character pages$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character page: Last login and Last updated in Details$q$, $q$Characters$q$, 'check',
+  $q$Open a character the game knows: Details shows Last login and Last updated with date and time in Dutch time. A character under level 10 shows only the date it was last changed. The From the game card is gone.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character page: Last login and Last updated in Details$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Developer mode > Characters: edit and lock$q$, $q$Developer mode$q$, 'check',
+  $q$Characters tab shows what the site shows. Game fields (level, race, class, professions) are locked for characters the game knows; role, status, name and notes can be edited, for one of your own and for another player's. Saving works and the change shows on the site.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Developer mode > Characters: edit and lock$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Update characters every 15 minutes (Edge Function)$q$, $q$Characters$q$, 'check',
+  $q$Developer mode > Checks: the Blizzard data line is green and not older than about 15 minutes. Level, professions and last login change after a player logs out. If you changed supabase/functions/update-characters, deploy it in Supabase first.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Update characters every 15 minutes (Edge Function)$q$);
