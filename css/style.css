@@ -353,3 +353,48 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 /* "New version – reload" bar (watchVersion() in js/layout.js) */
 #new-version { position: sticky; top: 0; z-index: 1000; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 8px 16px; background: var(--panel); border-bottom: 2px solid var(--gold); color: var(--text); font-size: 14px; }
 #new-version button { background: var(--crimson); color: var(--text); border: 1px solid var(--gold); border-radius: 4px; padding: 4px 14px; cursor: pointer; font: inherit; }
+
+/* The picture of a character from the game with the items around it (js/charpicture.js): left, right and below, as on the Armory */
+.char-doll { display: grid; grid-template-columns: minmax(0, 1fr) 190px minmax(0, 1fr); grid-template-areas: "left frame right" "below below below"; gap: 14px 16px; }
+.char-doll > .char-frame { grid-area: frame; align-self: center; }
+.char-slots { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
+.char-slots-left { grid-area: left; }
+.char-slots-right { grid-area: right; text-align: right; }
+.char-slots-below { grid-area: below; flex-direction: row; justify-content: center; gap: 24px; text-align: center; }
+.char-slots-below li { flex: 0 1 150px; }
+.char-slots a { text-decoration: none; }
+.char-slots a:hover { text-decoration: underline; }
+.char-slot-empty { color: var(--muted); opacity: .55; }
+/* Dark fantasy frame: a double gold line, gold corner brackets, a soft gold glow and a dark vignette around the character */
+.char-frame {
+  position: relative; display: flex; align-items: flex-end; justify-content: center; height: 260px; padding: 12px;
+  border: 1px solid var(--gold-dim); border-radius: 4px; background: var(--panel-2);
+  outline: 1px solid var(--gold-dim); outline-offset: 3px;
+  box-shadow: inset 0 0 36px 8px rgba(0, 0, 0, .75), 0 0 16px 3px color-mix(in srgb, var(--gold) 38%, transparent), 0 6px 18px rgba(0, 0, 0, .5);
+}
+.char-frame::before {
+  content: ''; position: absolute; inset: -3px; pointer-events: none; --c: var(--gold-bright); --l: 22px; --t: 3px;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / var(--l) var(--t), linear-gradient(var(--c), var(--c)) top left / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) top right / var(--l) var(--t), linear-gradient(var(--c), var(--c)) top right / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) bottom left / var(--l) var(--t), linear-gradient(var(--c), var(--c)) bottom left / var(--t) var(--l),
+    linear-gradient(var(--c), var(--c)) bottom right / var(--l) var(--t), linear-gradient(var(--c), var(--c)) bottom right / var(--t) var(--l);
+  background-repeat: no-repeat;
+}
+/* The picture of the game is 1600 x 1200 with a small character in it. fitPicture() in js/charpicture.js zooms in on the character.
+   This is the fallback when it cannot read the picture: the part from 18% to 84% of the height, in the middle at 47% of the width. */
+.char-crop { position: absolute; inset: 6px; overflow: hidden; }
+.char-picture { position: absolute; left: 50%; bottom: -24.2%; height: 151.5%; width: auto; max-width: none; transform: translateX(-47%); }
+.char-frame-empty { align-items: center; opacity: .75; }
+.char-frame-small { flex: none; width: 110px; height: 150px; padding: 0; box-shadow: inset 0 0 20px 4px rgba(0, 0, 0, .75), 0 0 10px 2px color-mix(in srgb, var(--gold) 30%, transparent); }
+.char-frame-small::before { --l: 14px; --t: 2px; }
+.char-frame-small .char-crop { inset: 4px; }
+@media (max-width: 640px) {
+  .char-doll { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "frame frame" "left right" "below below"; }
+  .char-doll > .char-frame { max-width: 260px; width: 100%; justify-self: center; }
+  .char-slots-below { gap: 12px; }
+}
+/* A character on the player page: name, level and so on, with the picture next to it */
+.player-chars { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+.player-char { flex-direction: row; justify-content: space-between; align-items: center; gap: 16px; }
+.player-char-text { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }

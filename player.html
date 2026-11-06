@@ -21,7 +21,7 @@
   </div>
   <section class="grid" id="stats" aria-label="Stats"></section>
   <h2>Characters</h2>
-  <div class="grid" id="chars"><p class="muted">Loading…</p></div>
+  <div class="grid player-chars" id="chars"><p class="muted">Loading…</p></div>
   <section class="box" id="game-stats-box" aria-label="Activity in the game" hidden>
     <h2>Activity in the game <span class="muted" style="font-size:14px;font-weight:400">(all characters from level 10)</span></h2>
     <div class="grid glance" id="game-stats"></div>
@@ -38,6 +38,7 @@ import { LAUNCH } from './js/releases.js?v=__V__';
 import { supabase } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, statsFor, characterUrl, playerForUser, statusLabel } from './js/players.js?v=__V__';
+import { characterFrame } from './js/charpicture.js?v=__V__';
 
 const user = await renderHeader();
 const name = new URLSearchParams(location.search).get('name');
@@ -64,16 +65,21 @@ if (!target) {
     + tile('Best profession', s.bestProfession ? s.bestProfession.name : '–', s.bestProfession ? `Skill ${s.bestProfession.skill} / 300` : '');
 
   document.getElementById('chars').innerHTML = chars.map((c) => `
-    <a class="box" href="${characterUrl(c.name)}" style="text-decoration:none">
-      <span class="badge">${esc(statusLabel(c.status))}</span>
-      <strong style="font-size:18px">${esc(c.name)}</strong>
-      <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · ') || '–')}</span>
-      <span>Level <strong>${esc(c.level ?? '–')}</strong></span>
-      ${c.profs.length ? `<span class="muted" style="font-size:14px">${c.profs.map((x) => `${esc(x.name)} ${esc(x.skill ?? '–')}`).join(' · ')}</span>` : ''}
+    <a class="box player-char" href="${characterUrl(c.name)}" style="text-decoration:none">
+      <div class="player-char-text">
+        <span class="badge">${esc(statusLabel(c.status))}</span>
+        <strong style="font-size:18px">${esc(c.name)}</strong>
+        <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · ') || '–')}</span>
+        <span>Level <strong>${esc(c.level ?? '–')}</strong></span>
+        ${c.profs.length ? `<span class="muted" style="font-size:14px">${c.profs.map((x) => `${esc(x.name)} ${esc(x.skill ?? '–')}`).join(' · ')}</span>` : ''}
+      </div>
     </a>`).join('') || '<p class="muted">No characters yet.</p>';
 
-  // Activity in the game (Blizzard API). Hidden until the update has collected numbers for anyone; a player below level 10 then sees dashes.
   const blizzard = await loadBlizzard();
+  // The picture from the game next to the name and level (the class icon as long as the game has none)
+  document.querySelectorAll('#chars .player-char').forEach((card, i) => card.append(characterFrame(blizzard?.characters?.[chars[i].name.toLowerCase()], chars[i].name, chars[i].class, { small: true })));
+
+  // Activity in the game (Blizzard API). Hidden until the update has collected numbers for anyone; a player below level 10 then sees dashes.
   if (gameTotals(characters, blizzard).known) {
     document.getElementById('game-stats').innerHTML = gameStatTiles(gameTotals(liveChars, blizzard));
     document.getElementById('game-stats-box').hidden = false;
