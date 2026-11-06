@@ -52,7 +52,7 @@ let m = r.messages.filter((x) => x.kind === 'player');
 assert.equal(m.length, 1, 'one message for Jelle');
 assert.match(m[0].content, /^<@123456789012345678>/);
 assert.deepEqual(m[0].allowed, { users: ['123456789012345678'] });
-assert.match(m[0].embed.description, /Aa\*\* is 3 levels omhoog gegaan: van level 12 naar \*\*level 15\*\*/);
+assert.match(m[0].embed.description, /Aa\*\* gained 3 levels and is now \*\*level 15\*\* \(was level 12\)/);
 assert.ok(!/Cc/.test(m[0].embed.description), 'a new character is only a baseline');
 assert.ok(r.baseline.levels.some((l) => l.key === 'cc'));
 
@@ -71,7 +71,7 @@ assert.match(jelle.embed.url, /achievements\.html\?a=.*j2.*&p=Jelle/);
 assert.match(jelle.content, /^\*\*Jelle\*\*/, 'no discord id: bold name, no mention');
 assert.deepEqual(jelle.allowed, { parse: [] });
 const tinus = m.find((x) => x.player === 'Tinus');
-assert.match(tinus.embed.description, /1 level omhoog/);
+assert.match(tinus.embed.description, /gained 1 level /);
 
 // 6. quit characters count for nothing; a level that goes down posts nothing
 r = run([ch('Aa', 'Jelle', 10), ch('Bb', 'Tinus', 31, 'Gestopt')], [], prev());
