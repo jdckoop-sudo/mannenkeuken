@@ -94,47 +94,6 @@ create policy "read all" on public.addons for select using (true);
 create policy "insert own" on public.addons for insert to authenticated with check (created_by = auth.uid());
 create policy "delete any logged in" on public.addons for delete to authenticated using (true);
 
--- 2026-11-02: member profile with a saved main character (one row per user).
-create table if not exists public.profiles (
-  user_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
-  character_name text check (char_length(character_name) <= 40),
-  class text check (char_length(class) <= 40),
-  role text check (role in ('Tank', 'Healer', 'DPS')),
-  updated_at timestamptz not null default now()
-);
--- 2026-11-02: race of the main character (Skyborne is stored with its faction, e.g. "Skyborne (Horde)")
-alter table public.profiles add column if not exists race text check (char_length(race) <= 40);
-alter table public.profiles enable row level security;
-drop policy if exists "read all" on public.profiles;
-drop policy if exists "insert own" on public.profiles;
-drop policy if exists "update own" on public.profiles;
-drop policy if exists "delete own" on public.profiles;
-create policy "read all" on public.profiles for select using (true);
-create policy "insert own" on public.profiles for insert to authenticated with check (user_id = auth.uid());
-create policy "update own" on public.profiles for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "delete own" on public.profiles for delete to authenticated using (user_id = auth.uid());
-
--- 2026-11-02: alts (secondary characters), at most 2 per member.
-create table if not exists public.alts (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  character_name text check (char_length(character_name) <= 40),
-  race text check (char_length(race) <= 40),
-  class text check (char_length(class) <= 40),
-  role text check (role in ('Tank', 'Healer', 'DPS')),
-  created_at timestamptz not null default now()
-);
-alter table public.alts enable row level security;
-drop policy if exists "read all" on public.alts;
-drop policy if exists "insert own" on public.alts;
-drop policy if exists "update own" on public.alts;
-drop policy if exists "delete own" on public.alts;
-create policy "read all" on public.alts for select using (true);
-create policy "insert own" on public.alts for insert to authenticated
-  with check (user_id = auth.uid() and (select count(*) from public.alts a where a.user_id = auth.uid()) < 2);
-create policy "update own" on public.alts for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy "delete own" on public.alts for delete to authenticated using (user_id = auth.uid());
-
 -- 2026-11-02: guild bank (Opie Bank), event types + quest help.
 -- Guild bank inventory: shared, so any logged-in member can add, change and remove.
 create table if not exists public.bank_items (
@@ -208,9 +167,6 @@ insert into public.players (player_name, discord_name) values
   ('Jermo', 'Eterniity - Jermo'), ('Jacco', 'Jaccico'), ('Laurens', 'Le Noir'), ('Mike', 'VDwerg'),
   ('Murn', 'MURN'), ('Yvo', 'Skynal'), ('Mees', 'mjezzo'), ('Ian', 'Troy')
 on conflict (player_name) do update set discord_name = excluded.discord_name;
-
--- The profile remembers which sheet player it belongs to.
-alter table public.profiles add column if not exists player_name text;
 
 -- Guild bank: saving for the guild bank (100 gold) until it is bought; after that just the guild gold.
 alter table public.bank add column if not exists guild_bank_bought boolean not null default false;
@@ -286,10 +242,6 @@ create policy "read all" on public.members for select using (true);
 
 -- Earlier Discord logins keep their rows: link them to their player.
 insert into public.members (user_id, player_name)
-select p.user_id, p.player_name from public.profiles p
-join public.players pl on pl.player_name = p.player_name
-on conflict (user_id) do nothing;
-insert into public.members (user_id, player_name)
 select u.id, pl.player_name from auth.users u
 join public.players pl on lower(pl.discord_name) in (
   lower(u.raw_user_meta_data->>'full_name'), lower(u.raw_user_meta_data->>'name'),
@@ -331,7 +283,7 @@ grant execute on function public.same_player(uuid) to anon, authenticated;
 do $$
 declare t text;
 begin
-  foreach t in array array['listings', 'tips', 'events', 'signups', 'profiles', 'bank_reservations', 'listing_reservations'] loop
+  foreach t in array array['listings', 'tips', 'events', 'signups', 'bank_reservations', 'listing_reservations'] loop
     execute format('drop policy if exists "insert own" on public.%I', t);
     execute format('drop policy if exists "update own" on public.%I', t);
     execute format('drop policy if exists "delete own" on public.%I', t);
@@ -340,15 +292,6 @@ begin
     execute format('create policy "delete own" on public.%I for delete to authenticated using (public.same_player(user_id))', t);
   end loop;
 end $$;
-drop policy if exists "insert own" on public.alts;
-drop policy if exists "update own" on public.alts;
-drop policy if exists "delete own" on public.alts;
-create policy "insert own" on public.alts for insert to authenticated
-  with check (user_id = auth.uid() and public.is_member()
-    and (select count(*) from public.alts a where public.same_player(a.user_id)) < 2);
-create policy "update own" on public.alts for update to authenticated using (public.same_player(user_id)) with check (public.same_player(user_id));
-create policy "delete own" on public.alts for delete to authenticated using (public.same_player(user_id));
-
 -- Shared things: any member.
 drop policy if exists "insert own" on public.addons;
 drop policy if exists "delete any logged in" on public.addons;
@@ -674,19 +617,7 @@ select $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$, $
   $q$1) Put a long random secret in GitHub as DEPLOY_CHECK_SECRET. 2) Run the SQL in the comment above report_deploy_check in schema.sql with the same secret. 3) GitHub → Actions → Check site after deploy → Run workflow: the line "Automatic check after every deploy" appears here, green.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$);
 
--- 2026-11-04: which character is a player's main? The sheet's Status column (Main / Alt / Gestopt) stays the starting point, but a player can
--- choose their main on My profile. Only the choice is stored here (one row per player); every other active character of that player is an Alt.
--- A player with one active character always has that one as main (the site decides that itself). Characters with Status Gestopt are left alone.
--- Players cannot write the table directly: they use set_main_character(), which takes the player name from `members`.
-create table if not exists public.main_characters (
-  player_name text primary key,
-  character_name text not null check (char_length(character_name) between 1 and 60),
-  updated_at timestamptz not null default now()
-);
-alter table public.main_characters enable row level security;
-drop policy if exists "read all" on public.main_characters;
-create policy "read all" on public.main_characters for select using (true);
-
+-- 2026-11-04: Switch main on My profile. Takes the player name from `members`; only this function may change a player's status (see characters_guard).
 create or replace function public.set_main_character(p_character text) returns void
 language plpgsql security definer set search_path = public as $$
 declare me text; c text;
@@ -695,21 +626,20 @@ begin
   if me is null then raise exception 'Choose your player first'; end if;
   c := btrim(coalesce(p_character, ''));
   if char_length(c) < 1 or char_length(c) > 60 then raise exception 'Unknown character'; end if;
-  insert into public.main_characters (player_name, character_name, updated_at) values (me, c, now())
-  on conflict (player_name) do update set character_name = excluded.character_name, updated_at = now();
-  -- The table characters is the source for the site: the old main becomes an Alt first (one main per player).
-  if exists (select 1 from public.characters ch where ch.player_name = me and lower(btrim(ch.name)) = lower(c)) then
-    perform set_config('app.switching_main', 'on', true);  -- lets characters_guard allow this status change; only for this transaction
-    update public.characters set status = 'Alt' where player_name = me and status = 'Main' and lower(btrim(name)) <> lower(c);
-    update public.characters set status = 'Main' where player_name = me and lower(btrim(name)) = lower(c) and status <> 'Main';
+  if not exists (select 1 from public.characters ch where ch.player_name = me and lower(btrim(ch.name)) = lower(c)) then
+    raise exception 'Unknown character';
   end if;
+  -- The old main becomes an Alt first (one main per player).
+  perform set_config('app.switching_main', 'on', true);  -- lets characters_guard allow this status change; only for this transaction
+  update public.characters set status = 'Alt' where player_name = me and status = 'Main' and lower(btrim(name)) <> lower(c);
+  update public.characters set status = 'Main' where player_name = me and lower(btrim(name)) = lower(c) and status <> 'Main';
 end $$;
 revoke all on function public.set_main_character(text) from public, anon;
 grant execute on function public.set_main_character(text) to authenticated;
 
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Choose your main character (My profile)$q$, $q$Profile$q$, 'check',
-  $q$Player with 2+ characters: pick a main on My profile, then check Roster / Home / Overview (main + alts). Switch to another main and back. Player with 1 character: automatically main. Then run a guild sync: the sheet's Status column follows the choice.$q$, 'Claude'
+  $q$Player with 2+ characters: pick a main on My profile, then check Roster / Home / Overview (main + alts). Switch to another main and back. Player with 1 character: automatically main. Then run a guild sync: Discord follows the choice.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Choose your main character (My profile)$q$);
 
 -- 2026-11-04: Change log per ticket (dev.html → Ideas / Fixes → card → History). A trigger on dev_tickets writes a line for
@@ -788,7 +718,7 @@ where not exists (select 1 from public.dev_checks where title = $q$History of al
 
 -- 2026-11-05: character data from the Blizzard API, every 15 minutes (GitHub's own schedule proved unreliable, and data in the repo meant a commit
 -- + deploy per update). The Edge Function supabase/functions/update-characters writes these tables with the service key; the site only reads them
--- (loadBlizzard() in js/sheet.js). blizzard_characters: one row per character, data = the same entry as in data/blizzard-characters.json.
+-- (loadBlizzard() in js/sheet.js). blizzard_characters: one row per character, data = one entry per character.
 -- blizzard_update: one row with the last successful run (updated_at), its counts, and the last problem (message).
 create table if not exists public.blizzard_characters (
   key text primary key,
@@ -838,7 +768,7 @@ select $q$Game statistics on Home and player pages$q$, $q$Characters$q$, 'check'
   $q$After deploying the Edge Function update-characters again in Supabase: within 15 minutes Home shows Activity in the game (quests, kills, deaths, fish). Compare one player page with that character's in-game statistics, and check that the player pages add up to the guild total.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Game statistics on Home and player pages$q$);
 
--- 2026-11-06: phasing out the Google Sheet (docs/instructies.md, "Google Sheet uitfaseren"). All characters in one table. The site does not read it yet.
+-- 2026-11-06: all characters in one table (this replaced the Google Sheet and the tables profiles, alts and main_characters).
 -- Everyone can read. The API stays leading on the site where it knows a character (applyApi() in js/sheet.js); these rows are what the API cannot tell.
 -- Who may change what is enforced by the trigger below:
 --   developers (is_dev()): everything; a player: only their own characters.
@@ -910,7 +840,8 @@ end $$;
 drop trigger if exists characters_guard on public.characters;
 create trigger characters_guard before insert or update on public.characters for each row execute function public.characters_guard();
 
-insert into public.dev_checks (title, area, status, note, updated_by)
-select $q$Table characters: import from the sheet$q$, $q$Characters$q$, 'check',
-  $q$After schema.sql and supabase/import-characters.sql: node tools/import-characters.mjs --check shows no differences. The site still reads the sheet.$q$, 'Claude'
-where not exists (select 1 from public.dev_checks where title = $q$Table characters: import from the sheet$q$);
+-- 2026-11-06: the Google Sheet is gone. The old character tables are not used any more: all their characters are in the table characters.
+drop table if exists public.profiles;
+drop table if exists public.alts;
+drop table if exists public.main_characters;
+delete from public.dev_checks where title = $q$Table characters: import from the sheet$q$;

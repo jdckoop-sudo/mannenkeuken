@@ -257,7 +257,7 @@
 <script type="module">
 import { renderHeader, DEVS, isDevMode, setDevMode, updateDevNewBadge } from './js/layout.js?v=__V__';
 import { supabase, displayName } from './js/supabase.js?v=__V__';
-import { esc, loadMembers, membersSource } from './js/sheet.js?v=__V__';
+import { esc, loadMembers } from './js/sheet.js?v=__V__';
 import { loadBlizzard } from './js/players.js?v=__V__';
 
 const REPO = 'jdckoop-sudo/mannenkeuken';
@@ -869,10 +869,9 @@ function questsRow(quests, lastRun, row, old) {
   if (!lastRun) return row('check', 'Quest list (quests.json)', `${count} · could not read the last check`);
   return row(old(lastRun, 2) ? 'check' : 'ok', 'Quest list (quests.json)', `${count} · last checked ${ago(lastRun)}`);
 }
-// Character data: from the database every 15 minutes (older than an hour = something is wrong), or still the old file.
+// Character data from the game: every 15 minutes (older than an hour = something is wrong).
 function blizzardRow(bz, row, old) {
   if (!bz) return row('check', 'Blizzard characters', 'No data yet: the update has not run (see docs/instructies.md)');
-  if (bz.source !== 'database') return row('check', 'Blizzard characters (old file)', `Not from the database yet: the 15-minute update is not running. File updated ${bz.updated ?? '?'}`);
   const when = bz.updated ? new Date(bz.updated).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?';
   const stale = !bz.updated || old(bz.updated, 1 / 24);
   return row(stale || bz.message ? 'check' : 'ok', 'Blizzard characters (database)', `Updated ${when} · ${bz.ok ?? '?'} found · ${bz.notFound ?? '?'} not found (under level 10?) · ${bz.errors ?? '?'} errors${bz.message ? ` · ${bz.message}` : ''}`);
@@ -889,7 +888,7 @@ async function loadSources() {
   ]);
   const old = (d, days) => d && (Date.now() - new Date(d).getTime()) / 864e5 > days;
   el.innerHTML = [
-    row(!members?.length ? 'broken' : membersSource() === 'database' ? 'ok' : 'check', membersSource() === 'database' ? 'Characters (database)' : 'Characters (Google Sheet, fallback)', members ? `${members.length} rows read${membersSource() === 'database' ? '' : ': the table characters could not be read or is empty'}` : 'Could not read the characters'),
+    row(members?.length ? 'ok' : 'broken', 'Characters (database)', members ? `${members.length} characters` : 'Could not read the characters'),
     row(db && !db.error ? 'ok' : 'broken', 'Supabase', db && !db.error ? `${db.count ?? '?'} players in the database` : `Error: ${db?.error?.message ?? 'not connected'}`),
     itemsRow(items, builds, row),
     row(tradeable ? 'ok' : 'check', 'Tradeable items (tradeable-items.json)', tradeable ? `${tradeable.items?.length ?? 0} items` : 'Missing – the Trade Market falls back to the full list'),

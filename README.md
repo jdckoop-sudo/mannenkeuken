@@ -5,7 +5,7 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 
 - **Live site:** https://jdckoop-sudo.github.io/mannenkeuken/
 - **Hosting:** GitHub Pages (branch `main`, map `/`)
-- **Data:** Supabase (characters, trade market, tips, events) en de Blizzard-API. De Google Sheet wordt uitgefaseerd (zie `docs/instructies.md`)
+- **Data:** Supabase (characters, trade market, tips, events) en de Blizzard-API.
 - **Login:** "Choose your player" + gedeelde guildcode (anonieme Supabase-login; `members` koppelt browser ↔ speler, `join_guild()` checkt de code). Geen Discord-login meer.
 
 ## Pagina's
@@ -28,10 +28,10 @@ De site is in het Engels; deze README is voor ons (Jelle & Tinus).
 ```
 css/style.css        het donkere fantasy-thema (kleuren als variabelen bovenaan; gebruik `var(--…)`, geen hex-codes)
 js/classicons.js     onze eigen classicons (SVG, geen Blizzard-afbeeldingen); staan naast je naam in het menu
-js/config.js         publieke instellingen (Supabase URL + anon key, sheet-id)
+js/config.js         publieke instellingen (Supabase URL + anon key)
 js/supabase.js       verbinding, inloggen met speler + guildcode, `mine()` (is dit van mijn speler?)
 js/layout.js         menu bovenaan (nieuwe pagina? voeg hem hier toe)
-js/sheet.js          leest de characters (tabel, met de sheet als terugval) en de Blizzard-data
+js/sheet.js          leest de characters en de Blizzard-data (de naam is historisch)
 supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supabase)
 ```
 
@@ -53,9 +53,8 @@ supabase/schema.sql  tabellen + beveiligingsregels (eenmalig uitvoeren in Supaba
 
 ## Instellingen
 
-- Google Sheet gedeeld als *Iedereen met de link kan bekijken* (alleen nog nodig als terugval). ✔
 - Supabase-project `mannenkeuken` (regio Europa), `supabase/schema.sql` uitgevoerd. ✔
 - Supabase → Authentication → URL Configuration: Site URL + redirect = de live site. ✔
 - Supabase Auth: *anonymous sign-ins* aan. Guildcode alleen als hash in `private.settings` (wijzigen: zie `supabase/schema.sql`). De oude Discord-app/provider wordt niet meer gebruikt.
   Callback-URL: `https://uvnmgyhnqlibnvpivhdf.supabase.co/auth/v1/callback`
-- Blizzard-API: developer-client op develop.battle.net; `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan in GitHub (Settings → Secrets and variables → Actions), nooit in de repo. WoW: Forever heeft eigen namespaces (`profile-forever-eu`, realmloos: characters als `voornaam-achternaam`, publiek vanaf level 10; zie `docs/instructies.md`). De workflow *Test Blizzard API* (handmatig starten) probeert characters te lezen (`tools/blizzard-test.mjs`). Lokaal testen: zet de twee waarden in een eigen bestand **buiten** de OneDrive-map (zie `.env.example`) en draai `node --env-file=<dat bestand> tools/blizzard-test.mjs "<character>[,<character>]"`; `.env`-bestanden staan in `.gitignore`. De data komt elke 15 minuten uit de Supabase Edge Function `update-characters` (tabellen `blizzard_characters` en `blizzard_update`; instellen: `docs/instructies.md`). De workflow *Update characters* is alleen een handmatige reserve die `data/blizzard-characters.json` schrijft. De site laat de API leiden waar die het character kent en valt anders terug op de sheet (zie `docs/instructies.md`, *API of sheet*).
+- Blizzard-API: developer-client op develop.battle.net; `BLIZZARD_CLIENT_ID` en `BLIZZARD_CLIENT_SECRET` staan in GitHub (Settings → Secrets and variables → Actions), nooit in de repo. WoW: Forever heeft eigen namespaces (`profile-forever-eu`, realmloos: characters als `voornaam-achternaam`, publiek vanaf level 10; zie `docs/instructies.md`). De workflow *Test Blizzard API* (handmatig starten) probeert characters te lezen (`tools/blizzard-test.mjs`). Lokaal testen: zet de twee waarden in een eigen bestand **buiten** de OneDrive-map (zie `.env.example`) en draai `node --env-file=<dat bestand> tools/blizzard-test.mjs "<character>[,<character>]"`; `.env`-bestanden staan in `.gitignore`. De data komt elke 15 minuten uit de Supabase Edge Function `update-characters` (tabellen `blizzard_characters` en `blizzard_update`; instellen: `docs/instructies.md`). De site laat de API leiden waar die het character kent en valt anders terug op de tabel `characters` (zie `docs/instructies.md`, *API of tabel*).
