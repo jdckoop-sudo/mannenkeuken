@@ -262,7 +262,7 @@ myCharacters(user).then((c) => { myChars = c; draw(); });
 loadCharacters().then(({ characters, players }) => {
   playerNames = players.map((p) => p.player_name).sort();
   me = playerForUser(user);
-  myCrafts = characters.filter((c) => user && c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)))
+  myCrafts = characters.filter((c) => user && c.status !== 'Gestopt' && me && c.player === me)
     .flatMap((c) => c.profs.map((p) => ({ character: c.name, name: p.name, skill: p.skill })));
   drawPingList();
   if (new URLSearchParams(location.search).get('tagged') === '1') document.getElementById('f-tagged').checked = true;

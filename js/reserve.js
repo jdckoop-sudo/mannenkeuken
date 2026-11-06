@@ -9,7 +9,7 @@ export async function myCharacters(user) {
   const { characters } = await loadCharacters();
   const me = playerForUser(user);
   return characters
-    .filter((c) => c.hasName && c.status !== 'Gestopt' && (mine(user, c.userId) || (me && c.player === me)))
+    .filter((c) => c.hasName && c.status !== 'Gestopt' && me && c.player === me)
     .sort((a, b) => (a.kind === 'Main' ? -1 : 1) - (b.kind === 'Main' ? -1 : 1))
     .map((c) => c.name);
 }
