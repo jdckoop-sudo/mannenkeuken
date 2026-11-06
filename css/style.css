@@ -163,6 +163,9 @@ h2 { margin: 0; font-size: 20px; }
 /* "Guild at a glance" on Home: eight tiles, four per row */
 .grid.glance { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .grid.glance { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* "Activity in the game" on the character page: six tiles, three per row */
+.grid.trio { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .grid.trio { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Bar chart (guild overview): label · bar · value */
 .chart-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
