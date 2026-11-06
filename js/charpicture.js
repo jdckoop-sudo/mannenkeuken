@@ -50,10 +50,10 @@ function fitPicture(img) {
 }
 
 // The frame with the picture; the class icon as long as the game has no picture. `entry` is the character in the game data, or nothing.
-export function characterFrame(entry, name, cls, { small = false } = {}) {
+export function characterFrame(entry, name, cls) {
   const frame = document.createElement('div');
-  frame.className = small ? 'char-frame char-frame-small' : 'char-frame';
-  const icon = () => { frame.innerHTML = classIcon(entry?.class || cls, small ? 44 : 72); frame.classList.add('char-frame-empty'); };
+  frame.className = 'char-frame';
+  const icon = () => { frame.innerHTML = classIcon(entry?.class || cls, 72); frame.classList.add('char-frame-empty'); };
   const url = pictureOf(entry);
   if (!url) { icon(); return frame; }
   const img = document.createElement('img');

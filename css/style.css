@@ -386,15 +386,13 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .char-crop { position: absolute; inset: 6px; overflow: hidden; }
 .char-picture { position: absolute; left: 50%; bottom: -24.2%; height: 151.5%; width: auto; max-width: none; transform: translateX(-47%); }
 .char-frame-empty { align-items: center; opacity: .75; }
-.char-frame-small { flex: none; width: 110px; height: 150px; padding: 0; box-shadow: inset 0 0 20px 4px rgba(0, 0, 0, .75), 0 0 10px 2px color-mix(in srgb, var(--gold) 30%, transparent); }
-.char-frame-small::before { --l: 14px; --t: 2px; }
-.char-frame-small .char-crop { inset: 4px; }
 @media (max-width: 640px) {
   .char-doll { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "frame frame" "left right" "below below"; }
   .char-doll > .char-frame { max-width: 260px; width: 100%; justify-self: center; }
   .char-slots-below { gap: 12px; }
 }
-/* A character on the player page: name, level and so on, with the picture next to it */
-.player-chars { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
-.player-char { flex-direction: row; justify-content: space-between; align-items: center; gap: 16px; }
+/* The characters on the player page: as wide as the other blocks, name and level on the left, the picture with the items on the right */
+.player-chars { display: flex; flex-direction: column; gap: 16px; }
+.player-char { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 620px); gap: 24px; align-items: start; }
 .player-char-text { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+@media (max-width: 900px) { .player-char { grid-template-columns: minmax(0, 1fr); } }
