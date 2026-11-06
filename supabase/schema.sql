@@ -1033,6 +1033,11 @@ select $q$Ding Dinky watch: a failed run becomes a card in Fixes$q$, $q$Discord$
 where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky watch: a failed run becomes a card in Fixes$q$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Home: portrait of the main character$q$, $q$Home$q$, 'check',
+  $q$Home → My character: left of your main character is the portrait (picture from the game, or the class icon). A click opens your player page. On a phone the portrait sits above the details. Alts have no portrait.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Home: portrait of the main character$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Achievements: player portrait and player page block$q$, $q$Achievements$q$, 'check',
   $q$Achievements: above the tiles is the portrait of the viewed player (picture from the game, or the class icon); a click opens his player page. Switch "Viewing": the portrait changes. Player page: the Achievements block shows Mannenkoker Level, points and his unlocked medals; a medal opens the tree with it highlighted.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Achievements: player portrait and player page block$q$);
