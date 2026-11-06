@@ -1,6 +1,5 @@
 # Fetch level, professions and last login of all guild characters from the Blizzard API into data/blizzard-characters.json.
-# Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. The API is leading: the values are also written into the guild
-# sheet when SHEET_SYNC_URL and SHEET_SYNC_SECRET are set (see docs/instructies.md, "API → sheet"). Settings: data/blizzard-config.json.
+# Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. Settings: data/blizzard-config.json.
 # Manual only, as a reserve: the data normally comes every 15 minutes from the Supabase Edge Function (supabase/functions/update-characters, see
 # docs/instructies.md). This workflow writes the old file, which the site only uses while the database tables are empty. Tick "Dry run" to only print.
 # When the data file changed it is committed to main and the site is published again. (A commit made with the workflow token does not start the
@@ -30,8 +29,6 @@ jobs:
         env:
           BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
-          SHEET_SYNC_URL: ${{ secrets.SHEET_SYNC_URL }}        # Apps Script web app (tools/sheet-script/ApiSync.gs): writes the API values into the sheet
-          SHEET_SYNC_SECRET: ${{ secrets.SHEET_SYNC_SECRET }}
       - name: Commit if changed
         env:
           GH_TOKEN: ${{ github.token }}

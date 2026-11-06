@@ -50,6 +50,7 @@
       <button class="btn" type="button" role="tab" data-tab="fixes" aria-selected="false">Fixes <span class="tab-count" id="count-fix"></span> <span class="tab-new" id="new-fix"></span></button>
       <button class="btn" type="button" role="tab" data-tab="ideas" aria-selected="false">Ideas <span class="tab-count" id="count-idea"></span> <span class="tab-new" id="new-idea"></span></button>
       <button class="btn" type="button" role="tab" data-tab="checks" aria-selected="false">Checks</button>
+      <button class="btn" type="button" role="tab" data-tab="characters" aria-selected="false">Characters</button>
       <button class="btn" type="button" id="dev-off" style="margin-left:auto">Switch developer mode off</button>
     </div>
     <p class="muted" style="margin:0;font-size:14px">Developer mode is <strong>on</strong> in this browser: you see a DEV badge in the header and can delete any listing on the Trade Market.</p>
@@ -78,6 +79,9 @@
         <p class="muted" style="font-size:12px;margin:0">From the merged pull requests on GitHub (the public API allows 60 requests per hour; the page keeps results for 5 minutes).</p>
       </section>
     </section>
+
+    <!-- Characters: the Members tab of the guild sheet, drawn by js/dev-characters.js -->
+    <section id="tab-characters" class="dev-panel" hidden><p class="muted">Loading…</p></section>
 
     <!-- Checks: workflows, data sources and our own checklist -->
     <section id="tab-checks" class="dev-panel" hidden>
@@ -114,6 +118,23 @@
   .dev-tabs [aria-selected="true"] { border-color: var(--gold); color: #fff; background: rgba(217, 172, 69, .12); }
   .dev-panel { display: flex; flex-direction: column; gap: 24px; }
   .dev-panel[hidden] { display: none; }
+  /* Characters tab */
+  .char-text { margin: 0; font-size: 14px; }
+  .char-api { color: var(--warn); font-weight: 700; white-space: nowrap; }
+  .char-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .char-filters label:first-child { flex: 1 1 220px; }
+  .char-check { flex-direction: row; align-items: center; gap: 8px; padding-bottom: 10px; }
+  .char-msg { margin: 0; font-size: 14px; color: var(--gold-bright); }
+  .char-msg:empty { display: none; }
+  .char-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+  .char-form[hidden] { display: none; }
+  .char-form h3 { grid-column: 1 / -1; margin: 0; font-family: var(--font-display); color: var(--gold-bright); }
+  .char-form .full { grid-column: 1 / -1; }
+  .char-table th, .char-table td { white-space: nowrap; vertical-align: middle; }
+  .char-table td.wrap { white-space: normal; min-width: 220px; max-width: 320px; }
+  .char-table th.num, .char-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .char-sort { color: inherit; text-decoration: none; font-weight: 700; }
+  .char-actions { position: sticky; left: 0; background: var(--panel); }
   .dev-strip { display: flex; gap: 4px; align-items: flex-end; overflow-x: auto; padding: 4px 0 2px; min-height: 64px; }
   .dev-day { flex: none; width: 34px; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 0; cursor: pointer; color: var(--muted); font: inherit; font-size: 11px; }
   .dev-day .stack { width: 18px; display: flex; flex-direction: column-reverse; gap: 2px; }
@@ -288,12 +309,13 @@ function showTab(tab) {
   document.querySelectorAll('.dev-tabs [data-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
   document.querySelectorAll('.dev-panel').forEach((p) => { p.hidden = p.id !== `tab-${tab}`; });
   if (tab === 'checks') loadChecksTab();
+  if (tab === 'characters') loadCharactersTab();
   if (tab === 'fixes' || tab === 'ideas') markSeen(tab === 'fixes' ? 'fix' : 'idea');
   history.replaceState(null, '', `#${tab}`);
 }
 document.querySelectorAll('.dev-tabs [data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 // the orange count next to DEV links to dev.html#fixes or #ideas, also when you are on this page already
-window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (['changes', 'fixes', 'ideas', 'checks'].includes(h)) showTab(h); });
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (['changes', 'fixes', 'ideas', 'checks', 'characters'].includes(h)) showTab(h); });
 
 // GitHub (public API, cached 5 minutes per browser tab)
 async function gh(path) {
@@ -803,8 +825,16 @@ for (const [kind, host] of Object.entries(hosts)) {
   });
 }
 loadTickets();
-showTab(['changes', 'fixes', 'ideas', 'checks'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'changes');
+showTab(['changes', 'fixes', 'ideas', 'checks', 'characters'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'changes');
 
+// Characters tab: loaded the first time it is opened
+let charactersReady = false;
+async function loadCharactersTab() {
+  if (charactersReady) return;
+  charactersReady = true;
+  const { initCharacters } = await import('./js/dev-characters.js?v=__V__');
+  initCharacters(document.getElementById('tab-characters'));
+}
 function loadChecksTab() {
   if (checksLoaded) return;
   checksLoaded = true;
