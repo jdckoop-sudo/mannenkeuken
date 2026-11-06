@@ -6,6 +6,8 @@ import { esc, loadBlizzard } from './sheet.js?v=__V__';
 import { baseRace, playerUrl, characterUrl } from './players.js?v=__V__';
 import { wireCharacterFields } from './charform.js?v=__V__';
 import { rolesForClass } from './wowdata.js?v=__V__';
+import { classIcon } from './classicons.js?v=__V__';
+import { wowheadUrl, qualityColor, refreshTooltips } from './itemsearch.js?v=__V__';
 
 // The list says "Skyborne", the form needs the faction ("Skyborne (Horde)": we are a Horde guild).
 export const formRace = (race) => (race === 'Skyborne' ? 'Skyborne (Horde)' : race ?? '');
@@ -21,6 +23,17 @@ export const pictureOf = (entry) => {
 export function sortAlts(alts, entryOf) {
   const level = (c) => Number(entryOf(c)?.status === 'ok' ? entryOf(c).level : c.level) || 0;
   return [...alts].sort((a, b) => level(b) - level(a) || String(a.name).localeCompare(String(b.name)));
+}
+// Where each item goes around the picture: left, right and below, as on the Armory. Keys are the slot types of the game.
+const SLOTS_LEFT = [['HEAD', 'Head'], ['NECK', 'Neck'], ['SHOULDER', 'Shoulder'], ['BACK', 'Back'], ['CHEST', 'Chest'], ['SHIRT', 'Shirt'], ['TABARD', 'Tabard'], ['WRIST', 'Wrist']];
+const SLOTS_RIGHT = [['HANDS', 'Hands'], ['WAIST', 'Belt'], ['LEGS', 'Legs'], ['FEET', 'Boots'], ['FINGER_1', 'Ring 1'], ['FINGER_2', 'Ring 2'], ['TRINKET_1', 'Trinket 1'], ['TRINKET_2', 'Trinket 2']];
+const SLOTS_BELOW = [['MAIN_HAND', 'Main hand'], ['OFF_HAND', 'Off hand'], ['RANGED', 'Ranged']];
+// A list of slots: the item name with a link to Wowhead, or the name of the slot in grey when it is empty.
+function slotList(slots, gear, side) {
+  return `<ul class="my-char-slots my-char-slots-${side}">${slots.map(([slot, label]) => {
+    const g = gear.find((x) => x.slot === slot);
+    return g ? `<li><a href="${wowheadUrl(encodeURIComponent(g.id))}" target="_blank" rel="noopener" style="color:${qualityColor(g.quality)}">${esc(g.name)}</a></li>` : `<li class="my-char-slot-empty">${esc(label)}</li>`;
+  }).join('')}</ul>`;
 }
 const friendly = (error) => (error.code === '23505' ? 'A character with this name already exists.' : error.message);
 
@@ -41,8 +54,8 @@ export function initMyCharacters(host, user) {
     <div class="my-chars">
       <div data-main class="my-chars-list"></div>
       <div data-alts class="my-chars-list"></div>
-      <div><button class="btn" type="button" data-add>Add an alt</button></div>
-    </div>`;
+    </div>
+    <div><button class="btn" type="button" data-add>Add an alt</button></div>`;
   const $ = (s) => host.querySelector(s);
 
   const pickList = (list) => list.map((c) => `<label style="display:flex;align-items:center;gap:10px;margin:0"><input type="radio" name="main-pick" value="${esc(c.name)}" style="width:auto"><span><strong>${esc(c.name)}</strong> <span class="muted">${esc([c.race, c.class].filter(Boolean).join(' · '))}</span></span></label>`).join('');
@@ -98,7 +111,10 @@ export function initMyCharacters(host, user) {
     form.innerHTML = `
       <h2>${esc(title)}</h2>
       <p class="muted" style="margin:0;font-size:14px">The game knows this character, so everything except the role comes from there.</p>
-      <p style="margin:0"><a href="${characterUrl(c.name)}"><strong>${esc(c.name)}</strong></a><br><span class="muted">${esc([entry.race || c.race, cls, entry.level ? `level ${entry.level}` : ''].filter(Boolean).join(' · '))}</span></p>
+      <p style="margin:0">${entry.level ? `Level ${esc(entry.level)} · ` : ''}<a href="${characterUrl(c.name)}">View character page</a></p>
+      <label>Character name<input value="${esc(c.name)}" disabled></label>
+      <label>Race<input value="${esc(entry.race || c.race || '')}" disabled></label>
+      <label>Class<input value="${esc(cls || '')}" disabled></label>
       <label>Role<select name="role"><option value="">–</option>${list.map((r) => `<option${r === c.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select></label>
       <p class="muted" style="margin:0" role="status" data-msg></p>
       <div class="row"><button class="btn btn-primary" type="submit">Save role</button>${isMain && chars.length > 1 ? '<button class="btn" type="button" data-switch>Switch main</button>' : ''}</div>
@@ -136,27 +152,35 @@ export function initMyCharacters(host, user) {
     return form;
   }
 
-  // The form on the left, the picture from the game on the right (when there is one).
-  function withPicture(form, c) {
-    const url = pictureOf(entryOf(c));
-    if (!url) return form;
+  // Every card looks the same: the form on top, below it the picture (the class icon as long as the game has no picture)
+  // with what the character wears around it, as names that link to Wowhead.
+  function layout(form, c) {
     const left = document.createElement('div');
     left.className = 'my-char-left';
     left.append(...form.childNodes);
-    const img = document.createElement('img');
-    img.className = 'my-char-picture';
-    img.src = url;
-    img.alt = `${c.name} in the game`;
-    img.loading = 'lazy';
     const frame = document.createElement('div');
     frame.className = 'my-char-frame';
-    frame.append(img);
-    img.addEventListener('error', () => { frame.remove(); form.classList.remove('my-char-with-picture'); });
-    form.classList.add('my-char-with-picture');
-    form.append(left, frame);
+    const icon = () => { frame.innerHTML = c ? classIcon(entryOf(c)?.class || c.class, 72) : ''; frame.classList.add('my-char-frame-empty'); };
+    const url = c ? pictureOf(entryOf(c)) : null;
+    if (url) {
+      const img = document.createElement('img');
+      img.className = 'my-char-picture';
+      img.src = url;
+      img.alt = `${c.name} in the game`;
+      img.loading = 'lazy';
+      img.addEventListener('error', icon);
+      frame.append(img);
+    } else icon();
+    form.classList.add('my-char-card');
+    const gear = c && isKnown(entryOf(c)) ? entryOf(c).equipment ?? [] : [];
+    const doll = document.createElement('div');
+    doll.className = 'my-char-doll';
+    doll.innerHTML = slotList(SLOTS_LEFT, gear, 'left') + slotList(SLOTS_RIGHT, gear, 'right') + slotList(SLOTS_BELOW, gear, 'below');
+    doll.append(frame);
+    form.append(left, doll);
     return form;
   }
-  const card = (c, title, isMain) => withPicture(isKnown(entryOf(c)) ? knownCard(c, title, isMain, entryOf(c)) : openCard(c, title, isMain), c);
+  const card = (c, title, isMain) => layout(isKnown(entryOf(c)) ? knownCard(c, title, isMain, entryOf(c)) : openCard(c, title, isMain), c);
 
   async function load() {
     [chars, bz] = await Promise.all([getMyCharacters(user), loadBlizzard()]);
@@ -170,9 +194,10 @@ export function initMyCharacters(host, user) {
     mainBox.replaceChildren();
     altBox.replaceChildren();
     if (main) mainBox.append(card(main, 'Main character', true));
-    else if (!chars.length) mainBox.append(openCard(null, 'Your character (your main)', false));
+    else if (!chars.length) mainBox.append(layout(openCard(null, 'Your character (your main)', false), null));
     alts.forEach((c, i) => altBox.append(card(c, main ? `Alt ${i + 1}` : c.name, false)));
     $('[data-add]').hidden = !chars.length;
+    refreshTooltips();
   }
 
   $('[data-choose-save]').addEventListener('click', (e) => {
@@ -182,7 +207,7 @@ export function initMyCharacters(host, user) {
     makeMain(pick, note, e.target);
   });
   $('[data-add]').addEventListener('click', () => {
-    $('[data-alts]').append(openCard(null, 'Add an alt', false));
+    $('[data-alts]').append(layout(openCard(null, 'Add an alt', false), null));
     $('[data-add]').hidden = true;
   });
   return load();
