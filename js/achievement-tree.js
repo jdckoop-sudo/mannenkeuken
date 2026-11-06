@@ -35,14 +35,46 @@ export async function initTree({ user, tree, summary, who, modal }) {
   window.addEventListener('resize', fitWidth);
   let firstRender = true;
 
+  // ---- the hover popup: a themed, slightly magical card instead of the browser tooltip
+  const TIERS = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold', crimson: 'Crimson', guild: 'Guild goal' };
+  const RUNES = 'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛉᛋᛏ';
+  const pop = document.createElement('div'); pop.className = 'ach-pop'; pop.setAttribute('role', 'tooltip'); pop.hidden = true; document.body.append(pop);
+  let popFor = null;
+  function popHtml(a, s) {
+    const known = s.done || s.available || s.disabled; const branch = BRANCHES.find((b) => b.key === a.branch);
+    const unit = METERS[a.meter] ?? '';
+    const missing = a.requires.filter((r) => !all.get(view).get(r).done && !all.get(view).get(r).disabled).map((r) => { const q = all.get(view).get(r); return q.available ? BY_ID.get(r).title : '???'; });
+    const rune = (n) => Array.from({ length: n }, (_, i) => RUNES[(a.id.length * 3 + i * 5 + a.col * 7 + a.row) % RUNES.length]).join(' ');
+    const status = s.disabled ? '<p class="pop-status off">Switched off by the developers</p>'
+      : s.done ? '<p class="pop-status done">✦ Unlocked</p>'
+      : !s.available ? `<p class="pop-status lock">Sealed &mdash; ${missing.length > 2 ? `<b>${missing.length}</b> achievements still to complete` : `first complete <b>${esc(missing.join(' and '))}</b>`}</p>`
+      : a.meter === 'requiredDone' ? `<p class="pop-prog"><span>${fmtNum(s.value)} of ${fmtNum(s.target)} achievements</span><i style="--p:${Math.round(s.pct * 100)}%"></i></p>`
+      : `<p class="pop-prog"><span>${fmtNum(Math.min(s.value, s.target))} / ${fmtNum(s.target)} ${esc(unit)}</span><i style="--p:${Math.round(s.pct * 100)}%"></i></p>`;
+    return `<span class="pop-arrow" aria-hidden="true"></span><span class="pop-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <p class="pop-kind">${esc(branch?.name ?? 'Legend')} &middot; ${TIERS[a.tier] ?? ''}${a.scope === 'guild' ? '' : ` &middot; ${a.points} pts`}</p>
+      <h4>${known ? esc(a.title) : '???'}</h4>
+      ${known ? `<p class="pop-desc">${esc(a.desc)}</p>` : `<p class="pop-runes" aria-hidden="true">${rune(7)}</p><p class="pop-desc muted">Something stirs behind the seal&hellip;</p>`}
+      ${status}<p class="pop-hint">Click for details</p>`;
+  }
+  function showPop(el) {
+    const a = BY_ID.get(el.dataset.id); const s = all.get(view).get(a.id); popFor = el;
+    pop.className = `ach-pop b-${a.branch} ${s.done ? 'is-done' : s.available || s.disabled ? 'is-open' : 'is-sealed'}`; pop.innerHTML = popHtml(a, s); pop.hidden = false;
+    const r = (el.querySelector('.ach-icon') ?? el).getBoundingClientRect(); const w = pop.offsetWidth; const h = pop.offsetHeight; const gap = 14;
+    const above = r.top - h - gap >= 8; const top = above ? r.top - h - gap : r.bottom + gap;
+    const left = Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
+    pop.style.left = `${left}px`; pop.style.top = `${top}px`; pop.style.setProperty('--ax', `${r.left + r.width / 2 - left}px`); pop.dataset.side = above ? 'top' : 'bottom';
+    pop.classList.remove('show'); void pop.offsetWidth; pop.classList.add('show');
+  }
+  const hidePop = () => { popFor = null; pop.classList.remove('show'); pop.hidden = true; };
+  window.addEventListener('scroll', hidePop, { passive: true }); window.addEventListener('resize', hidePop);
+
   function node(a, s, x, y, d, extra = '') {
     const known = s.done || s.available || s.disabled;
     const cls = s.disabled ? 'off' : s.done ? 'done' : s.available ? 'avail' : 'locked';
     const name = known ? a.title : '???';
-    const tip = s.disabled ? `${a.title}: switched off by the developers` : known ? `${a.title}: ${a.desc}` : `Locked: complete ${a.requires.filter((r) => !all.get(view).get(r).done).map((r) => all.get(view).get(r).available || all.get(view).get(r).done ? BY_ID.get(r).title : '???').join(' and ')} first`;
     const size = a.branch === 'legend' ? 96 : SZ;
     const count = s.available && !s.done && a.meter !== 'requiredDone' ? `<span class="ach-count">${fmtNum(Math.min(s.value, s.target))}/${fmtNum(s.target)}</span>` : '';
-    return `<button type="button" class="ach-node b-${a.branch} ${cls} scope-${a.scope}${firstRender ? ' pop' : ''}" data-id="${a.id}" style="left:${x - W / 2}px;top:${y - SZ / 2 - (size - SZ) / 2}px;width:${W}px;--sz:${size}px;--d:${d}ms;${extra}" title="${esc(tip)}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
+    return `<button type="button" class="ach-node b-${a.branch} ${cls} scope-${a.scope}${firstRender ? ' pop' : ''}" data-id="${a.id}" style="left:${x - W / 2}px;top:${y - SZ / 2 - (size - SZ) / 2}px;width:${W}px;--sz:${size}px;--d:${d}ms;${extra}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
       ${achIcon(a.glyph, a.tier, size, a.branch)}${count}<span class="ach-name">${esc(name)}</span>${a.scope === 'guild' && !s.done ? '<span class="ach-tag">Guild</span>' : ''}</button>`;
   }
 
@@ -57,7 +89,7 @@ export async function initTree({ user, tree, summary, who, modal }) {
 
     const head = `<header class="ach-head">
       <p class="ach-eyebrow">${esc(view)}</p>
-      <h2>Kitchen level <b>${sum.done}</b></h2>
+      <h2>Mannenkoker Level <b>${sum.done}</b></h2>
       <p class="ach-progress">Progress ${sum.done}/${sum.total} &middot; ${fmtNum(sum.points)} points</p>
       <div class="ach-flourish" aria-hidden="true"><i></i></div>
     </header>`;
@@ -87,7 +119,8 @@ export async function initTree({ user, tree, summary, who, modal }) {
     tree.innerHTML = `${head}${body}`;
     fitWidth();
     firstRender = false;
-    tree.querySelectorAll('.ach-node').forEach((n) => n.addEventListener('click', () => openDetail(n.dataset.id)));
+    hidePop();
+    tree.querySelectorAll('.ach-node').forEach((n) => { n.addEventListener('click', () => { hidePop(); openDetail(n.dataset.id); }); n.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') showPop(n); }); n.addEventListener('pointerleave', hidePop); n.addEventListener('focus', () => showPop(n)); n.addEventListener('blur', hidePop); });
     if (!modal.hidden && modal.dataset.id) openDetail(modal.dataset.id, true);
   }
 
