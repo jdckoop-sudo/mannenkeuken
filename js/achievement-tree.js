@@ -2,17 +2,24 @@
 import { esc } from './sheet.js?v=__V__';
 import { isDevMode } from './layout.js?v=__V__';
 import { achIcon, achDefs } from './achicons.js?v=__V__';
+import { characterFrame } from './charpicture.js?v=__V__';
+import { playerUrl } from './players.js?v=__V__';
 import { BRANCHES, ACHIEVEMENTS, BY_ID, METERS, fmtNum, loadAchievementData, guildMeters, evaluate, summarize, saveOverrides, clearOverrides, reloadOverrides } from './achievements.js?v=__V__';
 
 const NODE = 66; const NODE_W = 150;
 
-export async function initTree({ user, tree, summary, who, modal }) {
+export async function initTree({ user, tree, summary, who, modal, portrait }) {
   tree.innerHTML = '<p class="muted" style="padding:16px">Loading…</p>';
   const data = await loadAchievementData();
   const players = [...new Set(data.characters.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))].sort((a, b) => a.localeCompare(b));
   if (!players.length) { tree.innerHTML = '<p class="muted" style="padding:16px">No players yet.</p>'; return; }
   const dev = isDevMode(user);
-  let view = players.includes(user?.player) ? user.player : players[0];
+  // Deep link from the Ding-bot: achievements.html?a=id1,id2&p=Player -> that player's tree, those achievements highlighted
+  const qs = new URLSearchParams(location.search);
+  const spotWho = qs.get('p');
+  let spot = new Set((qs.get('a') ?? '').split(',').filter((id) => BY_ID.has(id)));
+  let view = players.includes(spotWho) ? spotWho : players.includes(user?.player) ? user.player : players[0];
+  let spotScroll = spot.size > 0;
   let guild; let all; // guild meters, states per player
   const compute = () => { guild = guildMeters(data, players); all = new Map(players.map((p) => [p, evaluate(data, p, guild)])); };
   compute();
@@ -74,11 +81,25 @@ export async function initTree({ user, tree, summary, who, modal }) {
     const name = known ? a.title : '???';
     const size = a.branch === 'legend' ? 96 : SZ;
     const count = s.available && !s.done && a.meter !== 'requiredDone' ? `<span class="ach-count">${fmtNum(Math.min(s.value, s.target))}/${fmtNum(s.target)}</span>` : '';
-    return `<button type="button" class="ach-node b-${a.branch} ${cls} scope-${a.scope}${firstRender ? ' pop' : ''}" data-id="${a.id}" style="left:${x - W / 2}px;top:${y - SZ / 2 - (size - SZ) / 2}px;width:${W}px;--sz:${size}px;--d:${d}ms;${extra}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
+    return `<button type="button" class="ach-node b-${a.branch} ${cls} scope-${a.scope}${firstRender ? ' pop' : ''}${spot.has(a.id) ? ' spot' : ''}" data-id="${a.id}" style="left:${x - W / 2}px;top:${y - SZ / 2 - (size - SZ) / 2}px;width:${W}px;--sz:${size}px;--d:${d}ms;${extra}" aria-label="${esc(name)}, ${cls === 'done' ? 'unlocked' : cls === 'avail' ? 'in progress' : cls === 'off' ? 'switched off' : 'locked'}">
       ${achIcon(a.glyph, a.tier, size, a.branch)}${count}<span class="ach-name">${esc(name)}</span>${a.scope === 'guild' && !s.done ? '<span class="ach-tag">Guild</span>' : ''}</button>`;
   }
 
+  // The portrait of the player you are viewing (his main, or his highest character): a click goes to his player page.
+  function renderPortrait() {
+    if (!portrait) return;
+    const mine = data.characters.filter((c) => c.player === view && c.status !== 'Gestopt').sort((a, b) => (b.status === 'Main') - (a.status === 'Main') || (b.level ?? 0) - (a.level ?? 0));
+    const c = mine[0];
+    const link = document.createElement('a'); link.className = 'ach-portrait-link'; link.href = playerUrl(view); link.setAttribute('aria-label', `Open the player page of ${view}`);
+    link.append(characterFrame(c ? data.blizzard?.characters?.[c.name.toLowerCase()] : null, c?.name ?? view, c?.class));
+    const text = document.createElement('div'); text.className = 'ach-portrait-text';
+    text.innerHTML = `<strong>${esc(view)}</strong><span class="muted">${c ? esc([c.name, c.level ? `level ${c.level}` : '', c.class].filter(Boolean).join(' \u00B7 ')) : 'No character yet'}</span><span class="ach-portrait-go">View profile &rarr;</span>`;
+    link.append(text);
+    portrait.replaceChildren(link);
+  }
+
   function render() {
+    renderPortrait();
     const states = all.get(view);
     const sum = summarize(states);
     summary.innerHTML = `
@@ -87,7 +108,9 @@ export async function initTree({ user, tree, summary, who, modal }) {
       <div class="box stat"><span class="muted">Guild goals reached</span><strong>${sum.guildDone} / ${sum.guildTotal}</strong></div>
       <div class="box stat"><span class="muted">Best next target</span><strong class="stat-text">${esc(nextBig(states))}</strong></div>`;
 
-    const head = `<header class="ach-head">
+    const spotted = [...spot].map((id) => BY_ID.get(id));
+    const banner = spotted.length ? `<div class="ach-spot-banner" role="status"><span aria-hidden="true">&#128276;</span> <span>Ding! ${spotWho && spotWho === view ? `<b>${esc(view)}</b> just earned` : 'Just reached'}: ${spotted.map((a) => `<b>${esc(a.title)}</b>`).join(', ')}</span> <button type="button" class="link-btn" data-spot-clear>Clear highlight</button></div>` : '';
+    const head = `${banner}<header class="ach-head">
       <p class="ach-eyebrow">${esc(view)}</p>
       <h2>Mannenkoker Level <b>${sum.done}</b></h2>
       <p class="ach-progress">Progress ${sum.done}/${sum.total} &middot; ${fmtNum(sum.points)} points</p>
@@ -121,6 +144,8 @@ export async function initTree({ user, tree, summary, who, modal }) {
     firstRender = false;
     hidePop();
     tree.querySelectorAll('.ach-node').forEach((n) => { n.addEventListener('click', () => { hidePop(); openDetail(n.dataset.id); }); n.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') showPop(n); }); n.addEventListener('pointerleave', hidePop); n.addEventListener('focus', () => showPop(n)); n.addEventListener('blur', hidePop); });
+    tree.querySelector('[data-spot-clear]')?.addEventListener('click', () => { spot = new Set(); render(); });
+    if (spotScroll) { spotScroll = false; const target = tree.querySelector('.ach-node.spot'); if (target) setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 600); }
     if (!modal.hidden && modal.dataset.id) openDetail(modal.dataset.id, true);
   }
 

@@ -22,6 +22,11 @@
     <p class="muted" id="sub"></p>
   </div>
   <section class="grid" id="stats" aria-label="Stats"></section>
+  <section class="box" id="ach-box" aria-label="Achievements" hidden>
+    <h2>Achievements <span class="muted" style="font-size:14px;font-weight:400" id="ach-sub"></span></h2>
+    <div class="ach-medals" id="ach-medals"></div>
+    <p style="margin:0"><a href="#" id="ach-link">Open the achievement tree &rarr;</a></p>
+  </section>
   <h2>Characters</h2>
   <div class="player-chars" id="chars"><p class="muted">Loading…</p></div>
   <section class="box" id="game-stats-box" aria-label="Activity in the game" hidden>
@@ -42,6 +47,8 @@ import { esc } from './js/sheet.js?v=__V__';
 import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, statsFor, characterUrl, playerForUser, statusLabel } from './js/players.js?v=__V__';
 import { characterDoll } from './js/charpicture.js?v=__V__';
 import { refreshTooltips } from './js/itemsearch.js?v=__V__';
+import { achIcon, achDefs } from './js/achicons.js?v=__V__';
+import { ACHIEVEMENTS, loadAchievementData, guildMeters, evaluate, summarize } from './js/achievements.js?v=__V__';
 
 const user = await renderHeader();
 const name = new URLSearchParams(location.search).get('name');
@@ -82,6 +89,22 @@ if (!target) {
   // The picture from the game with the items around it, next to the name and level (the class icon as long as the game has no picture)
   document.querySelectorAll('#chars .player-char').forEach((card, i) => card.append(characterDoll(blizzard?.characters?.[chars[i].name.toLowerCase()], chars[i].name, chars[i].class)));
   refreshTooltips();
+
+  // Achievements of this player: Mannenkoker Level, points and the medals he has unlocked (a click opens the tree with that medal highlighted)
+  try {
+    const data = await loadAchievementData();
+    const everyone = [...new Set(data.characters.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))];
+    const mine = everyone.find((x) => x.toLowerCase() === target.toLowerCase());
+    if (mine) {
+      const states = evaluate(data, mine, guildMeters(data, everyone));
+      const sum = summarize(states);
+      const got = ACHIEVEMENTS.filter((a) => a.scope === 'player' && states.get(a.id).done);
+      document.getElementById('ach-sub').textContent = `Mannenkoker Level ${sum.done} \u00B7 ${sum.points} points \u00B7 ${sum.done} / ${sum.total} unlocked`;
+      document.getElementById('ach-medals').innerHTML = achDefs() + (got.map((a) => `<a class="ach-medal" href="achievements.html?a=${a.id}&p=${encodeURIComponent(mine)}" title="${esc(a.title)}: ${esc(a.desc)}">${achIcon(a.glyph, a.tier, 46, a.branch)}<span>${esc(a.title)}</span></a>`).join('') || '<span class="muted">Nothing unlocked yet.</span>');
+      document.getElementById('ach-link').href = `achievements.html?p=${encodeURIComponent(mine)}`;
+      document.getElementById('ach-box').hidden = false;
+    }
+  } catch (e) { console.warn('Achievements not shown:', e); }
 
   // Activity in the game (Blizzard API). Hidden until the update has collected numbers for anyone; a player below level 10 then sees dashes.
   if (gameTotals(characters, blizzard).known) {

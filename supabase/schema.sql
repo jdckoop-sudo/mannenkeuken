@@ -902,3 +902,89 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Achievement tree: developer controls$q$, $q$Achievements$q$, 'check',
   $q$In developer mode click an achievement. Switch off: it greys out, stops counting and does not block the ones behind it. Force unlocked / locked, Set value, Reset progress and Remove all changes each ask for confirmation and change the tree at once. A non-developer cannot save (the database refuses).$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Achievement tree: developer controls$q$);
+
+-- 2026-11-06: only the developers (Jelle and Justin, is_dev()) may change the guild gold: the bank balance / goal / "bought" flag and the gold
+-- donations (Top donors, achievements). Until now any member could, the page only hid the buttons. The database refuses it now.
+-- Reading stays open for everybody. Bank items and reservations are unchanged (any member).
+drop policy if exists "update logged in" on public.bank;
+drop policy if exists "update devs" on public.bank;
+create policy "update devs" on public.bank for update to authenticated using (public.is_dev()) with check (public.is_dev());
+drop policy if exists "write members" on public.gold_donations;
+drop policy if exists "write devs" on public.gold_donations;
+create policy "write devs" on public.gold_donations for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Gold can only be changed by developers$q$, $q$Bank$q$, 'check',
+  $q$After running schema.sql: as Jelle/Justin the Bank manager still works (+ Add with donor, Set, Remove donation, goal, bought). As a normal player (switch player, no developer mode) the manager is hidden; if you try in the browser console `supabase.from('gold_donations').insert(...)` or update `bank`, the database refuses it.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Gold can only be changed by developers$q$);
+
+-- 2026-11-06: Ding-bot (Edge Function supabase/functions/ding-bot): posts level ups and achievements in the Discord channel #dings.
+-- players.discord_id = the Discord user id (digits) of the player, used to @mention them. The ding_* tables are the bot's memory; everybody may read
+-- them (Developer mode shows the log), nobody but the function (service key) may write.
+alter table public.players add column if not exists discord_id text;
+alter table public.players drop constraint if exists players_discord_id_check;
+alter table public.players add constraint players_discord_id_check check (discord_id is null or discord_id ~ '^[0-9]{15,25}$');
+
+create table if not exists public.ding_levels (
+  character_key text primary key,
+  character_name text,
+  player_name text,
+  level int not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.ding_known (
+  player_name text not null default '',
+  achievement_id text not null,
+  first_seen timestamptz not null default now(),
+  primary key (player_name, achievement_id)
+);
+create table if not exists public.ding_players (
+  player_name text primary key,
+  baselined_at timestamptz not null default now()
+);
+create table if not exists public.ding_log (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null,
+  player_name text,
+  summary text
+);
+create table if not exists public.ding_status (
+  id int primary key default 1 check (id = 1),
+  last_run_at timestamptz,
+  posted int not null default 0,
+  message text,
+  activated_at timestamptz
+);
+do $$ declare t text; begin
+  foreach t in array array['ding_levels', 'ding_known', 'ding_players', 'ding_log', 'ding_status'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "read all" on public.%I', t);
+    execute format('create policy "read all" on public.%I for select using (true)', t);
+  end loop;
+end $$;
+
+-- Every 15 minutes, a few minutes after update-characters (a level only changes after the character has logged out).
+-- Same secret as update-characters: the Vault secret update_characters_secret and the function secret UPDATE_CHARACTERS_SECRET.
+select cron.unschedule(jobid) from cron.job where jobname = 'ding-bot';
+select cron.schedule('ding-bot', '4-59/15 * * * *', $job$
+  select net.http_post(
+    url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/ding-bot',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-update-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'update_characters_secret')
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 140000
+  );
+$job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding-bot: level ups and achievements in #dings$q$, $q$Discord$q$, 'check',
+  $q$After deploying the Edge Function ding-bot and setting DING_WEBHOOK_URL: select * from ding_status shows a run within 15 minutes (activated_at = first run, which posts nothing). Then let a character level up or earn an achievement: one message per player with an @mention, a link to Achievements with the new ones highlighted. A guild goal gives ONE @everyone message. ding_log lists what was posted.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding-bot: level ups and achievements in #dings$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Achievements: player portrait and player page block$q$, $q$Achievements$q$, 'check',
+  $q$Achievements: above the tiles is the portrait of the viewed player (picture from the game, or the class icon); a click opens his player page. Switch "Viewing": the portrait changes. Player page: the Achievements block shows Mannenkoker Level, points and his unlocked medals; a medal opens the tree with it highlighted.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Achievements: player portrait and player page block$q$);
