@@ -988,3 +988,8 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Achievements: player portrait and player page block$q$, $q$Achievements$q$, 'check',
   $q$Achievements: above the tiles is the portrait of the viewed player (picture from the game, or the class icon); a click opens his player page. Switch "Viewing": the portrait changes. Player page: the Achievements block shows Mannenkoker Level, points and his unlocked medals; a medal opens the tree with it highlighted.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Achievements: player portrait and player page block$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: totals, deaths and new boards$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records: the totals on top (kills, quests, deaths, fish, gold donated, characters) match the Home / player pages. Boards for Slayers, Quest masters, Graveyard regulars (deaths), Big fish and Generous souls show players with the right numbers; the bar behind a row follows the leader. Did you know? shows sensible facts and hides itself without data.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: totals, deaths and new boards$q$);
