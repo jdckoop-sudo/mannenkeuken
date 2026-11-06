@@ -11,6 +11,17 @@ import { rolesForClass } from './wowdata.js?v=__V__';
 export const formRace = (race) => (race === 'Skyborne' ? 'Skyborne (Horde)' : race ?? '');
 // The game says "Windshaper Skyborne"; the role list needs the plain class only.
 export const isKnown = (entry) => entry?.status === 'ok';
+// The picture from the game: the full character if there is one, otherwise the smaller versions. Null when the game has none.
+export const pictureOf = (entry) => {
+  const media = entry?.status === 'ok' ? entry.media : null;
+  const url = media?.main ?? media?.['main-raw'] ?? media?.inset ?? media?.avatar;
+  return /^https:\/\//.test(url ?? '') ? url : null;
+};
+// Alts: highest level first (the game's level when it knows the character), then by name.
+export function sortAlts(alts, entryOf) {
+  const level = (c) => Number(entryOf(c)?.status === 'ok' ? entryOf(c).level : c.level) || 0;
+  return [...alts].sort((a, b) => level(b) - level(a) || String(a.name).localeCompare(String(b.name)));
+}
 const friendly = (error) => (error.code === '23505' ? 'A character with this name already exists.' : error.message);
 
 export function initMyCharacters(host, user) {
@@ -27,12 +38,10 @@ export function initMyCharacters(host, user) {
       <div class="row"><button class="btn btn-primary" type="button" data-choose-save>Save my main</button></div>
       <p class="muted" style="margin:0" role="status" data-choose-msg></p>
     </section>
-    <div class="row">
-      <div data-main style="flex: 1 1 340px; max-width: 480px; display:flex; flex-direction:column; gap:16px"></div>
-      <section style="flex: 1 1 340px; max-width: 480px; display:flex; flex-direction:column; gap:16px">
-        <div data-alts style="display:flex; flex-direction:column; gap:16px"></div>
-        <div><button class="btn" type="button" data-add>Add a character</button></div>
-      </section>
+    <div class="my-chars">
+      <div data-main class="my-chars-list"></div>
+      <div data-alts class="my-chars-list"></div>
+      <div><button class="btn" type="button" data-add>Add an alt</button></div>
     </div>`;
   const $ = (s) => host.querySelector(s);
 
@@ -127,12 +136,32 @@ export function initMyCharacters(host, user) {
     return form;
   }
 
-  const card = (c, title, isMain) => (isKnown(entryOf(c)) ? knownCard(c, title, isMain, entryOf(c)) : openCard(c, title, isMain));
+  // The form on the left, the picture from the game on the right (when there is one).
+  function withPicture(form, c) {
+    const url = pictureOf(entryOf(c));
+    if (!url) return form;
+    const left = document.createElement('div');
+    left.className = 'my-char-left';
+    left.append(...form.childNodes);
+    const img = document.createElement('img');
+    img.className = 'my-char-picture';
+    img.src = url;
+    img.alt = `${c.name} in the game`;
+    img.loading = 'lazy';
+    const frame = document.createElement('div');
+    frame.className = 'my-char-frame';
+    frame.append(img);
+    img.addEventListener('error', () => { frame.remove(); form.classList.remove('my-char-with-picture'); });
+    form.classList.add('my-char-with-picture');
+    form.append(left, frame);
+    return form;
+  }
+  const card = (c, title, isMain) => withPicture(isKnown(entryOf(c)) ? knownCard(c, title, isMain, entryOf(c)) : openCard(c, title, isMain), c);
 
   async function load() {
     [chars, bz] = await Promise.all([getMyCharacters(user), loadBlizzard()]);
     const main = chars.find((c) => c.status === 'Main') ?? (chars.length === 1 ? chars[0] : null);
-    const alts = chars.filter((c) => c !== main);
+    const alts = sortAlts(chars.filter((c) => c !== main), entryOf);
     const choose = $('[data-choose]');
     choose.hidden = !!main || chars.length < 2;
     $('[data-choose-list]').innerHTML = choose.hidden ? '' : pickList(chars);
@@ -153,7 +182,7 @@ export function initMyCharacters(host, user) {
     makeMain(pick, note, e.target);
   });
   $('[data-add]').addEventListener('click', () => {
-    $('[data-alts]').append(openCard(null, 'Add a character', false));
+    $('[data-alts]').append(openCard(null, 'Add an alt', false));
     $('[data-add]').hidden = true;
   });
   return load();
