@@ -1,12 +1,8 @@
-import { SHEET_ID } from './config.js?v=__V__';
 import { supabase } from './supabase.js?v=__V__';
 
-// Characters come from the table characters (loadMembers); the Google Sheet is being phased out and is only the fallback.
-// fetchMembers() reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
-// Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
-// I Prof 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated (set automatically by the sheet's onEdit script), P Status, Q Notes.
+// Characters (table characters) and the data from the game (Blizzard API). The file keeps its old name: nearly every page imports it.
 // Character data from the Blizzard API: the tables blizzard_characters + blizzard_update, filled every 15 minutes by the Edge Function
-// supabase/functions/update-characters. While those are empty or not there, the old file data/blizzard-characters.json is used.
+// supabase/functions/update-characters.
 // Result: { source, updated, ok, notFound, errors, message, characters }, or null when there is no data. Entries are keyed by the lowercase character name.
 async function blizzardFromDatabase() {
   if (!supabase) return null;
@@ -21,16 +17,16 @@ async function blizzardFromDatabase() {
 }
 let blizzardPromise = null;
 export function loadBlizzard() {
-  blizzardPromise ??= blizzardFromDatabase().then((data) => data ?? fetch('data/blizzard-characters.json?v=__V__').then((r) => (r.ok ? r.json() : null)).catch(() => null));
+  blizzardPromise ??= blizzardFromDatabase();
   return blizzardPromise;
 }
 
-// The Blizzard API is leading, the sheet is the fallback (decided 5 Nov 2026):
+// The Blizzard API is leading, the table characters is the fallback (decided 5 Nov 2026):
 //  - the API knows the character (status "ok"): level, race, class and the professions (with skill) come from the API.
-//    The profession columns are replaced: other professions in the sheet are overwritten; Cooking / First Aid / Fishing that the API does not
-//    report are emptied. If the API gave no professions at all (call failed, or none learned yet) the sheet's professions stay.
-//  - the API does not know the character (not found: e.g. under level 10, or an error, or no data file yet): everything stays as typed in the sheet.
-// Player, Role, Status, Notes and the key recipes always come from the sheet (the API has no such data).
+//    The professions are replaced: other professions in the table are overwritten on the site; Cooking / First Aid / Fishing that the API does not
+//    report are emptied. If the API gave no professions at all (call failed, or none learned yet) the table's professions stay.
+//  - the API does not know the character (not found: e.g. under level 10, or an error): everything stays as in the table.
+// Player, Role, Status, Notes and the key recipes always come from the table (the API has no such data).
 export function applyApi(rows, blizzard) {
   const entries = blizzard?.characters;
   if (!entries) return rows;
@@ -55,7 +51,7 @@ export function applyApi(rows, blizzard) {
   return rows;
 }
 
-// A row of the table characters in the shape the pages use. Empty values are '' (as they were from the sheet), the date is the Dutch day.
+// A row of the table characters in the shape the pages use. Empty values are '', the date is the Dutch day.
 export function memberFromCharacter(c) {
   const profs = c.professions ?? [];
   const [p1, p2] = profs.filter((p) => p.kind === 'primary');
@@ -68,39 +64,23 @@ export function memberFromCharacter(c) {
     status: c.status || 'Main', notes: c.notes ?? '',
   };
 }
-// null when the table cannot be read or is empty: then the sheet is used.
 async function fetchCharacters() {
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase.from('characters').select('*').order('created_at');
-    return error || !data?.length ? null : data.map(memberFromCharacter);
-  } catch { return null; }
-}
-// Where the rows came from: 'database' or 'sheet' (shown in developer mode → Checks).
-let membersFrom = null;
-export const membersSource = () => membersFrom;
-async function fetchRows() {
-  const rows = await fetchCharacters();
-  membersFrom = rows ? 'database' : 'sheet';
-  return rows ?? fetchMembers();
+  if (!supabase) return [];
+  const { data, error } = await supabase.from('characters').select('*').order('created_at');
+  if (error) throw new Error('Could not read the characters');
+  return (data ?? []).map(memberFromCharacter);
 }
 
-// One request per page load: everybody who asks shares it (Home used to fetch the sheet twice). A failed request is tried again next time.
+// One request per page load: everybody who asks shares it. A failed request is tried again next time.
 let membersPromise = null;
 export function loadMembers() {
-  membersPromise ??= Promise.all([fetchRows(), loadBlizzard()]).then(async ([rows, blizzard]) => applyMainChoices(applyApi(rows, blizzard), membersFrom === 'database' ? [] : await fetchMainChoices())).catch((err) => { membersPromise = null; throw err; });
+  membersPromise ??= Promise.all([fetchCharacters(), loadBlizzard()]).then(([rows, blizzard]) => applyMainRule(applyApi(rows, blizzard))).catch((err) => { membersPromise = null; throw err; });
   return membersPromise.then((rows) => rows.map((r) => ({ ...r }))); // copies, so a page that sorts or edits its list leaves the others alone
 }
-// The main a player chose on My profile; only for the sheet fallback, in the table characters it is the Status (set_main_character() keeps both).
-async function fetchMainChoices() {
-  if (!supabase) return [];
-  try { return (await supabase.from('main_characters').select('player_name,character_name')).data ?? []; } catch { return []; }
-}
-// Main / Alt per player. Characters that quit (Status Gestopt) and rows without a character name are left alone.
+// Main / Alt per player. Characters that quit (Status Gestopt) are left alone.
 //  - 1 active character: that one is the main.
-//  - 2 or more: the chosen main is Main and the others are Alt. No (valid) choice: the sheet's Status stays; if that does not name
-//    exactly one main, the player's rows get needsMain = true (Home and My profile ask them to choose).
-export function applyMainChoices(rows, choices) {
+//  - 2 or more without exactly one Main: the player's rows get needsMain = true (Home and My profile ask them to choose).
+export function applyMainRule(rows) {
   const k = (s) => String(s ?? '').trim().toLowerCase();
   const groups = new Map();
   for (const r of rows) {
@@ -108,45 +88,10 @@ export function applyMainChoices(rows, choices) {
     if (!groups.has(k(r.player))) groups.set(k(r.player), []);
     groups.get(k(r.player)).push(r);
   }
-  for (const [player, list] of groups) {
-    if (list.length === 1) { list[0].status = 'Main'; continue; }
-    const choice = choices.find((c) => k(c.player_name) === player);
-    const chosen = choice && list.find((r) => k(r.character) === k(choice.character_name));
-    if (chosen) list.forEach((r) => { r.status = r === chosen ? 'Main' : 'Alt'; });
+  for (const list of groups.values()) {
+    if (list.length === 1) list[0].status = 'Main';
     else if (list.filter((r) => r.status === 'Main').length !== 1) list.forEach((r) => { r.needsMain = true; });
   }
-  return rows;
-}
-
-export async function fetchMembers() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Sheet not reachable');
-  const rows = parseCsv(await res.text());
-  return rows
-    .filter((r) => r[0] && r[0].trim())
-    .map((r) => ({
-      player: r[0], character: r[1], race: r[2], cls: r[3], role: r[4], level: r[5],
-      prof1: r[6], skill1: r[7], prof2: r[8], skill2: r[9],
-      cooking: r[10], firstAid: r[11], fishing: r[12], recipes: r[13],
-      updated: r[14], status: r[15] || 'Main', notes: r[16] ?? '',
-    }));
-}
-
-function parseCsv(text) {
-  const rows = []; let row = []; let field = ''; let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
-      else if (c === '"') quoted = false;
-      else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c !== '\r') field += c;
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
   return rows;
 }
 

@@ -26,9 +26,6 @@ const DATA = [
 ];
 const IGNORE_HOSTS = ['wow.zamimg.com', 'www.wowhead.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 const ignored = (url = '') => { try { return IGNORE_HOSTS.includes(new URL(url).host); } catch { return false; } };
-// Files that may not exist yet: the site copes with that (the Blizzard data only exists once the update workflow has run)
-const OPTIONAL = ['/data/blizzard-characters.json'];
-const optionalMissing = (url = '', status) => status === 404 && OPTIONAL.some((o) => url.includes(o));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- wait until the deploy is live ---------------------------------------------------------------------
@@ -97,7 +94,7 @@ async function checkPage(cdp, sessionId, path) {
       case 'Network.requestWillBeSent': inflight.add(p.requestId); urls.set(p.requestId, p.request.url); last = Date.now(); break;
       case 'Network.responseReceived':
         if (p.type === 'Document' && p.response.url === url) docStatus = p.response.status;
-        if (p.response.status >= 400 && !ignored(p.response.url) && !optionalMissing(p.response.url, p.response.status)) errors.add(`HTTP ${p.response.status} for ${p.response.url}`);
+        if (p.response.status >= 400 && !ignored(p.response.url)) errors.add(`HTTP ${p.response.status} for ${p.response.url}`);
         break;
       case 'Network.loadingFinished': inflight.delete(p.requestId); last = Date.now(); break;
       case 'Network.loadingFailed':
