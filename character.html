@@ -21,23 +21,29 @@
     <h1 id="title">Character</h1>
     <p class="muted" id="sub"></p>
   </div>
-  <section class="grid" id="stats" aria-label="Stats"></section>
   <div class="row">
-    <section class="box" style="flex: 1 1 340px">
-      <h2>Professions</h2>
-      <div id="profs" style="display:flex;flex-direction:column;gap:10px"><p class="muted">Loading…</p></div>
+    <section class="box" id="equipment-box" style="flex: 1 1 560px; max-width: 680px" hidden>
+      <h2>Equipment</h2>
+      <div id="equipment"></div>
     </section>
     <section class="box" style="flex: 1 1 340px">
       <h2>Details</h2>
       <div class="stat-list" id="details"></div>
     </section>
   </div>
+  <section class="grid" id="stats" aria-label="Stats"></section>
+  <section class="box">
+    <h2>Professions</h2>
+    <div id="profs" style="display:flex;flex-direction:column;gap:10px"><p class="muted">Loading…</p></div>
+  </section>
 </main>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { professionLabel } from './js/proficons.js?v=__V__';
 import { loadCharacters, loadBlizzard, playerUrl, statusLabel } from './js/players.js?v=__V__';
+import { characterDoll } from './js/charpicture.js?v=__V__';
+import { refreshTooltips } from './js/itemsearch.js?v=__V__';
 
 await renderHeader();
 const name = new URLSearchParams(location.search).get('name') || '';
@@ -73,6 +79,12 @@ if (!c) {
   const whenTime = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null);
   // Last login and Last updated (the last time the game data was fetched) come from the API; for a character the API does not know, the date it was last changed here is left.
   const apiOk = bz?.status === 'ok';
+  // The picture from the game with the items around it, once the game knows this character
+  if (apiOk) {
+    document.getElementById('equipment').append(characterDoll(bz, c.name, c.class));
+    document.getElementById('equipment-box').hidden = false;
+    refreshTooltips();
+  }
   document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Faction', apiOk ? bz.faction : null], ['Guild', apiOk ? bz.guild : null], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes],
     ['Last login', apiOk ? whenTime(bz.lastLogin) : null], ['Last updated', apiOk ? whenTime(blizzard?.updated ?? bz.fetched) : c.updated]]
     .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');

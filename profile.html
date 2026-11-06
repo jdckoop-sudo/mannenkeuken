@@ -22,35 +22,8 @@
   .my-char-left { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 16px; min-width: 0; }
   .my-char-left > * { grid-column: 1 / -1; }
   .my-char-left > label { grid-column: auto; }
-  /* The picture with the items around it, as on the Armory: left, right and below */
-  .my-char-doll { display: grid; grid-template-columns: minmax(0, 1fr) 190px minmax(0, 1fr); grid-template-areas: "left frame right" "below below below"; gap: 14px 16px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border); }
-  .my-char-slots { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
-  .my-char-slots-left { grid-area: left; }
-  .my-char-slots-right { grid-area: right; text-align: right; }
-  .my-char-slots-below { grid-area: below; flex-direction: row; justify-content: center; gap: 24px; text-align: center; }
-  .my-char-slots-below li { flex: 0 1 150px; }
-  .my-char-slots a { text-decoration: none; }
-  .my-char-slots a:hover { text-decoration: underline; }
-  .my-char-slot-empty { color: var(--muted); opacity: .55; }
-  /* Dark fantasy frame: a double gold line, gold corner brackets, a soft gold glow and a dark vignette around the character */
-  .my-char-frame {
-    position: relative; display: flex; align-items: flex-end; justify-content: center; grid-area: frame; align-self: center; height: 260px; padding: 12px;
-    border: 1px solid var(--gold-dim); border-radius: 4px; background: var(--panel-2);
-    outline: 1px solid var(--gold-dim); outline-offset: 3px;
-    box-shadow: inset 0 0 36px 8px rgba(0, 0, 0, .75), 0 0 16px 3px color-mix(in srgb, var(--gold) 38%, transparent), 0 6px 18px rgba(0, 0, 0, .5);
-  }
-  .my-char-frame::before {
-    content: ''; position: absolute; inset: -3px; pointer-events: none; --c: var(--gold-bright); --l: 22px; --t: 3px;
-    background:
-      linear-gradient(var(--c), var(--c)) top left / var(--l) var(--t), linear-gradient(var(--c), var(--c)) top left / var(--t) var(--l),
-      linear-gradient(var(--c), var(--c)) top right / var(--l) var(--t), linear-gradient(var(--c), var(--c)) top right / var(--t) var(--l),
-      linear-gradient(var(--c), var(--c)) bottom left / var(--l) var(--t), linear-gradient(var(--c), var(--c)) bottom left / var(--t) var(--l),
-      linear-gradient(var(--c), var(--c)) bottom right / var(--l) var(--t), linear-gradient(var(--c), var(--c)) bottom right / var(--t) var(--l);
-    background-repeat: no-repeat;
-  }
-  .my-char-picture { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
-  .my-char-frame-empty { align-items: center; opacity: .75; }
-  @media (max-width: 640px) { .my-char-left > label { grid-column: 1 / -1; } .my-char-doll { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "frame frame" "left right" "below below"; } .my-char-frame { max-width: 260px; width: 100%; justify-self: center; } .my-char-slots-below { gap: 12px; } }
+  .my-char-card .char-doll { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border); }
+  @media (max-width: 640px) { .my-char-left > label { grid-column: 1 / -1; } }
 </style>
 </head>
 <body>

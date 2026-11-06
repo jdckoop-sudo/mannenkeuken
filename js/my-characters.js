@@ -6,34 +6,17 @@ import { esc, loadBlizzard } from './sheet.js?v=__V__';
 import { baseRace, playerUrl, characterUrl } from './players.js?v=__V__';
 import { wireCharacterFields } from './charform.js?v=__V__';
 import { rolesForClass } from './wowdata.js?v=__V__';
-import { classIcon } from './classicons.js?v=__V__';
-import { wowheadUrl, qualityColor, refreshTooltips } from './itemsearch.js?v=__V__';
+import { refreshTooltips } from './itemsearch.js?v=__V__';
+import { characterDoll } from './charpicture.js?v=__V__';
 
 // The list says "Skyborne", the form needs the faction ("Skyborne (Horde)": we are a Horde guild).
 export const formRace = (race) => (race === 'Skyborne' ? 'Skyborne (Horde)' : race ?? '');
 // The game says "Windshaper Skyborne"; the role list needs the plain class only.
 export const isKnown = (entry) => entry?.status === 'ok';
-// The picture from the game: the full character if there is one, otherwise the smaller versions. Null when the game has none.
-export const pictureOf = (entry) => {
-  const media = entry?.status === 'ok' ? entry.media : null;
-  const url = media?.main ?? media?.['main-raw'] ?? media?.inset ?? media?.avatar;
-  return /^https:\/\//.test(url ?? '') ? url : null;
-};
 // Alts: highest level first (the game's level when it knows the character), then by name.
 export function sortAlts(alts, entryOf) {
   const level = (c) => Number(entryOf(c)?.status === 'ok' ? entryOf(c).level : c.level) || 0;
   return [...alts].sort((a, b) => level(b) - level(a) || String(a.name).localeCompare(String(b.name)));
-}
-// Where each item goes around the picture: left, right and below, as on the Armory. Keys are the slot types of the game.
-const SLOTS_LEFT = [['HEAD', 'Head'], ['NECK', 'Neck'], ['SHOULDER', 'Shoulder'], ['BACK', 'Back'], ['CHEST', 'Chest'], ['SHIRT', 'Shirt'], ['TABARD', 'Tabard'], ['WRIST', 'Wrist']];
-const SLOTS_RIGHT = [['HANDS', 'Hands'], ['WAIST', 'Belt'], ['LEGS', 'Legs'], ['FEET', 'Boots'], ['FINGER_1', 'Ring 1'], ['FINGER_2', 'Ring 2'], ['TRINKET_1', 'Trinket 1'], ['TRINKET_2', 'Trinket 2']];
-const SLOTS_BELOW = [['MAIN_HAND', 'Main hand'], ['OFF_HAND', 'Off hand'], ['RANGED', 'Ranged']];
-// A list of slots: the item name with a link to Wowhead, or the name of the slot in grey when it is empty.
-function slotList(slots, gear, side) {
-  return `<ul class="my-char-slots my-char-slots-${side}">${slots.map(([slot, label]) => {
-    const g = gear.find((x) => x.slot === slot);
-    return g ? `<li><a href="${wowheadUrl(encodeURIComponent(g.id))}" target="_blank" rel="noopener" style="color:${qualityColor(g.quality)}">${esc(g.name)}</a></li>` : `<li class="my-char-slot-empty">${esc(label)}</li>`;
-  }).join('')}</ul>`;
 }
 const friendly = (error) => (error.code === '23505' ? 'A character with this name already exists.' : error.message);
 
@@ -158,25 +141,8 @@ export function initMyCharacters(host, user) {
     const left = document.createElement('div');
     left.className = 'my-char-left';
     left.append(...form.childNodes);
-    const frame = document.createElement('div');
-    frame.className = 'my-char-frame';
-    const icon = () => { frame.innerHTML = c ? classIcon(entryOf(c)?.class || c.class, 72) : ''; frame.classList.add('my-char-frame-empty'); };
-    const url = c ? pictureOf(entryOf(c)) : null;
-    if (url) {
-      const img = document.createElement('img');
-      img.className = 'my-char-picture';
-      img.src = url;
-      img.alt = `${c.name} in the game`;
-      img.loading = 'lazy';
-      img.addEventListener('error', icon);
-      frame.append(img);
-    } else icon();
     form.classList.add('my-char-card');
-    const gear = c && isKnown(entryOf(c)) ? entryOf(c).equipment ?? [] : [];
-    const doll = document.createElement('div');
-    doll.className = 'my-char-doll';
-    doll.innerHTML = slotList(SLOTS_LEFT, gear, 'left') + slotList(SLOTS_RIGHT, gear, 'right') + slotList(SLOTS_BELOW, gear, 'below');
-    doll.append(frame);
+    const doll = characterDoll(c ? entryOf(c) : null, c?.name, c?.class);
     form.append(left, doll);
     return form;
   }
