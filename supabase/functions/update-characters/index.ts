@@ -79,6 +79,13 @@ function professionList(body) {
   return [...(body.primaries ?? []).map((p) => one(p, 'primary')), ...(body.secondaries ?? []).map((p) => one(p, 'secondary'))];
 }
 
+// Totals from the in-game statistics (/achievements/statistics; the ids are Blizzard's own). A statistic that is missing means 0: the API leaves out what never happened yet.
+const GAME_STATS = { quests: 98, kills: 1197, deaths: 60, fish: 1518 };
+function gameStats(body) {
+  const list = (body.categories ?? []).flatMap((c) => [...(c.statistics ?? []), ...(c.sub_categories ?? []).flatMap((s) => s.statistics ?? [])]);
+  return Object.fromEntries(Object.entries(GAME_STATS).map(([key, id]) => [key, list.find((s) => s.id === id)?.quantity ?? 0]));
+}
+
 async function run(dryRun) {
   const started = Date.now();
   const tokenRes = await fetch('https://oauth.battle.net/token', {
@@ -121,11 +128,13 @@ async function run(dryRun) {
     if (summary.status === 200) {
       const b = summary.body;
       const prof = await call(`${base}/professions`);
+      const stats = await call(`${base}/achievements/statistics`);
       entry = {
         name: b.name ?? name, status: 'ok', level: b.level ?? null, race: b.race?.name ?? null, class: b.character_class?.name ?? null,
         faction: b.faction?.name ?? null, guild: b.guild?.name ?? null,
         lastLogin: b.last_login_timestamp ? new Date(b.last_login_timestamp).toISOString() : null,
         professions: prof.status === 200 ? professionList(prof.body) : (old?.professions ?? []),
+        stats: stats.status === 200 ? gameStats(stats.body) : (old?.stats ?? null),
         fetched: now,
       };
       counts.ok += 1;

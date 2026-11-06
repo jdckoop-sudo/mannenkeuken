@@ -33,6 +33,18 @@ export function activityOf(iso, now = new Date()) {
   return { level, label, title, ts: t, days };
 }
 
+// Totals from the game (quests, kills, deaths, fish) over a list of characters, from loadBlizzard(). The last known numbers keep counting when an
+// update could not read a character. known = how many characters have numbers: characters show up from level 10.
+export const GAME_STATS = [['quests', 'Quests completed'], ['kills', 'Kills'], ['deaths', 'Deaths'], ['fish', 'Fish caught']];
+export function gameTotals(chars, blizzard) {
+  const stats = chars.map((c) => blizzard?.characters?.[norm(c.name)]?.stats).filter(Boolean);
+  const totals = { known: stats.length };
+  for (const [key] of GAME_STATS) totals[key] = stats.reduce((sum, s) => sum + (s[key] ?? 0), 0);
+  return totals;
+}
+// The four tiles, for inside a .grid.glance
+export const gameStatTiles = (totals) => GAME_STATS.map(([key, label]) => `<div class="box stat"><span class="muted">${label}</span><strong>${totals.known ? totals[key].toLocaleString('en-GB') : '–'}</strong></div>`).join('');
+
 // players table: player_name (sheet column A) <-> discord_name
 export async function loadPlayers() {
   if (!supabase) return [];
