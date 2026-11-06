@@ -87,7 +87,7 @@ export function applyMainChoices(rows, choices) {
   return rows;
 }
 
-async function fetchMembers() {
+export async function fetchMembers() {
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Sheet not reachable');
