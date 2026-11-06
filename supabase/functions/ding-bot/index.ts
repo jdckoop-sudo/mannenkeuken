@@ -15,12 +15,13 @@
 //  - A guild goal is announced once for the whole guild, with @everyone, not per player.
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
-// The achievement rules are not copied here: this function loads js/achievements-core.js from the live site, so a new or changed achievement
-// goes live with the site and this function does not need to be deployed again.
+// The achievement rules are not copied here: this function imports js/achievements-core.js from the live site (a static import, because the Edge
+// Runtime cannot load a module from the internet while it runs: it is fetched and bundled when the function is deployed). So after a new or
+// changed achievement, deploy this function again to give the bot the new rules.
 //
 // POST body (optional): {"test": true} posts one hello message to check the webhook. {"dryRun": true} works out what would be posted and answers with it, but posts and writes nothing.
+import * as core from 'https://jdckoop-sudo.github.io/mannenkeuken/js/achievements-core.js';
 const SITE = 'https://jdckoop-sudo.github.io/mannenkeuken';
-const CORE_URL = `${SITE}/js/achievements-core.js`;
 const COLOR = 0xe8c15a;
 
 const env = (name) => Deno.env.get(name) ?? '';
@@ -153,7 +154,6 @@ async function post(webhook, m) {
 
 // ---- the run
 async function run(dryRun) {
-  const core = await import(CORE_URL);
   const [rows, blizzardRows, donations, overrides, playerRows, levelRows, knownRows, doneRows] = await Promise.all([
     db('characters?select=name,player_name,race,class,level,professions,status'),
     db('blizzard_characters?select=key,data'),
