@@ -30,11 +30,9 @@
   </section>
   <div class="ach-modal" id="ach-modal" hidden></div>
   <div id="records-view" hidden>
-  <div class="grid">
-    <section class="box"><div><h2>Highest level</h2><p class="muted sub">Single characters</p></div><ol id="chars" class="board"></ol></section>
-    <section class="box"><div><h2>Player level</h2><p class="muted sub">All characters added together</p></div><ol id="players" class="board"></ol></section>
-    <section class="box"><div><h2>Profession skill</h2><p class="muted sub">Total per player</p></div><ol id="skillers" class="board"></ol></section>
-  </div>
+  <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
+  <div class="grid" id="boards"></div>
+  <section class="box" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
   <h2>Best per profession</h2>
   <div class="grid" id="profs"><p class="muted">Loading…</p></div>
   </div>
@@ -49,14 +47,27 @@
   .board li:first-child .who-name > a { font-weight: 700; }
   .board .val { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
   .board li.empty { display: block; }
-  .board li.empty::before { content: none; }
+  /* Records: a bar behind every row shows how far it is from the leader; the top three get a medal colour */
+  .board li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 15%, transparent) calc(var(--p) * 100%), transparent 0); border-radius: 4px; padding-left: 4px; padding-right: 8px; }
+  #rec-totals { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  #trivia-box { margin-bottom: 12px; }
+  .board li:not(.empty):nth-child(1)::before { color: var(--gold-bright); text-shadow: 0 0 10px var(--gold); font-size: 1.15em; }
+  .board li:not(.empty):nth-child(2)::before { color: var(--text); }
+  .board li:not(.empty):nth-child(3)::before { color: var(--gold-dim); }
+  .board li:nth-child(1) .val { color: var(--gold-bright); text-shadow: 0 0 10px color-mix(in srgb, var(--gold) 55%, transparent); }
+  .rec-glyph { margin-right: 6px; opacity: .9; }
+  .board-shame li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--crimson, var(--gold)) 22%, transparent) calc(var(--p) * 100%), transparent 0); }
+  .trivia { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
 </style>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
-import { getUser } from './js/supabase.js?v=__V__';
+import { getUser, supabase } from './js/supabase.js?v=__V__';
+import { goldHtml } from './js/gold.js?v=__V__';
+import { LAUNCH } from './js/releases.js?v=__V__';
 import { initTree, achDefs } from './js/achievement-tree.js?v=__V__';
-import { loadCharacters, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, gameTotals, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
 
 await renderHeader();
 document.body.insertAdjacentHTML('beforeend', achDefs());
@@ -65,28 +76,66 @@ const showTab = (tree) => {
   document.getElementById('tree-view').hidden = !tree; document.getElementById('who-wrap').hidden = !tree; document.getElementById('records-view').hidden = tree;
   document.getElementById('tab-tree').setAttribute('aria-pressed', String(tree)); document.getElementById('tab-records').setAttribute('aria-pressed', String(!tree));
   document.getElementById('intro').textContent = tree ? 'Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish).'
-    : 'Guild records: highest characters, players (all characters together) and professions. Characters with the status Quit don\'t count.';
+    : 'Guild records: levels, professions, kills, quests, deaths, fish and gold. Characters with the status Quit don\'t count.';
 };
 document.getElementById('tab-tree').onclick = () => showTab(true);
 document.getElementById('tab-records').onclick = () => showTab(false);
 initTree({ user, tree: document.getElementById('ach-tree'), summary: document.getElementById('ach-summary'), who: document.getElementById('ach-who'), portrait: document.getElementById('ach-portrait'), modal: document.getElementById('ach-modal') });
-const { characters } = await loadCharacters();
+const [{ characters }, blizzard] = await Promise.all([loadCharacters(), loadBlizzard()]);
+const { data: donationRows } = supabase ? await supabase.from('gold_donations').select('player_name,copper,created_at') : { data: [] };
+const donations = (donationRows ?? []).filter((d) => d.created_at >= LAUNCH); // counted from the launch, like Top donors on the Bank page
 const active = characters.filter((c) => c.status !== 'Gestopt' && c.hasName);
 const top = 10;
+const n = (v) => Number(v).toLocaleString('en-GB');
 const who = (c) => `<span class="who-name"><a href="${characterUrl(c.name)}">${esc(c.name)}</a>${c.player ? `<span class="who-sub"><a href="${playerUrl(c.player)}">${esc(c.player)}</a></span>` : ''}</span>`;
 const empty = '<li class="muted empty">No data yet.</li>';
-const row = (who, val) => `<li><span class="who">${who}</span><span class="val">${val}</span></li>`;
-
-document.getElementById('chars').innerHTML = active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).slice(0, top)
-  .map((c) => row(who(c), `level ${c.level}`)).join('') || empty;
+const row = (who, val, p) => `<li${p === undefined ? '' : ` style="--p:${p.toFixed(3)}"`}><span class="who">${who}</span><span class="val">${val}</span></li>`;
+// rows = [{ label (html), value (number), text (what is shown) }], sorted high to low; the bar is relative to the leader
+const rows = (list) => list.map((r) => row(r.label, r.text ?? n(r.value), list[0].value ? r.value / list[0].value : 0)).join('') || empty;
+const board = (glyph, title, sub, list, cls = '') => `<section class="box"><div><h2><span class="rec-glyph" aria-hidden="true">${glyph}</span>${title}</h2><p class="muted sub">${sub}</p></div><ol class="board ${cls}">${rows(list.slice(0, top))}</ol></section>`;
 
 const byPlayer = {};
 for (const c of characters.filter((x) => x.status !== 'Gestopt' && x.player)) (byPlayer[c.player] ??= []).push(c);
-const playerStats = Object.entries(byPlayer).map(([p, cs]) => ({ p, ...statsFor(cs) }));
-document.getElementById('players').innerHTML = playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel).slice(0, top)
-  .map((s) => row(`<a href="${playerUrl(s.p)}">${esc(s.p)}</a> <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, s.totalLevel)).join('') || empty;
-document.getElementById('skillers').innerHTML = playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).slice(0, top)
-  .map((s) => row(`<a href="${playerUrl(s.p)}">${esc(s.p)}</a>`, s.totalSkill)).join('') || empty;
+const link = (p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`;
+const playerStats = Object.entries(byPlayer).map(([p, cs]) => ({ p, ...statsFor(cs), game: gameTotals(cs, blizzard) }));
+const withGame = playerStats.filter((s) => s.game.known);
+const byGame = (key) => withGame.filter((s) => s.game[key] > 0).sort((a, b) => b.game[key] - a.game[key]).map((s) => ({ label: link(s.p), value: s.game[key] }));
+const donated = {};
+for (const d of donations) donated[d.player_name] = (donated[d.player_name] ?? 0) + Number(d.copper);
+
+// Totals of the guild
+const all = gameTotals(active, blizzard);
+const tile = (label, value) => `<div class="box stat"><span class="muted">${label}</span><strong>${value}</strong></div>`;
+const totalDonated = Object.values(donated).reduce((a, b) => a + b, 0);
+document.getElementById('rec-totals').innerHTML = [
+  tile('Kills', all.known ? n(all.kills) : '–'), tile('Quests completed', all.known ? n(all.quests) : '–'),
+  tile('Deaths', all.known ? n(all.deaths) : '–'), tile('Fish caught', all.known ? n(all.fish) : '–'),
+  tile('Gold donated', totalDonated ? goldHtml(totalDonated) : '–'), tile('Characters', n(active.length)),
+].join('');
+
+document.getElementById('boards').innerHTML = [
+  board('&#9876;', 'Highest level', 'Single characters', active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).map((c) => ({ label: who(c), value: c.level, text: `level ${c.level}` }))),
+  board('&#10070;', 'Player level', 'All characters added together', playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel)
+    .map((s) => ({ label: `${link(s.p)} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, value: s.totalLevel }))),
+  board('&#9874;', 'Profession skill', 'Total per player', playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).map((s) => ({ label: link(s.p), value: s.totalSkill }))),
+  board('&#9876;', 'Slayers', 'Most kills, all characters', byGame('kills')),
+  board('&#10070;', 'Quest masters', 'Most quests completed', byGame('quests')),
+  board('&#9760;', 'Graveyard regulars', 'Most deaths: the Hall of Shame', byGame('deaths'), 'board-shame'),
+  board('&#9672;', 'Big fish', 'Most fish caught', byGame('fish')),
+  board('&#9733;', 'Generous souls', 'Most gold donated to the guild bank', Object.entries(donated).sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ label: link(p), value: c, text: goldHtml(c) }))),
+].join('');
+
+// A few facts
+const facts = [];
+if (all.known && all.deaths > 0 && all.kills > 0) facts.push(`The guild has <b>${n(Math.round(all.kills / all.deaths))}</b> kills for every death.`);
+const careful = withGame.filter((s) => s.game.deaths > 0 && s.game.kills >= 50).sort((a, b) => b.game.kills / b.game.deaths - a.game.kills / a.game.deaths)[0];
+if (careful) facts.push(`${link(careful.p)} is the most careful: <b>${n(Math.round(careful.game.kills / careful.game.deaths))}</b> kills per death.`);
+const reckless = withGame.filter((s) => s.game.deaths > 0 && s.game.kills >= 50).sort((a, b) => a.game.kills / a.game.deaths - b.game.kills / b.game.deaths)[0];
+if (reckless && reckless.p !== careful?.p) facts.push(`${link(reckless.p)} lives on the edge: only <b>${n(Math.round(reckless.game.kills / reckless.game.deaths))}</b> kills per death.`);
+const mostAlts = playerStats.map((s) => ({ p: s.p, alts: byPlayer[s.p].filter((c) => c.status === 'Alt').length })).sort((a, b) => b.alts - a.alts)[0];
+if (mostAlts?.alts > 0) facts.push(`${link(mostAlts.p)} has the most alts: <b>${mostAlts.alts}</b>.`);
+document.getElementById('trivia').innerHTML = facts.map((f) => `<li>${f}</li>`).join('');
+document.getElementById('trivia-box').hidden = !facts.length;
 
 // Best per profession (top 3)
 const profNames = [...new Set(active.flatMap((c) => c.profs.map((p) => p.name)))]
