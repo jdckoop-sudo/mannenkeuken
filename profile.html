@@ -11,6 +11,30 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/style.css?v=__V__">
+<style>
+  /* Main first, the alts below it; each character with its picture from the game on the right */
+  .my-chars, .my-chars-list { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+  .my-char-with-picture { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 20px; align-items: stretch; }
+  .my-char-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  /* Dark fantasy frame: a double gold line, gold corner brackets, a soft gold glow and a dark vignette around the character */
+  .my-char-frame {
+    position: relative; display: flex; align-items: flex-end; justify-content: center; min-height: 220px; padding: 12px;
+    border: 1px solid var(--gold-dim); border-radius: 4px; background: var(--panel-2);
+    outline: 1px solid var(--gold-dim); outline-offset: 3px;
+    box-shadow: inset 0 0 36px 8px rgba(0, 0, 0, .75), 0 0 16px 3px color-mix(in srgb, var(--gold) 38%, transparent), 0 6px 18px rgba(0, 0, 0, .5);
+  }
+  .my-char-frame::before {
+    content: ''; position: absolute; inset: -3px; pointer-events: none; --c: var(--gold-bright); --l: 22px; --t: 3px;
+    background:
+      linear-gradient(var(--c), var(--c)) top left / var(--l) var(--t), linear-gradient(var(--c), var(--c)) top left / var(--t) var(--l),
+      linear-gradient(var(--c), var(--c)) top right / var(--l) var(--t), linear-gradient(var(--c), var(--c)) top right / var(--t) var(--l),
+      linear-gradient(var(--c), var(--c)) bottom left / var(--l) var(--t), linear-gradient(var(--c), var(--c)) bottom left / var(--t) var(--l),
+      linear-gradient(var(--c), var(--c)) bottom right / var(--l) var(--t), linear-gradient(var(--c), var(--c)) bottom right / var(--t) var(--l);
+    background-repeat: no-repeat;
+  }
+  .my-char-picture { display: block; width: 100%; max-height: 316px; object-fit: contain; object-position: center bottom; }
+  @media (max-width: 640px) { .my-char-with-picture { grid-template-columns: 1fr; } .my-char-frame { order: -1; max-width: 260px; width: 100%; justify-self: center; } }
+</style>
 </head>
 <body>
 <main>

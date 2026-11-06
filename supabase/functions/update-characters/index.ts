@@ -50,6 +50,12 @@ async function guildCharacters() {
   return { names: [...found.values()], complete };
 }
 
+// The character pictures: {avatar, inset, main, ...}. Null when the game has none.
+function pictures(body) {
+  const list = (body.assets ?? []).filter((a) => a.key && /^https:\/\//.test(a.value ?? ''));
+  return list.length ? Object.fromEntries(list.map((a) => [a.key, a.value])) : null;
+}
+
 function professionList(body) {
   const one = (p, kind) => {
     const tiers = (p.tiers ?? []).map((t) => ({ name: t.tier?.name ?? null, skill: t.skill_points ?? 0, max: t.max_skill_points ?? 0 }));
@@ -109,12 +115,14 @@ async function run(dryRun) {
       const b = summary.body;
       const prof = await call(`${base}/professions`);
       const stats = await call(`${base}/achievements/statistics`);
+      const media = await call(`${base}/character-media`);
       entry = {
         name: b.name ?? name, status: 'ok', level: b.level ?? null, race: b.race?.name ?? null, class: b.character_class?.name ?? null,
         faction: b.faction?.name ?? null, guild: b.guild?.name ?? null,
         lastLogin: b.last_login_timestamp ? new Date(b.last_login_timestamp).toISOString() : null,
         professions: prof.status === 200 ? professionList(prof.body) : (old?.professions ?? []),
         stats: stats.status === 200 ? gameStats(stats.body) : (old?.stats ?? null),
+        media: media.status === 200 ? pictures(media.body) : (old?.media ?? null),
         fetched: now,
       };
       counts.ok += 1;
@@ -133,7 +141,7 @@ async function run(dryRun) {
   const remove = complete ? [...previous.keys()].filter((k) => !current.has(k)) : [];
   const message = complete ? null : 'Not complete: see the function logs.';
   const result = { dryRun, characters: names.length, ...counts, removed: remove.length, complete, seconds: Math.round((Date.now() - started) / 1000) };
-  if (dryRun) return { ...result, rows: rows.map((r) => ({ key: r.key, status: r.data.status, level: r.data.level ?? null })) };
+  if (dryRun) return { ...result, rows: rows.map((r) => ({ key: r.key, status: r.data.status, level: r.data.level ?? null, media: r.data.media ?? null })) };
 
   await db('blizzard_characters?on_conflict=key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
   for (const k of remove) await db(`blizzard_characters?key=eq.${encodeURIComponent(k)}`, { method: 'DELETE' });
