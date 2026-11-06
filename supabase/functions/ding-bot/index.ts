@@ -141,7 +141,7 @@ export function plan({ core, chars, states, prev, discord }) {
 
 // ---- Discord
 async function post(webhook, m) {
-  const body = { username: 'Ding Dinky', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding-bot' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
+  const body = { username: 'Ding Dinky', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding Dinky' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(`${webhook}${webhook.includes('?') ? '&' : '?'}wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.status === 429) { const wait = Number((await res.json().catch(() => ({}))).retry_after ?? 1); await sleep(Math.min(5, wait) * 1000 + 100); continue; }
