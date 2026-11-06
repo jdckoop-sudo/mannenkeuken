@@ -7,11 +7,12 @@ import assert from 'node:assert/strict';
 
 globalThis.Deno = { env: { get: () => '' }, serve: () => {} };
 const dir = mkdtempSync(join(tmpdir(), 'ding-'));
-// the function imports the rules from the live site (https); the test uses the file of this repo instead
-const source = readFileSync(new URL('../supabase/functions/ding-bot/index.ts', import.meta.url), 'utf8');
-const local = source.replace(/import \* as core from 'https:[^']+';/, `import * as core from '${new URL('../js/achievements-core.js', import.meta.url).href}';`);
-assert.notEqual(local, source, 'the function should import achievements-core.js from the live site');
-writeFileSync(join(dir, 'ding.mjs'), local);
+// the function imports ./achievements-core.js: an exact copy of the one of the site, so both must stay the same
+const rules = readFileSync(new URL('../js/achievements-core.js', import.meta.url), 'utf8');
+assert.equal(readFileSync(new URL('../supabase/functions/ding-bot/achievements-core.js', import.meta.url), 'utf8'), rules,
+  'supabase/functions/ding-bot/achievements-core.js is not the same as js/achievements-core.js: copy it again (cp js/achievements-core.js supabase/functions/ding-bot/)');
+writeFileSync(join(dir, 'ding.mjs'), readFileSync(new URL('../supabase/functions/ding-bot/index.ts', import.meta.url), 'utf8'));
+writeFileSync(join(dir, 'achievements-core.js'), rules);
 const { plan, characterFrom, gameTotalsFrom } = await import(join(dir, 'ding.mjs'));
 const core = await import(new URL('../js/achievements-core.js', import.meta.url));
 
