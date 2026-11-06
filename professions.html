@@ -88,7 +88,7 @@ loadMembers().then((members) => {
       </tbody></table></div>
     </section>`;
   // Main professions first; Cooking, First Aid and Fishing in their own row of 3 below
-  document.getElementById('cards').innerHTML = mainNames.map(card).join('') || (secNames.length ? '' : '<p class="muted">No professions in the sheet yet.</p>');
+  document.getElementById('cards').innerHTML = mainNames.map(card).join('') || (secNames.length ? '' : '<p class="muted">No professions yet: they appear from level 10.</p>');
   document.getElementById('sec-cards').innerHTML = secNames.map(card).join('');
   document.getElementById('sec-wrap').hidden = !secNames.length;
 
@@ -109,7 +109,7 @@ loadMembers().then((members) => {
   }
   refreshTooltips();
 }).catch(() => {
-  document.getElementById('cards').innerHTML = '<p class="muted">Could not read the sheet.</p>';
+  document.getElementById('cards').innerHTML = '<p class="muted">Could not read the characters.</p>';
 });
 
 function rose(key, title, sub, list, byProf) {

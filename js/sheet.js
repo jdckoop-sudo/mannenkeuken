@@ -1,7 +1,8 @@
 import { SHEET_ID } from './config.js?v=__V__';
 import { supabase } from './supabase.js?v=__V__';
 
-// Reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
+// Characters come from the table characters (loadMembers); the Google Sheet is being phased out and is only the fallback.
+// fetchMembers() reads the "Members" tab of the Google Sheet (must be shared as "Anyone with the link can view").
 // Columns: A Player, B Character, C Race, D Class, E Role, F Level, G Prof 1, H Skill 1,
 // I Prof 2, J Skill 2, K Cooking, L First Aid, M Fishing, N Key recipes, O Last updated (set automatically by the sheet's onEdit script), P Status, Q Notes.
 // Character data from the Blizzard API: the tables blizzard_characters + blizzard_update, filled every 15 minutes by the Edge Function
@@ -54,13 +55,43 @@ export function applyApi(rows, blizzard) {
   return rows;
 }
 
+// A row of the table characters in the shape the pages use. Empty values are '' (as they were from the sheet), the date is the Dutch day.
+export function memberFromCharacter(c) {
+  const profs = c.professions ?? [];
+  const [p1, p2] = profs.filter((p) => p.kind === 'primary');
+  const secondary = (name) => profs.find((p) => p.name === name)?.skill ?? '';
+  return {
+    player: c.player_name, character: c.name, race: c.race ?? '', cls: c.class ?? '', role: c.role ?? '', level: c.level ?? '',
+    prof1: p1?.name ?? '', skill1: p1?.skill ?? '', prof2: p2?.name ?? '', skill2: p2?.skill ?? '',
+    cooking: secondary('Cooking'), firstAid: secondary('First Aid'), fishing: secondary('Fishing'), recipes: c.recipes ?? '',
+    updated: c.updated_at ? new Date(c.updated_at).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam' }).replace(/\//g, '-') : '',
+    status: c.status || 'Main', notes: c.notes ?? '',
+  };
+}
+// null when the table cannot be read or is empty: then the sheet is used.
+async function fetchCharacters() {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.from('characters').select('*').order('created_at');
+    return error || !data?.length ? null : data.map(memberFromCharacter);
+  } catch { return null; }
+}
+// Where the rows came from: 'database' or 'sheet' (shown in developer mode → Checks).
+let membersFrom = null;
+export const membersSource = () => membersFrom;
+async function fetchRows() {
+  const rows = await fetchCharacters();
+  membersFrom = rows ? 'database' : 'sheet';
+  return rows ?? fetchMembers();
+}
+
 // One request per page load: everybody who asks shares it (Home used to fetch the sheet twice). A failed request is tried again next time.
 let membersPromise = null;
 export function loadMembers() {
-  membersPromise ??= Promise.all([fetchMembers(), fetchMainChoices(), loadBlizzard()]).then(([rows, choices, blizzard]) => applyMainChoices(applyApi(rows, blizzard), choices)).catch((err) => { membersPromise = null; throw err; });
+  membersPromise ??= Promise.all([fetchRows(), loadBlizzard()]).then(async ([rows, blizzard]) => applyMainChoices(applyApi(rows, blizzard), membersFrom === 'database' ? [] : await fetchMainChoices())).catch((err) => { membersPromise = null; throw err; });
   return membersPromise.then((rows) => rows.map((r) => ({ ...r }))); // copies, so a page that sorts or edits its list leaves the others alone
 }
-// The main a player chose on My profile (table main_characters; empty when nothing is chosen or the table is not there yet).
+// The main a player chose on My profile; only for the sheet fallback, in the table characters it is the Status (set_main_character() keeps both).
 async function fetchMainChoices() {
   if (!supabase) return [];
   try { return (await supabase.from('main_characters').select('player_name,character_name')).data ?? []; } catch { return []; }

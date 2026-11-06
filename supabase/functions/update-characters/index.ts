@@ -15,7 +15,6 @@
 // so a 404 can simply mean "below level 10". Blizzard refreshes a character after it logs out.
 const REGION = 'eu';
 const NAMESPACE = `profile-forever-${REGION}`;
-const SHEET_ID = '13fIA-FU6WWzJN3wFdUhWvhAwsXnjC2ruKZJEsyUgLJs'; // public, same as js/config.js
 const DELAY_MS = 100;
 const TIME_BUDGET_MS = 120000; // stop in time: a function may run about 150 seconds
 
@@ -39,31 +38,15 @@ async function db(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-function parseCsv(text) {
-  const rows = []; let row = []; let field = ''; let q = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (q) { if (c === '"' && text[i + 1] === '"') { field += '"'; i++; } else if (c === '"') q = false; else field += c; }
-    else if (c === '"') q = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c !== '\r') field += c;
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
-  return rows;
-}
-
-// Which characters? The Members tab of the sheet (not the ones with Status Gestopt) plus the mains and alts on the dashboard.
+// Which characters? The table characters (not the ones with Status Gestopt) plus the mains and alts on My profile, until those tables are merged into it.
 // complete = false when a source could not be read: then no rows may be removed from the table.
 async function guildCharacters() {
   const found = new Map();
   const add = (name) => { const n = String(name ?? '').trim(); if (n && !found.has(norm(n))) found.set(norm(n), n); };
   let complete = true;
   try {
-    const res = await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    for (const r of parseCsv(await res.text())) if (r[0]?.trim() && r[1]?.trim() && (r[15] || 'Main').trim() !== 'Gestopt') add(r[1]);
-  } catch (e) { complete = false; console.warn(`Could not read the sheet: ${e.message}`); }
+    for (const x of await db('characters?select=name&status=neq.Gestopt')) add(x.name);
+  } catch (e) { complete = false; console.warn(`Could not read the table characters: ${e.message}`); }
   try {
     for (const table of ['profiles', 'alts']) for (const x of await db(`${table}?select=character_name`)) add(x.character_name);
   } catch (e) { complete = false; console.warn(`Could not read the dashboard: ${e.message}`); }
@@ -110,7 +93,7 @@ async function run(dryRun) {
   };
 
   const { names, complete: listComplete } = await guildCharacters();
-  if (!names.length) throw new Error('No characters to look up (sheet and dashboard could not be read, or are empty).');
+  if (!names.length) throw new Error('No characters to look up (the tables could not be read, or are empty).');
   const oldRows = await db('blizzard_characters?select=key,data');
   const previous = new Map(oldRows.map((r) => [r.key, r.data]));
 

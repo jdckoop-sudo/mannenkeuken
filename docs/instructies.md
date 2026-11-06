@@ -98,26 +98,19 @@ De Blizzard-data komt uit **Supabase**: `pg_cron` start elke 15 minuten de Edge 
 ---
 
 ## Characters beheren (developer mode)
-Developer mode → **Characters** toont de tab Members van de sheet. Je kunt daar characters toevoegen, aanpassen en verwijderen; dat gaat meteen de sheet in. De sheet blijft dus de opslag en je kunt hem ook nog met de hand bewerken.
-- **Oranje waarde**: de game (API) kent het character en zegt iets anders. De site toont die waarde, wat er ook in de sheet staat (zie *API of sheet*). Bij *Edit* vult **Fill in the values from the game** ze in, zodat de sheet na opslaan klopt. Met *Only differences with the game* zie je alleen de characters die afwijken.
-- **Wat er opgeslagen wordt**: alleen de velden die veranderd zijn, plus *Last updated* (`onEdit` draait niet voor scripts). Bij een dubbele characternaam of een regel die intussen veranderd is, wordt er niets opgeslagen en krijg je een melding. **Delete** haalt de hele regel uit de sheet (met bevestiging).
-- **Let op**: een nieuwe speler moet ook in `players` staan om te kunnen inloggen. Een main die een speler op My profile koos (`main_characters`) gaat vóór de Status in de sheet.
-- **Route**: `dev.html` → Edge Function `sheet-edit` (`supabase/functions/sheet-edit/index.ts`, controleert `is_dev()`) → Apps Script-webapp (`tools/sheet-script/SheetEdit.gs`, controleert het geheim) → sheet. Zolang dit niet is ingesteld, toont de tab de sheet alleen om te lezen.
-- **Eenmalig instellen** (Jelle of Justin; Claude typt de geheimen nooit in en vraagt er nooit naar):
-  1. Maak een lange willekeurige tekst (het *sheet-geheim*).
-  2. Sheet → Uitbreidingen → Apps Script → nieuw bestand `SheetEdit` → plak `tools/sheet-script/SheetEdit.gs`. Laat het bestaande script staan.
-  3. Projectinstellingen → Scripteigenschappen → `SHEET_EDIT_SECRET` = het sheet-geheim. Voer `sheetEditTest` één keer uit (vraagt toestemming; schrijft niets).
-  4. Implementeren → Nieuwe implementatie → type **Web-app**, *Uitvoeren als*: ik, *Wie heeft toegang*: **Iedereen** → kopieer de URL. Na een codewijziging: Implementaties beheren → bewerken → nieuwe versie.
-  5. Supabase → Edge Functions → nieuwe functie `sheet-edit` → plak `supabase/functions/sheet-edit/index.ts` → deploy, en zet **Enforce JWT verification uit** (de functie controleert zelf of je developer bent).
-  6. Edge Functions → Secrets: `SHEET_EDIT_URL` = de URL uit stap 4, `SHEET_EDIT_SECRET` = het sheet-geheim.
+Developer mode → **Characters** toont de tabel `characters`. Jelle en Justin kunnen daar characters toevoegen, aanpassen en verwijderen; dat is meteen live.
+- **Oranje waarde**: de game (API) kent het character en zegt iets anders. De site toont die waarde, wat er ook in de tabel staat (zie *API of sheet*). Bij *Edit* vult **Fill in the values from the game** ze in. Met *Only differences with the game* zie je alleen de characters die afwijken.
+- **Main**: een speler heeft maximaal één Main. Zet je een character op Main, dan wordt de vorige Main automatisch Alt. *Switch main* op My profile werkt de tabel ook bij (`set_main_character()`).
+- **Nieuwe speler**: typ je een naam die nog niet in `players` staat, dan vraagt de site of die speler erbij moet. Die staat daarna ook bij "Choose your player". De Discord-naam komt bij de volgende sync.
+- **Nieuwe characters** krijgen API-gegevens zodra ze level 10 zijn: de functie `update-characters` leest de namen uit deze tabel.
 
 ---
 
 ## Google Sheet uitfaseren
-Besloten op 6 nov 2026: de sheet verdwijnt en de tabel `characters` in Supabase wordt de bron. Dit gaat in stappen; **tot stap 5 is de sheet nog de bron voor de site.**
+Besloten op 6 nov 2026: de sheet verdwijnt en de tabel `characters` in Supabase wordt de bron. Dit gaat in stappen. **Sinds stap 5 leest de site de tabel**; de sheet is alleen nog de terugval als de tabel niet te lezen of leeg is (developer mode → Checks toont welke bron gebruikt wordt). **Een wijziging in de sheet komt dus niet meer op de site**: wijzig characters in developer mode → *Characters*. Stap 1 t/m 6, 8 en 9 zijn gebouwd; stap 7 (My profile) en 10 t/m 14 nog niet.
 - **Afspraken**: de API blijft altijd leidend als hij een character kent. Een speler wijzigt alleen zijn eigen characters: naam, race, class en role zolang de API het character niet kent (onder level 10), daarna alleen de role. Level en beroepen komen vanzelf uit de API. Jelle en Justin kunnen alles aanpassen in developer mode. Geen limiet op het aantal alts. Quit-characters blijven bewaard (Status Gestopt). Dit wordt afgedwongen in de database (trigger `characters_guard` in `schema.sql`).
 - **Stappen**: 1 keuzes (klaar) · 2 back-up van de sheet · 3 tabel `characters` · 4 eenmalig vullen uit de sheet · 5 `loadMembers()` leest de tabel · 6 tab Characters schrijft naar de tabel · 7 My profile: `profiles`, `alts` en `main_characters` samenvoegen (ook de oude alt-limiet weg) · 8 character-update haalt de namen uit de tabel · 9 teksten op de site · 10 *Sync de guild* volgt de tabel · 11 nieuwe spelers via de tabel · 12 een week parallel, sheet alleen-lezen · 13 sheetcode, `sheet-edit` en `SheetEdit.gs` weg · 14 sheet archiveren.
-- **Vullen**: `node tools/import-characters.mjs` maakt `supabase/import-characters.sql` uit de sheet en meldt wat aandacht vraagt. Voer dat bestand uit in de SQL Editor, na `schema.sql`. Controleren: `node tools/import-characters.mjs --check`. Opnieuw draaien mag: regels die op de site zijn gewijzigd blijven staan. Draai het vlak voor stap 5 nog een keer, want de sheet kan intussen veranderen.
+- **Vullen** (gebeurd op 6 nov 2026; niet meer draaien nadat er in de tab Characters is gewerkt, tenzij je de sheet bewust wilt overnemen): `node tools/import-characters.mjs` maakt `supabase/import-characters.sql` uit de sheet en meldt wat aandacht vraagt. Voer dat bestand uit in de SQL Editor, na `schema.sql`. Controleren: `node tools/import-characters.mjs --check`. Opnieuw draaien mag: regels die op de site zijn gewijzigd blijven staan. Draai het vlak voor stap 5 nog een keer, want de sheet kan intussen veranderen.
 
 ---
 

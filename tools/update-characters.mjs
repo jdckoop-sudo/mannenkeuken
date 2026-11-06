@@ -1,6 +1,6 @@
 // Reads character data (level, race, class, professions, last login, game statistics) from the Blizzard (Battle.net) API
 // for every character of the guild and writes data/blizzard-characters.json.
-// Which characters: the Members tab of the guild sheet plus the mains and alts on the dashboard (Supabase).
+// Which characters: the table characters plus the mains and alts on My profile (Supabase).
 // Settings that change per game version (region, namespace, realm, name format) live in data/blizzard-config.json.
 // Runs in GitHub Actions (see .github/workflows/update-characters.yml) or by hand. Node 20+, no dependencies.
 //
@@ -43,44 +43,24 @@ const nameForUrl = (name) => {
 const realmSlug = (r) => norm(r).replace(/['’]/g, '').replace(/\s+/g, '-');
 
 // ---- 1. Which characters? -------------------------------------------------------------------------------
-function parseCsv(text) {
-  const rows = []; let row = []; let field = ''; let q = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (q) { if (c === '"' && text[i + 1] === '"') { field += '"'; i++; } else if (c === '"') q = false; else field += c; }
-    else if (c === '"') q = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c !== '\r') field += c;
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
-  return rows;
-}
 const publicSetting = (file, key) => readFileSync(file, 'utf8').match(new RegExp(`${key}\\s*=\\s*'([^']*)'`))?.[1];
 
 async function guildCharacters() {
   const found = new Map(); // lowercase name -> { name, player }
   const add = (name, player) => { const n = String(name ?? '').trim(); if (n && !found.has(norm(n))) found.set(norm(n), { name: n, player: player || null }); };
 
-  // The guild sheet (Members tab: A Player, B Character, ..., P Status). Characters marked "Gestopt" are skipped.
-  try {
-    const sheetId = publicSetting('js/config.js', 'SHEET_ID');
-    const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=Members&range=A5:Q200&headers=0`);
-    if (!res.ok) throw new Error(`${res.status}`);
-    for (const r of parseCsv(await res.text())) if (r[0]?.trim() && r[1]?.trim() && (r[15] || 'Main').trim() !== 'Gestopt') add(r[1], r[0]);
-    console.log(`Sheet: ${found.size} characters`);
-  } catch (e) { console.warn(`Could not read the sheet (${e.message}); continuing without it.`); }
-
   // Mains and alts saved on the dashboard (public read with the anon key, like the site does)
   try {
     const url = publicSetting('js/config.js', 'SUPABASE_URL');
     const key = publicSetting('js/config.js', 'SUPABASE_ANON_KEY');
-    const before = found.size;
+    const main = await fetch(`${url}/rest/v1/characters?select=name,player_name&status=neq.Gestopt`, { headers: { apikey: key } });
+    if (main.ok) for (const x of await main.json()) add(x.name, x.player_name);
+    console.log(`Table: ${found.size} characters`);
     for (const [table, withPlayer] of [['profiles', true], ['alts', false]]) {
-      const r = await fetch(`${url}/rest/v1/${table}?select=character_name${withPlayer ? ',player_name' : ''}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      const r = await fetch(`${url}/rest/v1/${table}?select=character_name${withPlayer ? ',player_name' : ''}`, { headers: { apikey: key } });
       if (r.ok) for (const x of await r.json()) add(x.character_name, x.player_name);
     }
-    console.log(`Dashboard: ${found.size - before} more characters`);
+    console.log(`With My profile: ${found.size} characters`);
   } catch (e) { console.warn(`Could not read the dashboard (${e.message}); continuing without it.`); }
   return [...found.values()];
 }

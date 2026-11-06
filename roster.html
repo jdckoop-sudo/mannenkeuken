@@ -34,7 +34,7 @@
 <main>
   <div>
     <h1>Members</h1>
-    <p class="muted">Read live from the Guild Professions sheet. Click a column to sort.</p>
+    <p class="muted">All characters of the guild. Click a column to sort.</p>
   </div>
   <form class="box" style="flex-direction: row; flex-wrap: wrap; align-items: flex-end" onsubmit="return false">
     <label style="flex: 1 1 220px">Search<input id="q" type="search" placeholder="Player, character or profession"></label>
@@ -123,7 +123,7 @@ document.getElementById('head').addEventListener('click', (e) => {
 ['q', 'role', 'status'].forEach((id) => document.getElementById(id).addEventListener('input', draw));
 drawHead();
 loadMembers().then((m) => { members = m; draw(); }).catch(() => {
-  document.getElementById('rows').innerHTML = `<tr><td colspan="${cols.length}">Could not read the sheet. Is it shared as "Anyone with the link can view"?</td></tr>`;
+  document.getElementById('rows').innerHTML = `<tr><td colspan="${cols.length}">Could not read the characters.</td></tr>`;
 });
 </script>
 </body>
