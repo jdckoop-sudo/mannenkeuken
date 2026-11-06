@@ -1,4 +1,4 @@
-// Supabase Edge Function "ding-bot": posts a "Ding!" in the Discord channel #dings when a player's character has gone up a level or a player
+// Supabase Edge Function "ding-bot" (the bot in Discord is called Ding Dinky): posts a "Ding!" in the Discord channel #dings when a player's character has gone up a level or a player
 // (or the whole guild) has earned an achievement of the dashboard. Started every 15 minutes by pg_cron (see supabase/schema.sql), a few
 // minutes after update-characters, because the level only changes after the character has logged out.
 //
@@ -15,12 +15,13 @@
 //  - A guild goal is announced once for the whole guild, with @everyone, not per player.
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
-// The achievement rules are not copied here: this function loads js/achievements-core.js from the live site, so a new or changed achievement
-// goes live with the site and this function does not need to be deployed again.
+// The achievement rules are not written here: they are in achievements-core.js next to this file, an exact copy of js/achievements-core.js of the site
+// (tools/test-ding-bot.mjs fails when the two differ). Supabase can neither load a module from the internet while the function runs nor fetch one
+// when it is deployed, so after a new or changed achievement: copy the file again and deploy this function again (both files in the editor).
 //
 // POST body (optional): {"test": true} posts one hello message to check the webhook. {"dryRun": true} works out what would be posted and answers with it, but posts and writes nothing.
+import * as core from './achievements-core.js';
 const SITE = 'https://jdckoop-sudo.github.io/mannenkeuken';
-const CORE_URL = `${SITE}/js/achievements-core.js`;
 const COLOR = 0xe8c15a;
 
 const env = (name) => Deno.env.get(name) ?? '';
@@ -141,7 +142,7 @@ export function plan({ core, chars, states, prev, discord }) {
 
 // ---- Discord
 async function post(webhook, m) {
-  const body = { username: 'Ding-bot', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding-bot' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
+  const body = { username: 'Ding Dinky', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding Dinky' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(`${webhook}${webhook.includes('?') ? '&' : '?'}wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.status === 429) { const wait = Number((await res.json().catch(() => ({}))).retry_after ?? 1); await sleep(Math.min(5, wait) * 1000 + 100); continue; }
@@ -153,7 +154,6 @@ async function post(webhook, m) {
 
 // ---- the run
 async function run(dryRun) {
-  const core = await import(CORE_URL);
   const [rows, blizzardRows, donations, overrides, playerRows, levelRows, knownRows, doneRows] = await Promise.all([
     db('characters?select=name,player_name,race,class,level,professions,status'),
     db('blizzard_characters?select=key,data'),
@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
   // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
-      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 De Ding-bot staat aan.', embed: { color: COLOR, title: 'Test', description: 'Als je dit ziet, werkt de webhook. Level-ups en achievements verschijnen vanaf nu hier.' }, allowed: { parse: [] } });
+      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky staat aan.', embed: { color: COLOR, title: 'Test', description: 'Als je dit ziet, werkt de webhook. Level-ups en achievements verschijnen vanaf nu hier.' }, allowed: { parse: [] } });
       return json({ test: 'posted' });
     } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
   }

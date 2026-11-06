@@ -1,4 +1,4 @@
-// Test of the decision logic of the Ding-bot (supabase/functions/ding-bot/index.ts): what is posted, what is only remembered.
+// Test of the decision logic of Ding Dinky (the bot in Discord) (supabase/functions/ding-bot/index.ts): what is posted, what is only remembered.
 // Run: node tools/test-ding-bot.mjs   (Node 22+, no dependencies, no network)
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,7 +7,12 @@ import assert from 'node:assert/strict';
 
 globalThis.Deno = { env: { get: () => '' }, serve: () => {} };
 const dir = mkdtempSync(join(tmpdir(), 'ding-'));
+// the function imports ./achievements-core.js: an exact copy of the one of the site, so both must stay the same
+const rules = readFileSync(new URL('../js/achievements-core.js', import.meta.url), 'utf8');
+assert.equal(readFileSync(new URL('../supabase/functions/ding-bot/achievements-core.js', import.meta.url), 'utf8'), rules,
+  'supabase/functions/ding-bot/achievements-core.js is not the same as js/achievements-core.js: copy it again (cp js/achievements-core.js supabase/functions/ding-bot/)');
 writeFileSync(join(dir, 'ding.mjs'), readFileSync(new URL('../supabase/functions/ding-bot/index.ts', import.meta.url), 'utf8'));
+writeFileSync(join(dir, 'achievements-core.js'), rules);
 const { plan, characterFrom, gameTotalsFrom } = await import(join(dir, 'ding.mjs'));
 const core = await import(new URL('../js/achievements-core.js', import.meta.url));
 
@@ -95,4 +100,4 @@ assert.deepEqual(c.profs.map((p) => p.name), ['Herbalism', 'Fishing']);
 const t = characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [{ name: 'Mining', skill: 5, kind: 'primary' }], status: 'Main' }, null);
 assert.equal(t.level, 10);
 
-console.log('Ding-bot tests: all passed');
+console.log('Ding Dinky tests: all passed');

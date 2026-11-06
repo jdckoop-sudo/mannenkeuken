@@ -918,7 +918,7 @@ select $q$Gold can only be changed by developers$q$, $q$Bank$q$, 'check',
   $q$After running schema.sql: as Jelle/Justin the Bank manager still works (+ Add with donor, Set, Remove donation, goal, bought). As a normal player (switch player, no developer mode) the manager is hidden; if you try in the browser console `supabase.from('gold_donations').insert(...)` or update `bank`, the database refuses it.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Gold can only be changed by developers$q$);
 
--- 2026-11-06: Ding-bot (Edge Function supabase/functions/ding-bot): posts level ups and achievements in the Discord channel #dings.
+-- 2026-11-06: Ding Dinky, the Discord bot (Edge Function supabase/functions/ding-bot): posts level ups and achievements in the Discord channel #dings.
 -- players.discord_id = the Discord user id (digits) of the player, used to @mention them. The ding_* tables are the bot's memory; everybody may read
 -- them (Developer mode shows the log), nobody but the function (service key) may write.
 alter table public.players add column if not exists discord_id text;
