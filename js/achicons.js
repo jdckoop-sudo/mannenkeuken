@@ -47,12 +47,12 @@ export const ACH_GLYPHS = Object.keys(GLYPHS);
 export function achIcon(glyph, tier = 'bronze', size = 60, branch = 'legend') {
   const g = GLYPHS[glyph] ?? GLYPHS.star;
   return `<svg class="ach-icon b-${branch}" viewBox="0 0 48 48" width="${size}" height="${size}" aria-hidden="true" focusable="false">
-    <circle cx="24" cy="24" r="23" fill="url(#ach-r-${tier})"/>
-    <circle cx="24" cy="24" r="20.4" fill="url(#ach-b-${branch})"/>
-    <circle cx="24" cy="24" r="17.6" class="ach-disc"/>
-    <circle cx="24" cy="24" r="17.6" class="ach-rim"/>
-    <g transform="translate(4.3 4.3) scale(.82)">${g}</g>
-    <path class="ach-shine" d="M9.500 18A16 16 0 0 1 29 8.800"/>
+    <polygon points="24.00,0.80 44.09,12.40 44.09,35.60 24.00,47.20 3.91,35.60 3.91,12.40" fill="url(#ach-r-${tier})" stroke-linejoin="round"/>
+    <polygon points="24.00,3.40 41.84,13.70 41.84,34.30 24.00,44.60 6.16,34.30 6.16,13.70" fill="url(#ach-b-${branch})" stroke-linejoin="round"/>
+    <polygon points="24.00,6.00 39.59,15.00 39.59,33.00 24.00,42.00 8.41,33.00 8.41,15.00" class="ach-disc" stroke-linejoin="round"/>
+    <polygon points="24.00,6.00 39.59,15.00 39.59,33.00 24.00,42.00 8.41,33.00 8.41,15.00" class="ach-rim" stroke-linejoin="round"/>
+    <g transform="translate(5.2 5.2) scale(.78)">${g}</g>
+    <path class="ach-shine" d="M9.800 15.400L24 7.200"/>
   </svg>`;
 }
 

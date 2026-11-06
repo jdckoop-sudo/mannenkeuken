@@ -5,7 +5,7 @@
 //  - Five branches (Journey, Slayer, Craftsman, Treasury, Fellowship) and a Legend on top. Like Minecraft: a node can only be earned once
 //    everything it requires is done ("available"); until then it is locked and its name is hidden.
 //  - Progress comes from data we already have: character levels and professions (table characters + Blizzard API), kills / quests /
-//    deaths / fish (Blizzard statistics), gold donated (gold_donations), the guild bank (bank).
+//    deaths / fish (Blizzard statistics), gold donated (gold_donations).
 //  - "player" achievements are earned per player (all his characters together), "guild" goals are shared: everybody sees the same.
 //  - Developers can change every achievement in the table achievement_overrides: switch it off, force it unlocked or locked, enter a
 //    value, or reset it (progress counts from now on). See the dev panel in achievements.html and docs/instructies.md.
@@ -26,7 +26,7 @@ export const METERS = {
   maxLevel: 'level (highest character)', totalLevel: 'player level (all characters together)', altBest: 'level (highest alt)', altTotal: 'alt levels together',
   bestSkill: 'skill (best profession)', totalSkill: 'skill points in total', profsAt75: 'professions at skill 75+', profsAt150: 'professions at skill 150+',
   profsAt225: 'professions at skill 225+', kills: 'kills', quests: 'quests completed', deaths: 'deaths', fish: 'fish caught', donated: 'gold donated',
-  guildDonated: 'gold donated by the guild', donors: 'different donors', bankBought: 'guild bank bought', guildPlayers: 'players in the guild', guildChars: 'characters in the guild',
+  guildDonated: 'gold donated by the guild', donors: 'different donors', guildPlayers: 'players in the guild', guildChars: 'characters in the guild',
   playersAt20: 'players with a character at level 20+', playersAt40: 'players with a character at level 40+', playersAt60: 'players with a character at level 60',
   requiredDone: 'achievements done',
 };
@@ -75,9 +75,8 @@ const rows = [
   ['d3', 'treasury', 2, 1, 'coins', 'silver', 'Patron', 'Donate 50 gold in total.', 'donated', 50, 15, 50, ['d2']],
   ['d4', 'treasury', 3, 1, 'coins', 'gold', 'Benefactor', 'Donate 100 gold in total.', 'donated', 100, 30, 100, ['d3']],
   ['d5', 'treasury', 4, 1, 'heart', 'crimson', 'Guild Banker', 'Donate 500 gold in total. The guild will remember.', 'donated', 500, 50, 300, ['d4']],
-  ['d6', 'treasury', 0, 0, 'chest', 'guild', 'Bank Opened', 'The guild bank has been bought.', 'bankBought', 1, 20, 0, [], 'guild'],
-  ['d7', 'treasury', 1, 0, 'vault', 'guild', 'Full Vault', 'The guild has donated 200 gold together.', 'guildDonated', 200, 25, 0, ['d6'], 'guild'],
-  ['d8', 'treasury', 2, 0, 'vault', 'guild', 'Thousand Gold Club', 'The guild has donated 1,000 gold together.', 'guildDonated', 1000, 50, 0, ['d7'], 'guild'],
+  ['d7', 'treasury', 0, 0, 'vault', 'guild', 'Full Vault', 'The guild has donated 200 gold together.', 'guildDonated', 200, 25, 0, [], 'guild'],
+  ['d8', 'treasury', 1, 0, 'vault', 'guild', 'Thousand Gold Club', 'The guild has donated 1,000 gold together.', 'guildDonated', 1000, 50, 0, ['d7'], 'guild'],
   ['d9', 'treasury', 0, 2, 'heart', 'guild', 'Everyone Chips In', 'Eight different players have donated gold.', 'donors', 8, 25, 0, [], 'guild'],
   ['d10', 'treasury', 1, 2, 'coins', 'guild', 'Gold Rush', 'The guild has donated 500 gold together.', 'guildDonated', 500, 35, 0, ['d9'], 'guild'],
 
@@ -118,12 +117,11 @@ export async function loadAchievementData() {
     if (!supabase) return [];
     try { let q = supabase.from(table).select(cols); if (filter) q = filter(q); return (await q).data ?? []; } catch { return []; }
   };
-  const [donations, bank, overrides] = await Promise.all([
+  const [donations, overrides] = await Promise.all([
     read('gold_donations', 'player_name,copper'),
-    read('bank', 'guild_bank_bought'),
     read('achievement_overrides', '*'),
   ]);
-  return { characters, blizzard, donations, bank: bank[0] ?? null, overrides };
+  return { characters, blizzard, donations, overrides };
 }
 
 // What a player has reached, per meter.
@@ -156,7 +154,6 @@ export function guildMeters(data, players) {
   return {
     guildDonated: data.donations.reduce((a, d) => a + d.copper, 0) / GOLD,
     donors: new Set(data.donations.map((d) => d.player_name)).size,
-    bankBought: data.bank?.guild_bank_bought ? 1 : 0,
     guildPlayers: players.length,
     guildChars: data.characters.filter((c) => c.status !== 'Gestopt').length,
     playersAt20: perPlayer.filter((m) => m.maxLevel >= 20).length,
