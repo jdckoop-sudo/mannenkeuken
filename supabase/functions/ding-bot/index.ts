@@ -18,7 +18,7 @@
 // The achievement rules are not copied here: this function loads js/achievements-core.js from the live site, so a new or changed achievement
 // goes live with the site and this function does not need to be deployed again.
 //
-// POST body (optional): {"dryRun": true} works out what would be posted and answers with it, but posts and writes nothing.
+// POST body (optional): {"test": true} posts one hello message to check the webhook. {"dryRun": true} works out what would be posted and answers with it, but posts and writes nothing.
 const SITE = 'https://jdckoop-sudo.github.io/mannenkeuken';
 const CORE_URL = `${SITE}/js/achievements-core.js`;
 const COLOR = 0xe8c15a;
@@ -205,7 +205,14 @@ async function run(dryRun) {
 Deno.serve(async (req) => {
   const secret = env('UPDATE_CHARACTERS_SECRET');
   if (!secret || req.headers.get('x-update-secret') !== secret) return json({ error: 'forbidden' }, 403);
-  let dryRun = false;
-  try { dryRun = !!(await req.json()).dryRun; } catch { /* no body */ }
+  let dryRun = false; let test = false;
+  try { const body = await req.json(); dryRun = !!body.dryRun; test = !!body.test; } catch { /* no body */ }
+  // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
+  if (test) {
+    try {
+      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 De Ding-bot staat aan.', embed: { color: COLOR, title: 'Test', description: 'Als je dit ziet, werkt de webhook. Level-ups en achievements verschijnen vanaf nu hier.' }, allowed: { parse: [] } });
+      return json({ test: 'posted' });
+    } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
+  }
   try { return json(await run(dryRun)); } catch (e) { console.error(e); return json({ error: String(e.message ?? e) }, 500); }
 });
