@@ -1118,3 +1118,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Records tab: fun records legend$q$, $q$Achievements$q$, 'check',
   $q$Achievements > Records > Fun records: a legend with groups In the wild / Deaths / Emotes / Supplies; every button shows the leader and the number, one is chosen at the start. Click another: the ranking (with Guild total) on the right changes. A record nobody has is dimmed (no data yet) and cannot be clicked. On a phone the ranking sits above the legend and scrolls into view after a click. /train only shows data when the game counts it: check the name with the Blizzard statistics workflow.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Records tab: fun records legend$q$);
+
+-- 2026-11-08: the legend also for Rankings and Best per profession, train icon (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: legend for rankings and professions$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records: Rankings (Levels / In the game / Guild) and Best per profession (Professions / Secondary) now work like Fun records: click a legend button and the ranking with Guild total shows on the right. Empty ones are dimmed. Check on a phone (panel above the legend) and that the /train button has a small train icon, not an airplane.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: legend for rankings and professions$q$);
