@@ -129,39 +129,40 @@ export function plan({ core, chars, states, prev, discord }) {
   // one message per player
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
-    // the recap: one line per character that did something, then the new achievements
-    const lines = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0;
+    // the recap: a small block per character that did something (name, then progress / activity / skills / gear on their own lines), then the totals, then the new achievements
+    const blocks = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0;
+    const row = (...bits) => bits.filter(Boolean).join(' · ');
     for (const c of active.filter((x) => x.player === p)) {
-      const g = lv.find((x) => x.key === norm(c.name)); const ses = sessionOf(c); const parts = [];
-      if (g) parts.push(`⬆️ +${plural(g.to - g.from, 'level')} (${g.from} → **${g.to}**)`);
-      if (ses?.quests) parts.push(`📜 +${plural(ses.quests, 'quest')}`);
-      if (ses?.kills) parts.push(`⚔️ +${plural(ses.kills, 'kill')}`);
-      if (ses?.deaths) parts.push(`💀 +${plural(ses.deaths, 'death')}`);
-      if (ses?.camps) parts.push(`🔥 +${plural(ses.camps, 'campfire')}`);
-      if (ses?.xp) { parts.push(`✨ +${fmt(ses.xp)} XP`); xpTotal += ses.xp; }
-      for (const k of ses?.skills ?? []) parts.push(`🔨 ${k.name} ${k.from} → **${k.to}**`);
-      if (ses?.gear.length) { const names = ses.gear.slice(0, 4).join(', '); parts.push(`🛡️ ${plural(ses.gear.length, 'new gear piece')}: ${names}${ses.gear.length > 4 ? ` +${ses.gear.length - 4} more` : ''}`); }
-      if (parts.length) lines.push(`**${c.name}** · ${parts.join(' · ')}`);
+      const g = lv.find((x) => x.key === norm(c.name)); const ses = sessionOf(c);
+      if (ses?.xp) xpTotal += ses.xp;
+      const rows = [
+        row(g && `⬆️ +${plural(g.to - g.from, 'level')} (${g.from} → **${g.to}**)`, ses?.xp && `✨ +${fmt(ses.xp)} XP`),
+        row(ses?.quests && `📜 +${plural(ses.quests, 'quest')}`, ses?.kills && `⚔️ +${plural(ses.kills, 'kill')}`, ses?.deaths && `💀 +${plural(ses.deaths, 'death')}`, ses?.camps && `🔥 +${plural(ses.camps, 'campfire')}`),
+        ses?.skills?.length ? `🔨 ${ses.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ')}` : '',
+        ses?.gear.length ? `🛡️ ${plural(ses.gear.length, 'new gear piece')}: ${ses.gear.slice(0, 4).join(', ')}${ses.gear.length > 4 ? ` +${ses.gear.length - 4} more` : ''}` : '',
+      ].filter(Boolean);
+      if (rows.length) blocks.push([`**${c.name}**`, ...rows].join('\n'));
     }
     // the totals of the player: levels and XP gained this session, and the total level (the levels of all his characters added up, like the dashboard)
     const levelsGained = lv.reduce((n, g) => n + (g.to - g.from), 0);
     const totalLevel = active.filter((x) => x.player === p && x.level > 0).reduce((n, x) => n + x.level, 0);
     const gained = [levelsGained ? `⬆️ +${plural(levelsGained, 'level')}` : '', xpTotal ? `✨ +${fmt(xpTotal)} XP` : ''].filter(Boolean);
-    lines.push(`📊 ${gained.length ? `**This session:** ${gained.join(' · ')} · ` : ''}**Total level ${fmt(totalLevel)}**`);
-    for (const { a, s } of ach) {
+    blocks.push(`📊 ${gained.length ? `**This session:** ${gained.join(' · ')} · ` : ''}**Total level ${fmt(totalLevel)}**`);
+    if (ach.length) blocks.push(ach.map(({ a, s }) => {
       const now = a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
-      lines.push(`🏆 **${a.title}** (${branchName(a.branch)}) — ${a.desc}${now}`);
-    }
+      return `🏆 **${a.title}** (${branchName(a.branch)})\n↳ ${a.desc}${now}`;
+    }).join('\n'));
+    const lines = blocks; // separated by an empty line
     const ids = ach.map(({ a }) => a.id);
     const link = ach.length ? `${SITE}/achievements.html?a=${ids.join(',')}&p=${encodeURIComponent(p)}` : `${SITE}/character.html?name=${encodeURIComponent(lv[0].name)}`;
     const points = ach.reduce((n, { a }) => n + a.points, 0);
     messages.push({
       kind: 'player', player: p, discordId: id ?? null,
       content: `${id ? `<@${id}>` : `**${p}**`} achieved this session:`,
-      embed: { color: COLOR, title: 'Session recap', url: link, description: lines.join('\n'),
+      embed: { color: COLOR, title: 'Session recap', url: link, description: lines.join('\n\n'),
         fields: [{ name: '​', value: `[View it on the dashboard](${link})${points ? ` · +${points} points` : ''}` }] },
       allowed: id ? { users: [id] } : { parse: [] },
-      commit: { levels: lv.map((g) => ({ key: g.key, level: g.to })), snaps: active.filter((x) => x.player === p && prev.levels.has(norm(x.name)) && snapOf(x)).map((x) => ({ key: norm(x.name), level: Math.max(prev.levels.get(norm(x.name)), x.level), ...snapOf(x) })), known: ach.map(({ a }) => ({ player: p, id: a.id })), summary: lines.join(' | ') },
+      commit: { levels: lv.map((g) => ({ key: g.key, level: g.to })), snaps: active.filter((x) => x.player === p && prev.levels.has(norm(x.name)) && snapOf(x)).map((x) => ({ key: norm(x.name), level: Math.max(prev.levels.get(norm(x.name)), x.level), ...snapOf(x) })), known: ach.map(({ a }) => ({ player: p, id: a.id })), summary: lines.join(' | ').replace(/\n/g, ' · ') },
     });
   }
   if (guildGoals.length) {

@@ -1130,3 +1130,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Overview: all stats in one explorer$q$, $q$Overview$q$, 'check',
   $q$Guild > Overview: totals on top, then category buttons (Levels, In the game, Gold, Fun, Roles, Classes, Races, Professions, Level brackets). Click a category: the legend shows the stats; click a stat: the ranking shows on the right. Roles/Classes/Races/Professions/Level brackets: Mains / Mains + Alts filter and Show as table work, and also have Kills, Quests, Deaths, Fish per group. Achievements now only has the tree (no Records tab). Check on a phone too.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Overview: all stats in one explorer$q$);
+
+-- 2026-11-07: clearer Discord session recap (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Discord recap: clearer layout$q$, $q$Discord$q$, 'check',
+  $q$After deploying the ding-bot function: the next session recap has a block per character (name, then progress, activity, professions and gear on separate lines), a blank line, the totals line and the achievements with their description on a second line. Check that it reads well on a phone and that nothing is cut off.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Discord recap: clearer layout$q$);
