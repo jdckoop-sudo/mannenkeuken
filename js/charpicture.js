@@ -4,11 +4,27 @@ import { esc } from './sheet.js?v=__V__';
 import { classIcon } from './classicons.js?v=__V__';
 import { wowheadUrl, qualityColor } from './itemsearch.js?v=__V__';
 
-// The picture from the game: the full character if there is one, otherwise the smaller versions. Null when the game has none.
+// Races whose picture the game draws wrong for now: Blizzard's own render server shows a gnome for an Undead character (checked 7 Nov 2026 with
+// Pala Pim, an Undead Paladin; the other Undead has no picture at all). For these we show the class icon until the game has the real model.
+// Take a race out of this list as soon as its pictures are right.
+export const WRONG_PICTURE_RACES = ['Undead'];
+
+// The picture from the game: the full character if there is one, otherwise the smaller versions. Null when the game has none (or draws it wrong).
 export const pictureOf = (entry) => {
+  if (WRONG_PICTURE_RACES.includes(entry?.race)) return null;
   const media = entry?.status === 'ok' ? entry.media : null;
   const url = media?.main ?? media?.['main-raw'] ?? media?.inset ?? media?.avatar;
   return /^https:\/\//.test(url ?? '') ? url : null;
+};
+
+// The picture keeps the same address when the game draws it again, and the render server says nothing about how long a copy may be kept, so a browser
+// keeps its old copy for hours. This stamp changes when the character logged in again, levelled or changed gear (the moments the game draws it again),
+// and goes behind the address so a changed character is fetched anew.
+export const pictureStamp = (entry) => {
+  const text = [entry?.lastLogin, entry?.level, ...(entry?.equipment ?? []).map((e) => e.id)].join('|');
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  return hash.toString(36);
 };
 
 // The picture of the game is 1600 x 1200 with a small character in it. Find where the character stands (the part that is not transparent)
@@ -56,6 +72,7 @@ export function characterFrame(entry, name, cls) {
   const icon = () => { frame.innerHTML = classIcon(entry?.class || cls, 72); frame.classList.add('char-frame-empty'); };
   const url = pictureOf(entry);
   if (!url) { icon(); return frame; }
+  const stamp = pictureStamp(entry);
   const img = document.createElement('img');
   img.className = 'char-picture';
   img.alt = `${name} in the game`;
@@ -65,10 +82,10 @@ export function characterFrame(entry, name, cls) {
   img.addEventListener('error', () => {
     if (img.crossOrigin === null) { icon(); return; }
     img.removeAttribute('crossorigin');
-    img.src = url;
+    img.src = `${url}?v=${stamp}`;
   });
   img.crossOrigin = 'anonymous';
-  img.src = `${url}?fit`;
+  img.src = `${url}?fit&v=${stamp}`;
   const crop = document.createElement('div');
   crop.className = 'char-crop';
   crop.append(img);
