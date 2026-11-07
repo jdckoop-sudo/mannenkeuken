@@ -21,13 +21,15 @@
   </div></section>
   <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
   <div class="explorer" id="explorer">
-    <nav class="cat-tabs" id="cat-tabs" aria-label="Categories"></nav>
-    <div class="explorer-tools" id="tools" hidden>
-      <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
-      <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
-    </div>
     <div class="fun" id="stats">
-      <nav class="box fun-legend" id="stats-legend" aria-label="Stats in this category"></nav>
+      <nav class="box fun-legend" id="stats-legend" aria-label="Categories and stats">
+        <div class="cat-tabs" id="cat-tabs" role="group" aria-label="Categories"></div>
+        <div class="explorer-tools" id="tools" hidden>
+          <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
+          <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
+        </div>
+        <div class="legend-list" id="stats-list"></div>
+      </nav>
       <div class="fun-panel" id="stats-panel" aria-live="polite"></div>
     </div>
   </div>
@@ -69,20 +71,22 @@
   .fun-chip .chip-val { font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
   .fun-total { margin: 0 0 6px; font-size: 13px; }
   .fun-panel { position: sticky; top: 16px; }
-  @media (max-width: 800px) { .fun { grid-template-columns: minmax(0, 1fr); } .fun-panel { position: static; order: -1; scroll-margin-top: 12px; } .fun-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); } .fun-legend h3 { grid-column: 1 / -1; } }
+  @media (max-width: 800px) { .fun { grid-template-columns: minmax(0, 1fr); } .fun-panel { position: static; order: -1; scroll-margin-top: 12px; } .legend-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); } .legend-list h3 { grid-column: 1 / -1; } }
   .trivia { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
   .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
 
   /* Overview explorer: category pills on top, then legend + panel */
   .explorer { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
-  .cat-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
-  .cat-chip { background: var(--panel); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 8px 16px; min-height: 40px; font: inherit; font-weight: 600; cursor: pointer; }
+  .cat-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .legend-list { display: flex; flex-direction: column; gap: 4px; }
+  .cat-chip { background: var(--panel); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; min-height: 32px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
   .cat-chip:hover:not(:disabled) { color: var(--text); border-color: var(--gold-dim); }
   .cat-chip[aria-pressed="true"] { background: var(--panel-3); color: var(--gold-bright); border-color: var(--gold); }
   .cat-chip:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
   .cat-chip:disabled { opacity: .45; cursor: default; }
-  .explorer-tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-  .explorer-tools label { flex: 0 1 220px; }
+  .explorer-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 4px 0 8px; }
+  .explorer-tools label { flex: 1 1 140px; }
+  .explorer-tools .btn { flex: none; }
   .explorer-tools[hidden] { display: none; }
   .cls-label { display: inline-flex; align-items: center; gap: 6px; }
   .fun-panel .simple-table { width: 100%; }
@@ -267,7 +271,7 @@ function buildCategories(whoFilter) {
 
 // ---- the explorer: category pills, legend of the stats, panel of the chosen stat ----------------------------
 const tabsEl = document.getElementById('cat-tabs');
-const legend = document.getElementById('stats-legend');
+const legend = document.getElementById('stats-list');
 const panel = document.getElementById('stats-panel');
 const tools = document.getElementById('tools');
 const whoSel = document.getElementById('ov-who');
@@ -287,8 +291,7 @@ function drawTabs() {
 }
 function drawLegend() {
   const cat = cats.find((c) => c.key === state.cat);
-  legend.setAttribute('aria-label', `${cat.name}: stats`);
-  legend.innerHTML = cat.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map((f) => {
+    legend.innerHTML = cat.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map((f) => {
     if (!f.list.length) return `<button type="button" class="fun-chip" disabled title="Nobody has this yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`;
     const l = lead(f);
     return `<button type="button" class="fun-chip" data-key="${esc(f.key)}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(l.name)}</span></span><span class="chip-val">${shown(l)}</span></button>`;
