@@ -1101,3 +1101,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ding Dinky: levels, XP and total level in the recap$q$, $q$Discord$q$, 'check',
   $q$After deploying the ding-bot again: a recap shows per character "⬆️ +2 levels (12 → 14)" and "✨ +N XP", and under it one line "📊 This session: ⬆️ +N levels · ✨ +N XP · Total level X" (total level = the levels of all his characters added up, same as the dashboard). The XP of the whole character is never shown. Only an achievement: the line is just "📊 Total level X".$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: levels, XP and total level in the recap$q$);
+
+-- 2026-11-07: character pictures: Undead shows the class icon (the game draws a gnome), and a changed character fetches its picture anew (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character pictures: Undead icon and fresh pictures$q$, $q$Roster$q$, 'check',
+  $q$Pala Pim (Undead Paladin): Home, character page and player page show the Paladin class icon, not a gnome. A Troll/Orc/Tauren still has its picture. After a character logs out in the game and the next update (5 minutes), a hard refresh is no longer needed to see the new picture. When Blizzard draws Undead right, remove 'Undead' from WRONG_PICTURE_RACES in js/charpicture.js.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character pictures: Undead icon and fresh pictures$q$);
