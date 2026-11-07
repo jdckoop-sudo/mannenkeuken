@@ -21,13 +21,12 @@
   </div></section>
   <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
   <div class="box explorer-box" id="explorer">
-    <div class="cat-tabs" id="cat-tabs" role="group" aria-label="Categories"></div>
-    <div class="explorer-tools" id="tools" hidden>
-      <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
-      <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
-    </div>
-    <div class="legend-list" id="stats-list" aria-label="Stats in this category"></div>
+    <nav class="cat-list" id="cat-list" aria-label="Categories and stats"></nav>
     <div class="fun-panel" id="stats-panel" aria-live="polite"></div>
+  </div>
+  <div class="explorer-tools" id="tools" hidden>
+    <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
+    <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
   </div>
   <section class="box" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
 </main>
@@ -52,8 +51,8 @@
   .rec-glyph { margin-right: 6px; opacity: .9; }
   .board-shame li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--crimson, var(--gold)) 22%, transparent) calc(var(--p) * 100%), transparent 0); }
   /* Fun records: a legend of buttons (grouped) and the ranking of the chosen one next to it */
-  .legend-list h3 { margin: 10px 0 2px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dim); font-family: var(--font-display); }
-  .legend-list h3:first-child { margin-top: 0; }
+  .cat-body h3 { margin: 10px 0 2px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dim); font-family: var(--font-display); }
+  .cat-body h3:first-of-type { margin-top: 0; }
   .fun-chip { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 7px 10px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; }
   .fun-chip:hover:not(:disabled) { border-color: var(--gold-dim); background: color-mix(in srgb, var(--gold) 8%, transparent); }
   .fun-chip[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 25%, transparent); }
@@ -68,30 +67,28 @@
   .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
 
   /* Overview explorer: category pills on top, then legend + panel */
-  /* One block: categories, tools and the stat list on the left, the chosen stat on the right (on a phone: categories, tools, ranking, list) */
-  .explorer-box { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); grid-template-areas: "tabs panel" "tools panel" "list panel"; grid-template-rows: auto auto 1fr; column-gap: 24px; margin-bottom: 14px; }
-  .explorer-box > .cat-tabs { grid-area: tabs; }
-  .explorer-box > .explorer-tools { grid-area: tools; }
-  .explorer-box > .legend-list { grid-area: list; }
+  /* One block: on the left the categories under each other (the open one shows its stats), on the right the chosen stat */
+  .explorer-box { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); grid-template-areas: "list panel"; column-gap: 24px; margin-bottom: 14px; }
+  .explorer-box > .cat-list { grid-area: list; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .explorer-box > .fun-panel { grid-area: panel; align-self: start; position: sticky; top: 16px; min-width: 0; padding-left: 24px; border-left: 1px solid var(--border); scroll-margin-top: 12px; }
   .fun-panel h2 { margin-top: 0; }
   .fun-panel .board { margin-top: 4px; }
-  @media (max-width: 800px) {
-    .explorer-box { grid-template-columns: minmax(0, 1fr); grid-template-areas: "tabs" "tools" "panel" "list"; grid-template-rows: none; }
-    .explorer-box > .fun-panel { position: static; padding: 14px 0; margin: 8px 0; border-left: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .legend-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); } .legend-list h3 { grid-column: 1 / -1; }
-  }
-  .cat-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
-  .legend-list { display: flex; flex-direction: column; gap: 4px; }
-  .cat-chip { background: var(--panel); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; min-height: 32px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .cat-chip:hover:not(:disabled) { color: var(--text); border-color: var(--gold-dim); }
-  .cat-chip[aria-pressed="true"] { background: var(--panel-3); color: var(--gold-bright); border-color: var(--gold); }
-  .cat-chip:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
-  .cat-chip:disabled { opacity: .45; cursor: default; }
-  .explorer-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 4px 0 8px; }
-  .explorer-tools label { flex: 1 1 140px; }
+  .cat-head { display: flex; justify-content: space-between; align-items: center; width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; min-height: 44px; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+  .cat-head:hover:not(:disabled) { border-color: var(--gold-dim); }
+  .cat-head[aria-expanded="true"] { background: var(--panel-3); color: var(--gold-bright); border-color: var(--gold); }
+  .cat-head:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+  .cat-head:disabled { opacity: .45; cursor: default; }
+  .cat-head .chev { transition: transform .15s; }
+  .cat-head[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .cat-body { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 8px 10px; margin-left: 6px; border-left: 1px solid var(--gold-dim); }
+  .explorer-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 2px 0 6px; }
+  .explorer-tools label { flex: 1 1 130px; }
   .explorer-tools .btn { flex: none; }
   .explorer-tools[hidden] { display: none; }
+  @media (max-width: 800px) {
+    .explorer-box { grid-template-columns: minmax(0, 1fr); grid-template-areas: "panel" "list"; }
+    .explorer-box > .fun-panel { position: static; padding: 0 0 14px; margin: 0 0 12px; border-left: 0; border-bottom: 1px solid var(--border); }
+  }
   .cls-label { display: inline-flex; align-items: center; gap: 6px; }
   .fun-panel .simple-table { width: 100%; }
 </style>
@@ -273,39 +270,40 @@ function buildCategories(whoFilter) {
   ].map((c) => ({ ...c, groups: c.groups.map(([g, items]) => [g, items.map((f) => ({ ...f, list: f.list.slice(0, f.all ? undefined : top) }))]) }));
 }
 
-// ---- the explorer: category pills, legend of the stats, panel of the chosen stat ----------------------------
-const tabsEl = document.getElementById('cat-tabs');
-const legend = document.getElementById('stats-list');
+// ---- the explorer: categories under each other; the open one shows its stats; the panel shows the chosen stat ----
+const list = document.getElementById('cat-list');
 const panel = document.getElementById('stats-panel');
-const tools = document.getElementById('tools');
+const tools = document.getElementById('tools'); // moves into the open category when it has group stats
 const whoSel = document.getElementById('ov-who');
 const viewBtn = document.getElementById('ov-view');
-const state = { who: 'main', cat: null, key: null, table: false };
+const state = { who: 'main', cat: null, open: true, key: null, table: false };
 const memo = {}; // the stat chosen last in each category
 let cats = [];
 const itemsOf = (cat) => cat.groups.flatMap(([, items]) => items);
 const withData = (cat) => itemsOf(cat).filter((f) => f.list.length);
 const lead = (f) => f.list.reduce((a, r) => (r.value > a.value ? r : a), f.list[0]);
 const shown = (r) => r.text ?? n(r.value);
-
-function drawTabs() {
-  tabsEl.innerHTML = cats.map((c) => (withData(c).length
-    ? `<button type="button" class="cat-chip" data-cat="${c.key}" aria-pressed="${c.key === state.cat}">${esc(c.name)}</button>`
-    : `<button type="button" class="cat-chip" disabled title="Nobody has this yet">${esc(c.name)}</button>`)).join('');
-}
-function drawLegend() {
-  const cat = cats.find((c) => c.key === state.cat);
-    legend.innerHTML = cat.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map((f) => {
-    if (!f.list.length) return `<button type="button" class="fun-chip" disabled title="Nobody has this yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`;
-    const l = lead(f);
-    return `<button type="button" class="fun-chip" data-key="${esc(f.key)}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(l.name)}</span></span><span class="chip-val">${shown(l)}</span></button>`;
-  }).join('')}`).join('');
+const chipHtml = (f) => {
+  if (!f.list.length) return `<button type="button" class="fun-chip" disabled title="Nobody has this yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`;
+  const l = lead(f);
+  return `<button type="button" class="fun-chip" data-key="${esc(f.key)}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(l.name)}</span></span><span class="chip-val">${shown(l)}</span></button>`;
+};
+function drawList() {
+  tools.remove();
+  list.innerHTML = cats.map((c) => {
+    const has = withData(c).length > 0;
+    const open = has && c.key === state.cat && state.open;
+    return `<div class="cat"><button type="button" class="cat-head" data-cat="${c.key}" aria-expanded="${open}"${has ? '' : ' disabled title="Nobody has this yet"'}><span>${esc(c.name)}</span><svg class="chev" width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5 L7 9 L11 5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+      ${open ? `<div class="cat-body" id="cat-body">${c.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map(chipHtml).join('')}`).join('')}</div>` : ''}</div>`;
+  }).join('');
+  const body = document.getElementById('cat-body');
+  if (body) body.prepend(tools);
 }
 function drawPanel() {
   const cat = cats.find((c) => c.key === state.cat);
   const f = withData(cat).find((x) => x.key === state.key) ?? withData(cat)[0];
   state.key = f.key; memo[cat.key] = f.key;
-  legend.querySelectorAll('[data-key]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.key === f.key)));
+  list.querySelectorAll('[data-key]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.key === f.key)));
   tools.hidden = !f.grouped;
   if (f.grouped && state.table) { panel.innerHTML = cat.table(); return; }
   const unit = f.unit ?? 'player';
@@ -314,22 +312,25 @@ function drawPanel() {
   panel.innerHTML = board(f.glyph, f.title, f.sub, f.list, f.cls ?? '').replace('<ol class="board', `<p class="muted fun-total">${line}</p><ol class="board`);
 }
 function openCat(key) {
-  state.cat = key;
-  const cat = cats.find((c) => c.key === key);
-  state.key = memo[key] && withData(cat).some((f) => f.key === memo[key]) ? memo[key] : withData(cat)[0].key;
-  drawTabs(); drawLegend(); drawPanel();
+  if (key === state.cat) state.open = !state.open; // click the open category again: fold it
+  else { state.cat = key; state.open = true; }
+  const cat = cats.find((c) => c.key === state.cat);
+  state.key = memo[state.cat] && withData(cat).some((f) => f.key === memo[state.cat]) ? memo[state.cat] : withData(cat)[0].key;
+  drawList(); drawPanel();
+  list.querySelector(`[data-cat="${key}"]`)?.focus();
 }
 function rebuild() {
   cats = buildCategories(state.who);
   const first = cats.find((c) => withData(c).length);
-  if (!first) { tabsEl.innerHTML = ''; legend.innerHTML = ''; panel.innerHTML = '<p class="muted">Nothing to show yet.</p>'; return; }
-  openCat(cats.some((c) => c.key === state.cat && withData(c).length) ? state.cat : first.key);
+  if (!first) { list.innerHTML = ''; panel.innerHTML = '<p class="muted">Nothing to show yet.</p>'; return; }
+  if (!cats.some((c) => c.key === state.cat && withData(c).length)) state.cat = first.key;
+  drawList(); drawPanel();
 }
-tabsEl.addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (b) openCat(b.dataset.cat); });
-legend.addEventListener('click', (e) => {
+list.addEventListener('click', (e) => {
+  const h = e.target.closest('[data-cat]'); if (h) { openCat(h.dataset.cat); return; }
   const b = e.target.closest('[data-key]'); if (!b) return;
   state.key = b.dataset.key; drawPanel();
-  // on a phone the ranking is above the legend: bring it into view after a click
+  // on a phone the ranking is above the list: bring it into view after a click
   if (matchMedia('(max-width: 800px)').matches) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 whoSel.addEventListener('change', () => { state.who = whoSel.value; rebuild(); });
@@ -339,7 +340,7 @@ viewBtn.addEventListener('click', () => {
   viewBtn.textContent = state.table ? 'Show as chart' : 'Show as table';
   drawPanel();
 });
-if (!active.length) { panel.innerHTML = '<p class="muted">Could not read the characters.</p>'; tabsEl.hidden = true; legend.hidden = true; } else rebuild();
+if (!active.length) { panel.innerHTML = '<p class="muted">Could not read the characters.</p>'; list.hidden = true; } else rebuild();
 
 // A few facts
 const facts = [];
