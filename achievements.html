@@ -33,7 +33,11 @@
   <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
   <div class="grid" id="boards"></div>
   <h2 id="fun-title" hidden>Fun records</h2>
-  <div class="grid" id="fun-boards"></div>
+  <p class="muted sub" id="fun-hint" hidden>Pick a record in the legend to see who leads it.</p>
+  <div class="fun" id="fun" hidden>
+    <nav class="box fun-legend" id="fun-legend" aria-label="Fun records legend"></nav>
+    <div id="fun-panel" aria-live="polite"></div>
+  </div>
   <section class="box" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
   <h2>Best per profession</h2>
   <div class="grid" id="profs"><p class="muted">Loading…</p></div>
@@ -59,6 +63,23 @@
   .board li:nth-child(1) .val { color: var(--gold-bright); text-shadow: 0 0 10px color-mix(in srgb, var(--gold) 55%, transparent); }
   .rec-glyph { margin-right: 6px; opacity: .9; }
   .board-shame li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--crimson, var(--gold)) 22%, transparent) calc(var(--p) * 100%), transparent 0); }
+  /* Fun records: a legend of buttons (grouped) and the ranking of the chosen one next to it */
+  .fun { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: 14px; align-items: start; margin-bottom: 14px; }
+  .fun-legend { display: flex; flex-direction: column; gap: 4px; }
+  .fun-legend h3 { margin: 10px 0 2px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dim); font-family: var(--font-display); }
+  .fun-legend h3:first-child { margin-top: 0; }
+  .fun-chip { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 7px 10px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; }
+  .fun-chip:hover:not(:disabled) { border-color: var(--gold-dim); background: color-mix(in srgb, var(--gold) 8%, transparent); }
+  .fun-chip[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 25%, transparent); }
+  .fun-chip:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+  .fun-chip:disabled { opacity: .45; cursor: default; }
+  .fun-chip .rec-glyph { margin: 0; text-align: center; color: var(--gold); }
+  .fun-chip .chip-name { display: flex; flex-direction: column; min-width: 0; }
+  .fun-chip .chip-lead { font-size: 12px; color: var(--muted, var(--text)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fun-chip .chip-val { font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
+  .fun-total { margin: 0 0 6px; font-size: 13px; }
+  #fun-panel { position: sticky; top: 16px; }
+  @media (max-width: 800px) { .fun { grid-template-columns: minmax(0, 1fr); } #fun-panel { position: static; order: -1; scroll-margin-top: 12px; } .fun-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); } .fun-legend h3 { grid-column: 1 / -1; } }
   .trivia { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
   .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
 </style>
@@ -129,27 +150,56 @@ document.getElementById('boards').innerHTML = [
 ].join('');
 
 // Fun records from the game's own statistics (the update gives them every 5 minutes; a board only shows once somebody has the counter)
-const byFun = (fn) => withGame.map((s) => ({ s, v: fn(s.game) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.s.p), value: x.v }));
-const fun = [
-  ['&#9832;', 'Campfire kings', 'Most times camped (campfires lit)', (g) => g.camps],
-  ['&#10047;', 'Critter killers', 'Most rabbits, squirrels and other critters killed', (g) => g.critters],
-  ['&#8595;', 'Gravity victims', 'Most deaths from falling', (g) => g.fallDeaths, 'board-shame'],
-  ['&#8776;', 'Drowned rats', 'Most deaths from drowning', (g) => g.drownDeaths, 'board-shame'],
-  ['&#9788;', 'Hot feet', 'Most deaths from fire and lava', (g) => g.fireDeaths, 'board-shame'],
-  ['&#9790;', 'Sleepyheads', 'Most deaths from fatigue', (g) => g.fatigueDeaths, 'board-shame'],
-  ['&#9825;', 'Huggers', 'Most hugs', (g) => g.hugs],
-  ['&#9786;', 'Facepalm champions', 'Most facepalms', (g) => g.facepalms],
-  ['&#9835;', 'Tiny violins', 'Most times playing the world\'s smallest violin', (g) => g.violin],
-  ['&#9787;', 'Laughing out loud', 'Most times LOL\'d', (g) => g.laughs],
-  ['&#10022;', 'Cheerleaders', 'Most cheers', (g) => g.cheers],
-  ['&#9995;', 'Friendly wavers', 'Most waves', (g) => g.waves],
-  ['&#9879;', 'Potion addicts', 'Most health, mana and other potions and elixirs', (g) => g.healthPotions + g.manaPotions + g.elixirs],
-  ['&#10010;', 'Bandage medics', 'Most bandages used', (g) => g.bandages],
-  ['&#9830;', 'Big eaters', 'Most food eaten', (g) => g.food],
-  ['&#9749;', 'Thirsty ones', 'Most beverages consumed', (g) => g.drinks],
-].map(([glyph, title, sub, fn, cls]) => ({ list: byFun(fn), html: null, glyph, title, sub, cls }));
-document.getElementById('fun-boards').innerHTML = fun.filter((f) => f.list.length).map((f) => board(f.glyph, f.title, f.sub, f.list, f.cls ?? '')).join('');
-document.getElementById('fun-title').hidden = !fun.some((f) => f.list.length);
+const byFun = (fn) => withGame.map((s) => ({ s, v: fn(s.game) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.s.p), value: x.v, name: x.s.p }));
+// groups of the legend: [group, [[key, glyph, board title, name in the legend, what it counts, counter, board class]]]
+const FUN = [
+  ['In the wild', [
+    ['camps', '&#9832;', 'Campfire kings', 'Campfires', 'Most times camped (campfires lit)', (g) => g.camps],
+    ['critters', '&#10047;', 'Critter killers', 'Critters killed', 'Most rabbits, squirrels and other critters killed', (g) => g.critters],
+  ]],
+  ['Deaths', [
+    ['fall', '&#8595;', 'Gravity victims', 'Falling', 'Most deaths from falling', (g) => g.fallDeaths, 'board-shame'],
+    ['drown', '&#8776;', 'Drowned rats', 'Drowning', 'Most deaths from drowning', (g) => g.drownDeaths, 'board-shame'],
+    ['fire', '&#9788;', 'Hot feet', 'Fire and lava', 'Most deaths from fire and lava', (g) => g.fireDeaths, 'board-shame'],
+    ['fatigue', '&#9790;', 'Sleepyheads', 'Fatigue', 'Most deaths from fatigue', (g) => g.fatigueDeaths, 'board-shame'],
+  ]],
+  ['Emotes', [
+    ['train', '&#9992;', 'Choo choo', '/train', 'Most times /train', (g) => g.train],
+    ['hugs', '&#9825;', 'Huggers', 'Hugs', 'Most hugs', (g) => g.hugs],
+    ['facepalms', '&#9786;', 'Facepalm champions', 'Facepalms', 'Most facepalms', (g) => g.facepalms],
+    ['violin', '&#9835;', 'Tiny violins', 'Tiny violin', 'Most times playing the world\'s smallest violin', (g) => g.violin],
+    ['laughs', '&#9787;', 'Laughing out loud', 'LOL', 'Most times LOL\'d', (g) => g.laughs],
+    ['cheers', '&#10022;', 'Cheerleaders', 'Cheers', 'Most cheers', (g) => g.cheers],
+    ['waves', '&#9995;', 'Friendly wavers', 'Waves', 'Most waves', (g) => g.waves],
+  ]],
+  ['Supplies', [
+    ['potions', '&#9879;', 'Potion addicts', 'Potions and elixirs', 'Most health, mana and other potions and elixirs', (g) => g.healthPotions + g.manaPotions + g.elixirs],
+    ['bandages', '&#10010;', 'Bandage medics', 'Bandages', 'Most bandages used', (g) => g.bandages],
+    ['food', '&#9830;', 'Big eaters', 'Food', 'Most food eaten', (g) => g.food],
+    ['drinks', '&#9749;', 'Thirsty ones', 'Drinks', 'Most beverages consumed', (g) => g.drinks],
+  ]],
+].map(([group, items]) => [group, items.map(([key, glyph, title, name, sub, fn, cls]) => ({ key, glyph, title, name, sub, cls: cls ?? '', list: byFun(fn) }))]);
+const funAll = FUN.flatMap(([, items]) => items);
+const funHas = funAll.filter((f) => f.list.length);
+if (funHas.length) {
+  const legend = document.getElementById('fun-legend');
+  const panel = document.getElementById('fun-panel');
+  legend.innerHTML = FUN.map(([group, items]) => `<h3>${group}</h3>${items.map((f) => f.list.length
+    ? `<button type="button" class="fun-chip" data-fun="${f.key}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(f.list[0].name)}</span></span><span class="chip-val">${n(f.list[0].value)}</span></button>`
+    : `<button type="button" class="fun-chip" disabled title="Nobody has this counter yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`).join('')}`).join('');
+  const pick = (key) => {
+    const f = funHas.find((x) => x.key === key) ?? funHas[0];
+    legend.querySelectorAll('[data-fun]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.fun === f.key)));
+    const total = f.list.reduce((sum, r) => sum + r.value, 0);
+    panel.innerHTML = board(f.glyph, f.title, f.sub, f.list, f.cls).replace('<ol class="board', `<p class="muted fun-total">Guild total: <b>${n(total)}</b> · ${f.list.length} player${f.list.length === 1 ? '' : 's'}</p><ol class="board`);
+  };
+  // on a phone the ranking is above the legend: bring it into view after a click
+  legend.addEventListener('click', (e) => { const b = e.target.closest('[data-fun]'); if (!b) return; pick(b.dataset.fun); if (matchMedia('(max-width: 800px)').matches) panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  pick(funHas[0].key);
+  document.getElementById('fun').hidden = false;
+  document.getElementById('fun-title').hidden = false;
+  document.getElementById('fun-hint').hidden = false;
+}
 
 // A few facts
 const facts = [];
