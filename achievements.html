@@ -32,6 +32,8 @@
   <div id="records-view" hidden>
   <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
   <div class="grid" id="boards"></div>
+  <h2 id="fun-title" hidden>Fun records</h2>
+  <div class="grid" id="fun-boards"></div>
   <section class="box" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
   <h2>Best per profession</h2>
   <div class="grid" id="profs"><p class="muted">Loading…</p></div>
@@ -76,7 +78,7 @@ const showTab = (tree) => {
   document.getElementById('tree-view').hidden = !tree; document.getElementById('who-wrap').hidden = !tree; document.getElementById('records-view').hidden = tree;
   document.getElementById('tab-tree').setAttribute('aria-pressed', String(tree)); document.getElementById('tab-records').setAttribute('aria-pressed', String(!tree));
   document.getElementById('intro').textContent = tree ? 'Unlock achievements by playing, together and alone. Everything starts locked: finish one to open the next. Progress comes from the game (levels, professions, kills, quests, fish).'
-    : 'Guild records: levels, professions, kills, quests, deaths, fish and gold. Characters with the status Quit don\'t count.';
+    : 'Guild records: levels, professions, kills, quests, deaths, fish and gold, plus fun ones like campfires, critters and emotes. Characters with the status Quit don\'t count.';
 };
 document.getElementById('tab-tree').onclick = () => showTab(true);
 document.getElementById('tab-records').onclick = () => showTab(false);
@@ -110,6 +112,7 @@ const totalDonated = Object.values(donated).reduce((a, b) => a + b, 0);
 document.getElementById('rec-totals').innerHTML = [
   tile('Kills', all.known ? n(all.kills) : '–'), tile('Quests completed', all.known ? n(all.quests) : '–'),
   tile('Deaths', all.known ? n(all.deaths) : '–'), tile('Fish caught', all.known ? n(all.fish) : '–'),
+  tile('Campfires', all.known && all.camps ? n(all.camps) : '–'), tile('Critters killed', all.known && all.critters ? n(all.critters) : '–'),
   tile('Gold donated', totalDonated ? goldHtml(totalDonated) : '–'), tile('Characters', n(active.length)),
 ].join('');
 
@@ -124,6 +127,29 @@ document.getElementById('boards').innerHTML = [
   board('&#9672;', 'Big fish', 'Most fish caught', byGame('fish')),
   board('&#9733;', 'Generous souls', 'Most gold donated to the guild bank', Object.entries(donated).sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ label: link(p), value: c, text: goldHtml(c) }))),
 ].join('');
+
+// Fun records from the game's own statistics (the update gives them every 5 minutes; a board only shows once somebody has the counter)
+const byFun = (fn) => withGame.map((s) => ({ s, v: fn(s.game) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.s.p), value: x.v }));
+const fun = [
+  ['&#9832;', 'Campfire kings', 'Most times camped (campfires lit)', (g) => g.camps],
+  ['&#10047;', 'Critter killers', 'Most rabbits, squirrels and other critters killed', (g) => g.critters],
+  ['&#8595;', 'Gravity victims', 'Most deaths from falling', (g) => g.fallDeaths, 'board-shame'],
+  ['&#8776;', 'Drowned rats', 'Most deaths from drowning', (g) => g.drownDeaths, 'board-shame'],
+  ['&#9788;', 'Hot feet', 'Most deaths from fire and lava', (g) => g.fireDeaths, 'board-shame'],
+  ['&#9790;', 'Sleepyheads', 'Most deaths from fatigue', (g) => g.fatigueDeaths, 'board-shame'],
+  ['&#9825;', 'Huggers', 'Most hugs', (g) => g.hugs],
+  ['&#9786;', 'Facepalm champions', 'Most facepalms', (g) => g.facepalms],
+  ['&#9835;', 'Tiny violins', 'Most times playing the world\'s smallest violin', (g) => g.violin],
+  ['&#9787;', 'Laughing out loud', 'Most times LOL\'d', (g) => g.laughs],
+  ['&#10022;', 'Cheerleaders', 'Most cheers', (g) => g.cheers],
+  ['&#9995;', 'Friendly wavers', 'Most waves', (g) => g.waves],
+  ['&#9879;', 'Potion addicts', 'Most health, mana and other potions and elixirs', (g) => g.healthPotions + g.manaPotions + g.elixirs],
+  ['&#10010;', 'Bandage medics', 'Most bandages used', (g) => g.bandages],
+  ['&#9830;', 'Big eaters', 'Most food eaten', (g) => g.food],
+  ['&#9749;', 'Thirsty ones', 'Most beverages consumed', (g) => g.drinks],
+].map(([glyph, title, sub, fn, cls]) => ({ list: byFun(fn), html: null, glyph, title, sub, cls }));
+document.getElementById('fun-boards').innerHTML = fun.filter((f) => f.list.length).map((f) => board(f.glyph, f.title, f.sub, f.list, f.cls ?? '')).join('');
+document.getElementById('fun-title').hidden = !fun.some((f) => f.list.length);
 
 // A few facts
 const facts = [];

@@ -1081,3 +1081,17 @@ where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: s
 -- 2026-11-07: the recap also shows new gear (Jelle); the earlier check gets the extra word
 update public.dev_checks set note = replace(note, '(level, +quests, +kills, +deaths, profession skills)', '(level, +quests, +kills, +deaths, profession skills, new gear)')
   where title = $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$;
+
+-- 2026-11-07: fun records (Records tab) and per session: campfires and XP in the recap (Jelle)
+alter table public.ding_levels add column if not exists camps integer;
+alter table public.ding_levels add column if not exists xp bigint;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: fun records$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records: under the boards is Fun records (campfires, critters, deaths by falling / drowning / fire / fatigue, emotes, potions, bandages, food, drinks). A board shows once somebody has the counter; the block hides itself while nobody has. Tiles on top: Campfires, Critters killed. Numbers appear 5 minutes after update-characters is deployed. Drowning, fire, fatigue, hugs, facepalms, violin: check their names with the Blizzard statistics workflow.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: fun records$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: campfires and XP per session$q$, $q$Discord$q$, 'check',
+  $q$After deploying both Edge Functions (update-characters and ding-bot) and running the SQL: the first run of the bot only remembers campfires and XP. Then log out with a character that levelled up after lighting a campfire: the recap line has "🔥 +N campfires" and "✨ +N XP" (the XP of the whole session, also over a level up). A player with two characters that gained XP also gets a "Total this session" line. select character_key, camps, xp from ding_levels; has numbers.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: campfires and XP per session$q$);

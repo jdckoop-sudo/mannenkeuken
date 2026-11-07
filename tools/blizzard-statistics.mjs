@@ -11,6 +11,13 @@ const tokenRes = await fetch('https://oauth.battle.net/token', { method: 'POST',
 if (!tokenRes.ok) { console.error(`Token request failed: ${tokenRes.status}`); process.exit(1); }
 const { access_token: token } = await tokenRes.json();
 const key = character.toLowerCase().replace(/\s+/g, '-');
+// Which fields does the character summary have (is there an experience / XP value?). Prints names and the numbers among them only.
+const sumRes = await fetch(`https://${region}.api.blizzard.com/profile/wow/character/${encodeURIComponent(key)}?namespace=profile-forever-${region}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } });
+if (sumRes.ok) {
+  const sum = await sumRes.json();
+  console.log(`Summary fields: ${Object.keys(sum).filter((k) => !k.startsWith('_')).join(', ')}`);
+  for (const [k, v] of Object.entries(sum)) if (typeof v === 'number') console.log(`Summary number: ${k} = ${v}`);
+} else console.log(`Summary of ${character}: HTTP ${sumRes.status}`);
 const res = await fetch(`https://${region}.api.blizzard.com/profile/wow/character/${encodeURIComponent(key)}/achievements/statistics?namespace=profile-forever-${region}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } });
 if (!res.ok) { console.error(`Statistics of ${character}: HTTP ${res.status}`); process.exit(1); }
 const body = await res.json();

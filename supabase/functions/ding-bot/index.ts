@@ -12,8 +12,8 @@
 //  - The first run only looks: the current levels and achievements are the starting point and are NOT announced.
 //  - A character or a player that is new in the data is also only looked at the first time (a new person would otherwise get everything at once).
 //  - Everything that happened to one player in one run goes into ONE message, written as a session recap ("<player> achieved this session:"): level ups, quests, kills,
-//    deaths, profession skill gains and new gear (items that were not worn in the previous run) of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
-//    the quests, kills, deaths and skills are remembered per character in ding_levels (columns quests, kills, deaths, skills, gear) and are only compared when the game knows the character.
+//    deaths, campfires, XP, profession skill gains and new gear (items that were not worn in the previous run) of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
+//    the quests, kills, deaths, campfires, XP and skills are remembered per character in ding_levels (columns quests, kills, deaths, camps, xp, skills, gear) and are only compared when the game knows the character.
 //  - A guild goal is announced once for the whole guild, with @everyone, not per player.
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
@@ -58,8 +58,12 @@ export function characterFrom(row, api) {
     .map((p) => ({ name: p.name, skill: num(p.skill) })).filter((p) => !SECONDARY.includes(p.name) || p.skill !== null);
   const level = known && api.level != null ? api.level : num(row.level);
   const skills = known && apiProfs.length ? Object.fromEntries(apiProfs.map((p) => [p.name, num(p.skill)]).filter(([, v]) => v !== null)) : null;
-  return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, stats: known ? (api.stats ?? null) : null, skills, gear: known && Array.isArray(api.equipment) && api.equipment.length ? api.equipment.filter((e) => e && e.id).map((e) => ({ id: e.id, name: e.name })) : null, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
+  return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, stats: known ? (api.stats ?? null) : null, xp: known ? num(api.xp) : null, skills, gear: known && Array.isArray(api.equipment) && api.equipment.length ? api.equipment.filter((e) => e && e.id).map((e) => ({ id: e.id, name: e.name })) : null, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
 }
+// XP needed to go from level n to n + 1 (index 0 = level 1), the Classic table. The API gives only the XP inside the current level (`experience`),
+// so the XP of a whole session = the XP of the levels completed in between + the difference inside the level.
+export const XP_TO_NEXT = [400, 900, 1400, 2100, 2800, 3600, 4500, 5400, 6500, 7600, 8800, 10100, 11400, 12900, 14400, 16000, 17700, 19400, 21300, 23200, 25200, 27300, 29400, 31700, 34000, 36400, 38900, 41400, 44300, 47400, 50800, 54500, 58600, 62800, 67100, 71600, 76100, 80800, 85700, 90700, 95800, 101000, 106300, 111800, 117500, 123200, 129100, 135100, 141200, 147500, 153900, 160400, 167100, 173900, 180800, 187900, 195000, 202300, 209800];
+export const totalXp = (level, xp) => (level == null || xp == null ? null : XP_TO_NEXT.slice(0, Math.max(0, Math.min(level, XP_TO_NEXT.length + 1) - 1)).reduce((a, b) => a + b, 0) + xp);
 const GAME_KEYS = ['quests', 'kills', 'deaths', 'fish'];
 export function gameTotalsFrom(blizzard) {
   return (chars) => {
@@ -71,7 +75,7 @@ export function gameTotalsFrom(blizzard) {
 }
 
 // ---- what to post. Pure: gets everything it needs, returns messages and what to remember when they are posted.
-// prev = { levels: Map(key -> level), snaps: Map(key -> { quests, kills, deaths, skills, gear: [item ids] }), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
+// prev = { levels: Map(key -> level), snaps: Map(key -> { quests, kills, deaths, camps, xp (total XP), skills, gear: [item ids] }), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
 export function plan({ core, chars, states, prev, discord }) {
   const { BY_ID, BRANCHES, METERS } = core;
   const branchName = (k) => BRANCHES.find((b) => b.key === k)?.name ?? 'Legend';
@@ -82,17 +86,18 @@ export function plan({ core, chars, states, prev, discord }) {
   const snaps = prev.snaps ?? new Map();
   // what the game says now about one character (null when the game does not know it: then nothing is compared or remembered)
   // skills and gear that the game did not give this time (a failed call) keep the earlier values, so one bad run does not wipe the starting point
-  const snapOf = (c) => { const old = snaps.get(norm(c.name)); return c.stats ? { quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0, skills: c.skills ?? old?.skills ?? null, gear: c.gear ? c.gear.map((g) => g.id) : (old?.gear ?? null) } : null; };
+  const snapOf = (c) => { const old = snaps.get(norm(c.name)); return c.stats ? { quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0, camps: num(c.stats.camps) ?? old?.camps ?? null, xp: totalXp(c.level, c.xp) ?? old?.xp ?? null, skills: c.skills ?? old?.skills ?? null, gear: c.gear ? c.gear.map((g) => g.id) : (old?.gear ?? null) } : null; };
   // what a character did since the previous run (only when both runs have numbers)
   const sessionOf = (c) => {
     const now = snapOf(c); const before = snaps.get(norm(c.name));
     if (!now || !before || before.quests == null) return null;
     const up = (a, b) => Math.max(0, a - (b ?? a));
+    const upN = (a, b) => (a == null || b == null ? 0 : Math.max(0, a - b)); // counters that an older snapshot did not have: no difference yet
     const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => before.skills && before.skills[n] != null && v > before.skills[n]).map(([n, v]) => ({ name: n, from: before.skills[n], to: v }));
     // new gear: items worn now that were not worn before (a swap between the two ring or trinket slots is not new)
     const worn = new Map(); for (const id of before.gear ?? []) worn.set(id, (worn.get(id) ?? 0) + 1);
     const gear = !before.gear || !c.gear ? [] : c.gear.filter((g) => { const n = worn.get(g.id) ?? 0; if (n > 0) { worn.set(g.id, n - 1); return false; } return true; }).map((g) => g.name);
-    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), skills, gear };
+    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), camps: upN(now.camps, before.camps), xp: upN(now.xp, before.xp), skills, gear };
   };
 
   // levels
@@ -125,17 +130,20 @@ export function plan({ core, chars, states, prev, discord }) {
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
     // the recap: one line per character that did something, then the new achievements
-    const lines = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`;
+    const lines = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0; let xpChars = 0;
     for (const c of active.filter((x) => x.player === p)) {
       const g = lv.find((x) => x.key === norm(c.name)); const ses = sessionOf(c); const parts = [];
       if (g) parts.push(`⬆️ level ${g.from} → **${g.to}**`);
       if (ses?.quests) parts.push(`📜 +${plural(ses.quests, 'quest')}`);
       if (ses?.kills) parts.push(`⚔️ +${plural(ses.kills, 'kill')}`);
       if (ses?.deaths) parts.push(`💀 +${plural(ses.deaths, 'death')}`);
+      if (ses?.camps) parts.push(`🔥 +${plural(ses.camps, 'campfire')}`);
+      if (ses?.xp) { parts.push(`✨ +${fmt(ses.xp)} XP`); xpTotal += ses.xp; xpChars += 1; }
       for (const k of ses?.skills ?? []) parts.push(`🔨 ${k.name} ${k.from} → **${k.to}**`);
       if (ses?.gear.length) { const names = ses.gear.slice(0, 4).join(', '); parts.push(`🛡️ ${plural(ses.gear.length, 'new gear piece')}: ${names}${ses.gear.length > 4 ? ` +${ses.gear.length - 4} more` : ''}`); }
       if (parts.length) lines.push(`**${c.name}** · ${parts.join(' · ')}`);
     }
+    if (xpChars > 1) lines.push(`✨ **Total this session: +${fmt(xpTotal)} XP**`);
     for (const { a, s } of ach) {
       const now = a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
       lines.push(`🏆 **${a.title}** (${branchName(a.branch)}) — ${a.desc}${now}`);
@@ -192,7 +200,7 @@ async function run(dryRun) {
     db('gold_donations?select=player_name,copper'),
     db('achievement_overrides?select=*'),
     db('players?select=player_name,discord_id'),
-    db('ding_levels?select=character_key,level,quests,kills,deaths,skills,gear'),
+    db('ding_levels?select=character_key,level,quests,kills,deaths,camps,xp,skills,gear'),
     db('ding_known?select=player_name,achievement_id'),
     db('ding_players?select=player_name'),
   ]);
@@ -202,7 +210,7 @@ async function run(dryRun) {
   const players = [...new Set(chars.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))];
   const guild = core.guildMeters(data, players);
   const states = new Map(players.map((p) => [p, core.evaluate(data, p, guild)]));
-  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), snaps: new Map(levelRows.filter((r) => r.quests !== null && r.quests !== undefined).map((r) => [r.character_key, { quests: r.quests, kills: r.kills, deaths: r.deaths, skills: r.skills, gear: r.gear }])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
+  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), snaps: new Map(levelRows.filter((r) => r.quests !== null && r.quests !== undefined).map((r) => [r.character_key, { quests: r.quests, kills: r.kills, deaths: r.deaths, camps: r.camps, xp: r.xp, skills: r.skills, gear: r.gear }])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
   const discord = new Map(playerRows.filter((p) => p.discord_id).map((p) => [p.player_name, p.discord_id]));
   const result = plan({ core, chars, states, prev, discord });
   const first = prev.players.size === 0 && prev.levels.size === 0;
@@ -211,7 +219,7 @@ async function run(dryRun) {
 
   const now = new Date().toISOString();
   // remembered without posting: the starting point and everybody that is new
-  const snapRow = (l) => ({ character_key: l.key, level: l.level, quests: l.snap?.quests ?? null, kills: l.snap?.kills ?? null, deaths: l.snap?.deaths ?? null, skills: l.snap?.skills ?? null, gear: l.snap?.gear ?? null, updated_at: now });
+  const snapRow = (l) => ({ character_key: l.key, level: l.level, quests: l.snap?.quests ?? null, kills: l.snap?.kills ?? null, deaths: l.snap?.deaths ?? null, camps: l.snap?.camps ?? null, xp: l.snap?.xp ?? null, skills: l.snap?.skills ?? null, gear: l.snap?.gear ?? null, updated_at: now });
   await upsert('ding_levels', result.baseline.levels.map((l) => ({ ...snapRow(l), character_name: l.name, player_name: l.player })), 'character_key');
   // the numbers of players without news (nothing to post, so nothing can be lost)
   await upsert('ding_levels', result.quietSnaps.map((l) => snapRow({ key: l.key, level: l.level, snap: l })), 'character_key');
@@ -247,7 +255,7 @@ Deno.serve(async (req) => {
   // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
-      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky is on.', embed: { color: COLOR, title: 'Test', description: 'If you can see this, the webhook works. Session recaps (level ups, quests, kills, deaths, profession skills and achievements) will show up here from now on.' }, allowed: { parse: [] } });
+      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky is on.', embed: { color: COLOR, title: 'Test', description: 'If you can see this, the webhook works. Session recaps (level ups, quests, kills, deaths, campfires, XP, profession skills and achievements) will show up here from now on.' }, allowed: { parse: [] } });
       return json({ test: 'posted' });
     } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
   }
