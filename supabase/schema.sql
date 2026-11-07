@@ -1088,7 +1088,7 @@ alter table public.ding_levels add column if not exists xp bigint;
 
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Records tab: fun records$q$, $q$Achievements$q$, 'check',
-  $q$Achievements > Records: under the boards is Fun records (campfires, critters, deaths from falling / drowning / fire / fatigue, hugs, facepalms, violin, LOL, cheers, waves, potions, bandages, food, beverages). A board only shows once somebody has the counter, and the whole block hides itself while nobody has. The tiles on top got Campfires and Critters killed. The numbers appear after the next update of the characters (5 minutes after the Edge Function update-characters is deployed again); the missing ones (drowning, fire, fatigue, hugs, facepalms, violin) need a character that has that counter: check the names with the "Blizzard statistics" workflow.$q$, 'Claude'
+  $q$Achievements > Records: under the boards is Fun records (campfires, critters, deaths by falling / drowning / fire / fatigue, emotes, potions, bandages, food, drinks). A board shows once somebody has the counter; the block hides itself while nobody has. Tiles on top: Campfires, Critters killed. Numbers appear 5 minutes after update-characters is deployed. Drowning, fire, fatigue, hugs, facepalms, violin: check their names with the Blizzard statistics workflow.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Records tab: fun records$q$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
