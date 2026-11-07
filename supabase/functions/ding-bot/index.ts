@@ -130,20 +130,24 @@ export function plan({ core, chars, states, prev, discord }) {
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
     // the recap: one line per character that did something, then the new achievements
-    const lines = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0; let xpChars = 0;
+    const lines = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0;
     for (const c of active.filter((x) => x.player === p)) {
       const g = lv.find((x) => x.key === norm(c.name)); const ses = sessionOf(c); const parts = [];
-      if (g) parts.push(`⬆️ level ${g.from} → **${g.to}**`);
+      if (g) parts.push(`⬆️ +${plural(g.to - g.from, 'level')} (${g.from} → **${g.to}**)`);
       if (ses?.quests) parts.push(`📜 +${plural(ses.quests, 'quest')}`);
       if (ses?.kills) parts.push(`⚔️ +${plural(ses.kills, 'kill')}`);
       if (ses?.deaths) parts.push(`💀 +${plural(ses.deaths, 'death')}`);
       if (ses?.camps) parts.push(`🔥 +${plural(ses.camps, 'campfire')}`);
-      if (ses?.xp) { parts.push(`✨ +${fmt(ses.xp)} XP`); xpTotal += ses.xp; xpChars += 1; }
+      if (ses?.xp) { parts.push(`✨ +${fmt(ses.xp)} XP`); xpTotal += ses.xp; }
       for (const k of ses?.skills ?? []) parts.push(`🔨 ${k.name} ${k.from} → **${k.to}**`);
       if (ses?.gear.length) { const names = ses.gear.slice(0, 4).join(', '); parts.push(`🛡️ ${plural(ses.gear.length, 'new gear piece')}: ${names}${ses.gear.length > 4 ? ` +${ses.gear.length - 4} more` : ''}`); }
       if (parts.length) lines.push(`**${c.name}** · ${parts.join(' · ')}`);
     }
-    if (xpChars > 1) lines.push(`✨ **Total this session: +${fmt(xpTotal)} XP**`);
+    // the totals of the player: levels and XP gained this session, and the total level (the levels of all his characters added up, like the dashboard)
+    const levelsGained = lv.reduce((n, g) => n + (g.to - g.from), 0);
+    const totalLevel = active.filter((x) => x.player === p && x.level > 0).reduce((n, x) => n + x.level, 0);
+    const gained = [levelsGained ? `⬆️ +${plural(levelsGained, 'level')}` : '', xpTotal ? `✨ +${fmt(xpTotal)} XP` : ''].filter(Boolean);
+    lines.push(`📊 ${gained.length ? `**This session:** ${gained.join(' · ')} · ` : ''}**Total level ${fmt(totalLevel)}**`);
     for (const { a, s } of ach) {
       const now = a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
       lines.push(`🏆 **${a.title}** (${branchName(a.branch)}) — ${a.desc}${now}`);
