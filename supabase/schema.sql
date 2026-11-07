@@ -1112,3 +1112,9 @@ where not exists (select 1 from public.dev_checks where title = $q$Character pic
 update public.dev_checks set title = $q$Character pictures: Undead paladins icon and fresh pictures$q$,
   note = $q$Pala Pim and Pietrein Defeinkleijn (the Undead paladins of Pim and Ian): Home, character page and player page show the Paladin class icon, not a gnome. Every other character (also another Undead) still has its picture. A changed character (login, level, gear) fetches its picture anew without a hard refresh; a picture Blizzard has not drawn again stays the old one. When Blizzard draws them right, remove the name from WRONG_PICTURE_CHARACTERS in js/charpicture.js.$q$
   where title = $q$Character pictures: Undead icon and fresh pictures$q$;
+
+-- 2026-11-07: Fun records got a clickable legend and /train (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: fun records legend$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records > Fun records: a legend with groups In the wild / Deaths / Emotes / Supplies; every button shows the leader and the number, one is chosen at the start. Click another: the ranking (with Guild total) on the right changes. A record nobody has is dimmed (no data yet) and cannot be clicked. On a phone the ranking sits above the legend and scrolls into view after a click. /train only shows data when the game counts it: check the name with the Blizzard statistics workflow.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: fun records legend$q$);

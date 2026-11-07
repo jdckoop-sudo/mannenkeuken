@@ -82,7 +82,7 @@ function professionList(body) {
 // elixirs 923, beverages 346, food eaten 347, total cheers 1045, total waves 1065, times LOL'd 1066.
 const GAME_STATS = { quests: 98, kills: 1197, deaths: 60, fish: 1518, critters: 108, camps: 64222, fallDeaths: 114, bandages: 344, healthPotions: 345, manaPotions: 922, elixirs: 923, drinks: 346, food: 347, cheers: 1045, waves: 1065, laughs: 1066 };
 // Statistics that nobody of ours had counted yet when we looked (the API leaves out zeros), so we know their names but not their ids.
-const GAME_STATS_BY_NAME = { drownDeaths: /death.*drown|drown.*death/i, fatigueDeaths: /death.*fatigue|fatigue.*death/i, fireDeaths: /death.*(fire|lava)|(fire|lava).*death/i, hugs: /\bhugs?\b/i, facepalms: /facepalm/i, violin: /violin/i };
+const GAME_STATS_BY_NAME = { drownDeaths: /death.*drown|drown.*death/i, fatigueDeaths: /death.*fatigue|fatigue.*death/i, fireDeaths: /death.*(fire|lava)|(fire|lava).*death/i, hugs: /\bhugs?\b/i, facepalms: /facepalm/i, violin: /violin/i, train: /\btrain\b|choo/i };
 function gameStats(body) {
   const list = (body.categories ?? []).flatMap((c) => [...(c.statistics ?? []), ...(c.sub_categories ?? []).flatMap((s) => s.statistics ?? [])]);
   const byId = Object.entries(GAME_STATS).map(([key, id]) => [key, list.find((s) => s.id === id)?.quantity ?? 0]);
