@@ -12,8 +12,8 @@
 //  - The first run only looks: the current levels and achievements are the starting point and are NOT announced.
 //  - A character or a player that is new in the data is also only looked at the first time (a new person would otherwise get everything at once).
 //  - Everything that happened to one player in one run goes into ONE message, written as a session recap ("<player> achieved this session:"): level ups, quests, kills,
-//    deaths and profession skill gains of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
-//    the quests, kills, deaths and skills are remembered per character in ding_levels (columns quests, kills, deaths, skills) and are only compared when the game knows the character.
+//    deaths, profession skill gains and new gear (items that were not worn in the previous run) of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
+//    the quests, kills, deaths and skills are remembered per character in ding_levels (columns quests, kills, deaths, skills, gear) and are only compared when the game knows the character.
 //  - A guild goal is announced once for the whole guild, with @everyone, not per player.
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
@@ -58,7 +58,7 @@ export function characterFrom(row, api) {
     .map((p) => ({ name: p.name, skill: num(p.skill) })).filter((p) => !SECONDARY.includes(p.name) || p.skill !== null);
   const level = known && api.level != null ? api.level : num(row.level);
   const skills = known && apiProfs.length ? Object.fromEntries(apiProfs.map((p) => [p.name, num(p.skill)]).filter(([, v]) => v !== null)) : null;
-  return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, stats: known ? (api.stats ?? null) : null, skills, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
+  return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, stats: known ? (api.stats ?? null) : null, skills, gear: known && Array.isArray(api.equipment) && api.equipment.length ? api.equipment.filter((e) => e && e.id).map((e) => ({ id: e.id, name: e.name })) : null, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
 }
 const GAME_KEYS = ['quests', 'kills', 'deaths', 'fish'];
 export function gameTotalsFrom(blizzard) {
@@ -71,7 +71,7 @@ export function gameTotalsFrom(blizzard) {
 }
 
 // ---- what to post. Pure: gets everything it needs, returns messages and what to remember when they are posted.
-// prev = { levels: Map(key -> level), snaps: Map(key -> { quests, kills, deaths, skills }), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
+// prev = { levels: Map(key -> level), snaps: Map(key -> { quests, kills, deaths, skills, gear: [item ids] }), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
 export function plan({ core, chars, states, prev, discord }) {
   const { BY_ID, BRANCHES, METERS } = core;
   const branchName = (k) => BRANCHES.find((b) => b.key === k)?.name ?? 'Legend';
@@ -81,14 +81,18 @@ export function plan({ core, chars, states, prev, discord }) {
   const baseline = { levels: [], known: [], players: [] }; // remembered without posting
   const snaps = prev.snaps ?? new Map();
   // what the game says now about one character (null when the game does not know it: then nothing is compared or remembered)
-  const snapOf = (c) => (c.stats ? { quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0, skills: c.skills ?? null } : null);
+  // skills and gear that the game did not give this time (a failed call) keep the earlier values, so one bad run does not wipe the starting point
+  const snapOf = (c) => { const old = snaps.get(norm(c.name)); return c.stats ? { quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0, skills: c.skills ?? old?.skills ?? null, gear: c.gear ? c.gear.map((g) => g.id) : (old?.gear ?? null) } : null; };
   // what a character did since the previous run (only when both runs have numbers)
   const sessionOf = (c) => {
     const now = snapOf(c); const before = snaps.get(norm(c.name));
     if (!now || !before || before.quests == null) return null;
     const up = (a, b) => Math.max(0, a - (b ?? a));
     const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => before.skills && before.skills[n] != null && v > before.skills[n]).map(([n, v]) => ({ name: n, from: before.skills[n], to: v }));
-    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), skills };
+    // new gear: items worn now that were not worn before (a swap between the two ring or trinket slots is not new)
+    const worn = new Map(); for (const id of before.gear ?? []) worn.set(id, (worn.get(id) ?? 0) + 1);
+    const gear = !before.gear || !c.gear ? [] : c.gear.filter((g) => { const n = worn.get(g.id) ?? 0; if (n > 0) { worn.set(g.id, n - 1); return false; } return true; }).map((g) => g.name);
+    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), skills, gear };
   };
 
   // levels
@@ -129,6 +133,7 @@ export function plan({ core, chars, states, prev, discord }) {
       if (ses?.kills) parts.push(`⚔️ +${plural(ses.kills, 'kill')}`);
       if (ses?.deaths) parts.push(`💀 +${plural(ses.deaths, 'death')}`);
       for (const k of ses?.skills ?? []) parts.push(`🔨 ${k.name} ${k.from} → **${k.to}**`);
+      if (ses?.gear.length) { const names = ses.gear.slice(0, 4).join(', '); parts.push(`🛡️ ${plural(ses.gear.length, 'new gear piece')}: ${names}${ses.gear.length > 4 ? ` +${ses.gear.length - 4} more` : ''}`); }
       if (parts.length) lines.push(`**${c.name}** · ${parts.join(' · ')}`);
     }
     for (const { a, s } of ach) {
@@ -187,7 +192,7 @@ async function run(dryRun) {
     db('gold_donations?select=player_name,copper'),
     db('achievement_overrides?select=*'),
     db('players?select=player_name,discord_id'),
-    db('ding_levels?select=character_key,level,quests,kills,deaths,skills'),
+    db('ding_levels?select=character_key,level,quests,kills,deaths,skills,gear'),
     db('ding_known?select=player_name,achievement_id'),
     db('ding_players?select=player_name'),
   ]);
@@ -197,7 +202,7 @@ async function run(dryRun) {
   const players = [...new Set(chars.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))];
   const guild = core.guildMeters(data, players);
   const states = new Map(players.map((p) => [p, core.evaluate(data, p, guild)]));
-  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), snaps: new Map(levelRows.filter((r) => r.quests !== null && r.quests !== undefined).map((r) => [r.character_key, { quests: r.quests, kills: r.kills, deaths: r.deaths, skills: r.skills }])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
+  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), snaps: new Map(levelRows.filter((r) => r.quests !== null && r.quests !== undefined).map((r) => [r.character_key, { quests: r.quests, kills: r.kills, deaths: r.deaths, skills: r.skills, gear: r.gear }])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
   const discord = new Map(playerRows.filter((p) => p.discord_id).map((p) => [p.player_name, p.discord_id]));
   const result = plan({ core, chars, states, prev, discord });
   const first = prev.players.size === 0 && prev.levels.size === 0;
@@ -206,7 +211,7 @@ async function run(dryRun) {
 
   const now = new Date().toISOString();
   // remembered without posting: the starting point and everybody that is new
-  const snapRow = (l) => ({ character_key: l.key, level: l.level, quests: l.snap?.quests ?? null, kills: l.snap?.kills ?? null, deaths: l.snap?.deaths ?? null, skills: l.snap?.skills ?? null, updated_at: now });
+  const snapRow = (l) => ({ character_key: l.key, level: l.level, quests: l.snap?.quests ?? null, kills: l.snap?.kills ?? null, deaths: l.snap?.deaths ?? null, skills: l.snap?.skills ?? null, gear: l.snap?.gear ?? null, updated_at: now });
   await upsert('ding_levels', result.baseline.levels.map((l) => ({ ...snapRow(l), character_name: l.name, player_name: l.player })), 'character_key');
   // the numbers of players without news (nothing to post, so nothing can be lost)
   await upsert('ding_levels', result.quietSnaps.map((l) => snapRow({ key: l.key, level: l.level, snap: l })), 'character_key');

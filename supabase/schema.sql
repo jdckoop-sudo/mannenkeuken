@@ -937,6 +937,7 @@ alter table public.ding_levels add column if not exists quests int;
 alter table public.ding_levels add column if not exists kills int;
 alter table public.ding_levels add column if not exists deaths int;
 alter table public.ding_levels add column if not exists skills jsonb;
+alter table public.ding_levels add column if not exists gear jsonb; -- item ids worn at the previous run (2026-11-07)
 create table if not exists public.ding_known (
   player_name text not null default '',
   achievement_id text not null,
@@ -1076,3 +1077,7 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$, $q$Discord$q$, 'check',
   $q$After deploying the Edge Function ding-bot again (the SQL with the new ding_levels columns first): the first run only remembers the numbers. Then log out in the game with a character that levelled up: #dings shows "<player> achieved this session:" with a line per character (level, +quests, +kills, +deaths, profession skills) and the achievements. Text must be English. select character_key, quests, kills, deaths, skills from ding_levels; has numbers.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$);
+
+-- 2026-11-07: the recap also shows new gear (Jelle); the earlier check gets the extra word
+update public.dev_checks set note = replace(note, '(level, +quests, +kills, +deaths, profession skills)', '(level, +quests, +kills, +deaths, profession skills, new gear)')
+  where title = $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$;
