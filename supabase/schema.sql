@@ -1107,3 +1107,8 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Character pictures: Undead icon and fresh pictures$q$, $q$Roster$q$, 'check',
   $q$Pala Pim (Undead Paladin): Home, character page and player page show the Paladin class icon, not a gnome. A Troll/Orc/Tauren still has its picture. After a character logs out in the game and the next update (5 minutes), a hard refresh is no longer needed to see the new picture. When Blizzard draws Undead right, remove 'Undead' from WRONG_PICTURE_RACES in js/charpicture.js.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Character pictures: Undead icon and fresh pictures$q$);
+
+-- 2026-11-07: the icon is only for the Undead paladins of Pim and Ian, not for the whole race (Jelle)
+update public.dev_checks set title = $q$Character pictures: Undead paladins icon and fresh pictures$q$,
+  note = $q$Pala Pim and Pietrein Defeinkleijn (the Undead paladins of Pim and Ian): Home, character page and player page show the Paladin class icon, not a gnome. Every other character (also another Undead) still has its picture. A changed character (login, level, gear) fetches its picture anew without a hard refresh; a picture Blizzard has not drawn again stays the old one. When Blizzard draws them right, remove the name from WRONG_PICTURE_CHARACTERS in js/charpicture.js.$q$
+  where title = $q$Character pictures: Undead icon and fresh pictures$q$;

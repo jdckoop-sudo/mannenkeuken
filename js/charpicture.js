@@ -4,22 +4,22 @@ import { esc } from './sheet.js?v=__V__';
 import { classIcon } from './classicons.js?v=__V__';
 import { wowheadUrl, qualityColor } from './itemsearch.js?v=__V__';
 
-// Races whose picture the game draws wrong for now: Blizzard's own render server shows a gnome for an Undead character (checked 7 Nov 2026 with
-// Pala Pim, an Undead Paladin; the other Undead has no picture at all). For these we show the class icon until the game has the real model.
-// Take a race out of this list as soon as its pictures are right.
-export const WRONG_PICTURE_RACES = ['Undead'];
+// Characters whose picture the game draws wrong for now: Blizzard's own render server shows a gnome for the Undead Paladin of Pim (Pala Pim) and the
+// other Undead Paladin (Pietrein Defeinkleijn, Ian's) has no picture at all (checked 7 Nov 2026). These two show the class icon; every other character,
+// also another Undead, shows its picture. Names in lower case, as in loadBlizzard(). Take a name out of this list as soon as its picture is right.
+export const WRONG_PICTURE_CHARACTERS = ['pala pim', 'pietrein defeinkleijn'];
 
 // The picture from the game: the full character if there is one, otherwise the smaller versions. Null when the game has none (or draws it wrong).
 export const pictureOf = (entry) => {
-  if (WRONG_PICTURE_RACES.includes(entry?.race)) return null;
+  if (WRONG_PICTURE_CHARACTERS.includes(String(entry?.name ?? '').toLowerCase())) return null;
   const media = entry?.status === 'ok' ? entry.media : null;
   const url = media?.main ?? media?.['main-raw'] ?? media?.inset ?? media?.avatar;
   return /^https:\/\//.test(url ?? '') ? url : null;
 };
 
 // The picture keeps the same address when the game draws it again, and the render server says nothing about how long a copy may be kept, so a browser
-// keeps its old copy for hours. This stamp changes when the character logged in again, levelled or changed gear (the moments the game draws it again),
-// and goes behind the address so a changed character is fetched anew.
+// keeps its old copy for hours. This stamp changes when the character logged in again, levelled or changed gear (the moments it may look different),
+// and goes behind the address so a changed character is fetched anew. When the game itself has not drawn it again, the old picture stays.
 export const pictureStamp = (entry) => {
   const text = [entry?.lastLogin, entry?.level, ...(entry?.equipment ?? []).map((e) => e.id)].join('|');
   let hash = 0;
