@@ -37,7 +37,7 @@ export function activityOf(iso, now = new Date()) {
 // update could not read a character. known = how many characters have numbers: characters show up from level 10.
 export const GAME_STATS = [['quests', 'Quests completed'], ['kills', 'Kills'], ['deaths', 'Deaths'], ['fish', 'Fish caught']];
 // The fun counters of Guild > Overview (the Fun category): no tiles, only totals. A counter that an old update did not know counts as 0.
-export const FUN_STATS = ['critters', 'camps', 'fallDeaths', 'drownDeaths', 'fireDeaths', 'fatigueDeaths', 'hugs', 'facepalms', 'violin', 'train', 'laughs', 'cheers', 'waves', 'healthPotions', 'manaPotions', 'elixirs', 'bandages', 'food', 'drinks'];
+export const FUN_STATS = ['critters', 'camps', 'fallDeaths', 'drownDeaths', 'fireDeaths', 'fatigueDeaths', 'hugs', 'laughs', 'cheers', 'waves', 'healthPotions', 'manaPotions', 'elixirs', 'bandages', 'food', 'drinks'];
 export function gameTotals(chars, blizzard) {
   const stats = chars.map((c) => blizzard?.characters?.[norm(c.name)]?.stats).filter(Boolean);
   const totals = { known: stats.length };
