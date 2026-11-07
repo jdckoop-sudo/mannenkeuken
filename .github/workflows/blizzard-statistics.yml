@@ -1,0 +1,33 @@
+# Manual only: list every in-game statistic (id, name, quantity) the Blizzard API gives for one WoW: Forever character.
+# Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. Writes nothing and changes nothing on the site.
+name: Blizzard statistics
+on:
+  workflow_dispatch:
+    inputs:
+      character:
+        description: 'Character name (e.g. Bunte Bapsimus)'
+        required: true
+        default: 'Bunte Bapsimus'
+      region:
+        description: 'Region'
+        required: true
+        default: 'eu'
+        type: choice
+        options: [eu, us, kr, tw]
+permissions:
+  contents: read
+jobs:
+  statistics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Ask the Blizzard API
+        run: node tools/blizzard-statistics.mjs
+        env:
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          CHARACTER: ${{ inputs.character }}
+          REGION: ${{ inputs.region }}
