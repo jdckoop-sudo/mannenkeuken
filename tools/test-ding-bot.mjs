@@ -50,9 +50,10 @@ assert.equal(run([ch('Aa', 'Jelle', 12), ch('Bb', 'Tinus', 30)], [{ player_name:
 r = run([ch('Aa', 'Jelle', 15), ch('Cc', 'Jelle', 8, 'Alt'), ch('Bb', 'Tinus', 30)], [{ player_name: 'Jelle', copper: 50 * GOLD }], prev(), new Map([['Jelle', '123456789012345678']]));
 let m = r.messages.filter((x) => x.kind === 'player');
 assert.equal(m.length, 1, 'one message for Jelle');
-assert.match(m[0].content, /^<@123456789012345678>/);
+assert.match(m[0].content, /^<@123456789012345678> achieved this session:$/);
+assert.equal(m[0].embed.title, 'Session recap');
 assert.deepEqual(m[0].allowed, { users: ['123456789012345678'] });
-assert.match(m[0].embed.description, /Aa\*\* gained 3 levels and is now \*\*level 15\*\* \(was level 12\)/);
+assert.match(m[0].embed.description, /\*\*Aa\*\* · ⬆️ level 12 → \*\*15\*\*/);
 assert.ok(!/Cc/.test(m[0].embed.description), 'a new character is only a baseline');
 assert.ok(r.baseline.levels.some((l) => l.key === 'cc'));
 
@@ -71,7 +72,7 @@ assert.match(jelle.embed.url, /achievements\.html\?a=.*j2.*&p=Jelle/);
 assert.match(jelle.content, /^\*\*Jelle\*\*/, 'no discord id: bold name, no mention');
 assert.deepEqual(jelle.allowed, { parse: [] });
 const tinus = m.find((x) => x.player === 'Tinus');
-assert.match(tinus.embed.description, /gained 1 level /);
+assert.match(tinus.embed.description, /level 30 → \*\*31\*\*/);
 
 // 6. quit characters count for nothing; a level that goes down posts nothing
 r = run([ch('Aa', 'Jelle', 10), ch('Bb', 'Tinus', 31, 'Gestopt')], [], prev());
@@ -99,5 +100,35 @@ assert.equal(c.level, 22);
 assert.deepEqual(c.profs.map((p) => p.name), ['Herbalism', 'Fishing']);
 const t = characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [{ name: 'Mining', skill: 5, kind: 'primary' }], status: 'Main' }, null);
 assert.equal(t.level, 10);
+
+// 10. the recap also shows what the characters did since the previous run: quests, kills, deaths, profession skills (English text)
+const withStats = (name, player, level, stats, skills, status = 'Main') => ({ ...ch(name, player, level, status), stats, skills });
+const snapPrev = () => ({ ...prev(), snaps: new Map([['aa', { quests: 100, kills: 800, deaths: 3, skills: { Mining: 75, Herbalism: 40 } }], ['bb', { quests: 10, kills: 50, deaths: 0, skills: {} }]]) });
+r = run([withStats('Aa', 'Jelle', 14, { quests: 112, kills: 885, deaths: 4 }, { Mining: 80, Herbalism: 40 }), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], snapPrev());
+m = r.messages.filter((x) => x.kind === 'player');
+assert.equal(m.length, 1, 'only Jelle has a level up');
+assert.match(m[0].embed.description, /\*\*Aa\*\* · ⬆️ level 12 → \*\*14\*\* · 📜 \+12 quests · ⚔️ \+85 kills · 💀 \+1 death · 🔨 Mining 75 → \*\*80\*\*/);
+assert.ok(!/Herbalism/.test(m[0].embed.description), 'a skill that did not change is not shown');
+// the numbers of the player with the message are remembered after posting; those without news right away
+assert.deepEqual(m[0].commit.snaps.find((x) => x.key === 'aa'), { key: 'aa', level: 14, quests: 112, kills: 885, deaths: 4, skills: { Mining: 80, Herbalism: 40 } });
+assert.deepEqual(r.quietSnaps.map((x) => x.key), ['bb']);
+// a character with only an alt that played (no level up): other characters of the player show up in the same recap
+r = run([withStats('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3 }, { Mining: 75, Herbalism: 40 }), withStats('Cc', 'Jelle', 8, { quests: 30, kills: 90, deaths: 2 }, {}, 'Alt'), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], { ...snapPrev(), levels: new Map([['aa', 12], ['bb', 30], ['cc', 8]]), snaps: new Map([...snapPrev().snaps, ['cc', { quests: 20, kills: 60, deaths: 2, skills: {} }]]) });
+m = r.messages.filter((x) => x.kind === 'player');
+assert.match(m[0].embed.description, /\*\*Aa\*\* · ⬆️ level 12 → \*\*14\*\*\n\*\*Cc\*\* · 📜 \+10 quests · ⚔️ \+30 kills/);
+// no earlier numbers (first run after the update): no numbers in the recap, but they are remembered
+r = run([withStats('Aa', 'Jelle', 14, { quests: 112, kills: 885, deaths: 4 }, { Mining: 80 })], [], prev());
+m = r.messages.filter((x) => x.kind === 'player');
+assert.ok(!/📜|⚔️|💀|🔨/.test(m[0].embed.description));
+assert.equal(m[0].commit.snaps[0].quests, 112);
+// a character the game does not know (no stats): nothing is compared or remembered
+r = run([ch('Aa', 'Jelle', 14), ch('Bb', 'Tinus', 30)], [], snapPrev());
+assert.equal(r.quietSnaps.length, 0);
+assert.deepEqual(r.messages.filter((x) => x.kind === 'player')[0].commit.snaps, []);
+// characterFrom hands over the game's numbers and skills (the table's skills are not compared: only the API's)
+const g1 = characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [], status: 'Main' }, { status: 'ok', level: 22, stats: { quests: 5, kills: 6, deaths: 7, fish: 1 }, professions: [{ name: 'Herbalism', skill: 80, kind: 'primary' }] });
+assert.deepEqual(g1.stats, { quests: 5, kills: 6, deaths: 7, fish: 1 });
+assert.deepEqual(g1.skills, { Herbalism: 80 });
+assert.equal(characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [{ name: 'Mining', skill: 5, kind: 'primary' }], status: 'Main' }, null).skills, null);
 
 console.log('Ding Dinky tests: all passed');

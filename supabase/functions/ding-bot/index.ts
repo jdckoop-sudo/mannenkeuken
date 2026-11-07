@@ -11,7 +11,9 @@
 // The rules (all of them in plan() below, which has no network calls and is tested in tools/test-ding-bot.mjs):
 //  - The first run only looks: the current levels and achievements are the starting point and are NOT announced.
 //  - A character or a player that is new in the data is also only looked at the first time (a new person would otherwise get everything at once).
-//  - Everything that happened to one player in one run goes into ONE message: level ups of all his characters and all new achievements.
+//  - Everything that happened to one player in one run goes into ONE message, written as a session recap ("<player> achieved this session:"): level ups, quests, kills,
+//    deaths and profession skill gains of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
+//    the quests, kills, deaths and skills are remembered per character in ding_levels (columns quests, kills, deaths, skills) and are only compared when the game knows the character.
 //  - A guild goal is announced once for the whole guild, with @everyone, not per player.
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
@@ -55,7 +57,8 @@ export function characterFrom(row, api) {
   const profs = [...primaries, ...SECONDARY.map((n) => source.find((p) => p.name === n)).filter(Boolean)]
     .map((p) => ({ name: p.name, skill: num(p.skill) })).filter((p) => !SECONDARY.includes(p.name) || p.skill !== null);
   const level = known && api.level != null ? api.level : num(row.level);
-  return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
+  const skills = known && apiProfs.length ? Object.fromEntries(apiProfs.map((p) => [p.name, num(p.skill)]).filter(([, v]) => v !== null)) : null;
+  return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, stats: known ? (api.stats ?? null) : null, skills, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
 }
 const GAME_KEYS = ['quests', 'kills', 'deaths', 'fish'];
 export function gameTotalsFrom(blizzard) {
@@ -68,7 +71,7 @@ export function gameTotalsFrom(blizzard) {
 }
 
 // ---- what to post. Pure: gets everything it needs, returns messages and what to remember when they are posted.
-// prev = { levels: Map(key -> level), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
+// prev = { levels: Map(key -> level), snaps: Map(key -> { quests, kills, deaths, skills }), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
 export function plan({ core, chars, states, prev, discord }) {
   const { BY_ID, BRANCHES, METERS } = core;
   const branchName = (k) => BRANCHES.find((b) => b.key === k)?.name ?? 'Legend';
@@ -76,13 +79,24 @@ export function plan({ core, chars, states, prev, discord }) {
   const players = [...new Set(active.map((c) => c.player))];
   const messages = []; // { kind, player, level: [...], achievements: [...], commit: { levels, known, players } }
   const baseline = { levels: [], known: [], players: [] }; // remembered without posting
+  const snaps = prev.snaps ?? new Map();
+  // what the game says now about one character (null when the game does not know it: then nothing is compared or remembered)
+  const snapOf = (c) => (c.stats ? { quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0, skills: c.skills ?? null } : null);
+  // what a character did since the previous run (only when both runs have numbers)
+  const sessionOf = (c) => {
+    const now = snapOf(c); const before = snaps.get(norm(c.name));
+    if (!now || !before || before.quests == null) return null;
+    const up = (a, b) => Math.max(0, a - (b ?? a));
+    const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => before.skills && before.skills[n] != null && v > before.skills[n]).map(([n, v]) => ({ name: n, from: before.skills[n], to: v }));
+    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), skills };
+  };
 
   // levels
   const gains = new Map(); const newLevels = [];
   for (const c of active) {
     if (!(c.level > 0)) continue;
     const key = norm(c.name); const before = prev.levels.get(key);
-    if (before === undefined) { baseline.levels.push({ key, name: c.name, player: c.player, level: c.level }); continue; }
+    if (before === undefined) { baseline.levels.push({ key, name: c.name, player: c.player, level: c.level, snap: snapOf(c) }); continue; }
     if (c.level > before) { if (!gains.has(c.player)) gains.set(c.player, []); gains.get(c.player).push({ name: c.name, from: before, to: c.level, key }); }
   }
 
@@ -106,8 +120,17 @@ export function plan({ core, chars, states, prev, discord }) {
   // one message per player
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
-    const lines = [];
-    for (const g of lv) { const n = g.to - g.from; lines.push(`⬆️ **${g.name}** gained ${n} ${n === 1 ? 'level' : 'levels'} and is now **level ${g.to}** (was level ${g.from})`); }
+    // the recap: one line per character that did something, then the new achievements
+    const lines = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`;
+    for (const c of active.filter((x) => x.player === p)) {
+      const g = lv.find((x) => x.key === norm(c.name)); const ses = sessionOf(c); const parts = [];
+      if (g) parts.push(`⬆️ level ${g.from} → **${g.to}**`);
+      if (ses?.quests) parts.push(`📜 +${plural(ses.quests, 'quest')}`);
+      if (ses?.kills) parts.push(`⚔️ +${plural(ses.kills, 'kill')}`);
+      if (ses?.deaths) parts.push(`💀 +${plural(ses.deaths, 'death')}`);
+      for (const k of ses?.skills ?? []) parts.push(`🔨 ${k.name} ${k.from} → **${k.to}**`);
+      if (parts.length) lines.push(`**${c.name}** · ${parts.join(' · ')}`);
+    }
     for (const { a, s } of ach) {
       const now = a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
       lines.push(`🏆 **${a.title}** (${branchName(a.branch)}) — ${a.desc}${now}`);
@@ -117,11 +140,11 @@ export function plan({ core, chars, states, prev, discord }) {
     const points = ach.reduce((n, { a }) => n + a.points, 0);
     messages.push({
       kind: 'player', player: p, discordId: id ?? null,
-      content: `${id ? `<@${id}>` : `**${p}**`} Ding! 🔔`,
-      embed: { color: COLOR, title: ach.length ? 'New achievement' + (ach.length > 1 ? 's' : '') : 'Level up', url: link, description: lines.join('\n'),
+      content: `${id ? `<@${id}>` : `**${p}**`} achieved this session:`,
+      embed: { color: COLOR, title: 'Session recap', url: link, description: lines.join('\n'),
         fields: [{ name: '​', value: `[View it on the dashboard](${link})${points ? ` · +${points} points` : ''}` }] },
       allowed: id ? { users: [id] } : { parse: [] },
-      commit: { levels: lv.map((g) => ({ key: g.key, level: g.to })), known: ach.map(({ a }) => ({ player: p, id: a.id })), summary: lines.join(' | ') },
+      commit: { levels: lv.map((g) => ({ key: g.key, level: g.to })), snaps: active.filter((x) => x.player === p && prev.levels.has(norm(x.name)) && snapOf(x)).map((x) => ({ key: norm(x.name), level: Math.max(prev.levels.get(norm(x.name)), x.level), ...snapOf(x) })), known: ach.map(({ a }) => ({ player: p, id: a.id })), summary: lines.join(' | ') },
     });
   }
   if (guildGoals.length) {
@@ -129,7 +152,7 @@ export function plan({ core, chars, states, prev, discord }) {
     const lines = guildGoals.map(({ a, s }) => `🏆 **${a.title}** — ${a.desc}${a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd()}`);
     messages.push({
       kind: 'guild', player: '', discordId: null,
-      content: '@everyone Ding! The whole guild has reached something 🎉',
+      content: '@everyone The whole guild has reached something 🎉',
       embed: { color: COLOR, title: 'Guild goal' + (guildGoals.length > 1 ? 's' : '') + ' reached', url: link, description: lines.join('\n'), fields: [{ name: '​', value: `[View it on the dashboard](${link})` }] },
       allowed: { parse: ['everyone'] },
       commit: { levels: [], known: guildGoals.map(({ a }) => ({ player: '', id: a.id })), summary: lines.join(' | ') },
@@ -137,7 +160,11 @@ export function plan({ core, chars, states, prev, discord }) {
   }
   // the levels of everybody that has no news are kept up to date too (when a level goes down, the highest one stays)
   const seen = new Set(messages.flatMap((m) => m.commit.levels.map((l) => l.key)));
-  return { messages, baseline, players, quiet: active.filter((c) => c.level > 0 && !seen.has(norm(c.name)) && prev.levels.has(norm(c.name))) };
+  const quiet = active.filter((c) => c.level > 0 && !seen.has(norm(c.name)) && prev.levels.has(norm(c.name)));
+  // the numbers of everybody whose player gets no message are remembered right away, so the next recap only shows what is new
+  const quietPlayers = new Set(messages.map((m) => m.player));
+  const quietSnaps = active.filter((c) => c.level > 0 && !quietPlayers.has(c.player) && prev.levels.has(norm(c.name)) && snapOf(c)).map((c) => ({ key: norm(c.name), level: Math.max(prev.levels.get(norm(c.name)), c.level), ...snapOf(c) }));
+  return { messages, baseline, players, quiet, quietSnaps };
 }
 
 // ---- Discord
@@ -160,7 +187,7 @@ async function run(dryRun) {
     db('gold_donations?select=player_name,copper'),
     db('achievement_overrides?select=*'),
     db('players?select=player_name,discord_id'),
-    db('ding_levels?select=character_key,level'),
+    db('ding_levels?select=character_key,level,quests,kills,deaths,skills'),
     db('ding_known?select=player_name,achievement_id'),
     db('ding_players?select=player_name'),
   ]);
@@ -170,7 +197,7 @@ async function run(dryRun) {
   const players = [...new Set(chars.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))];
   const guild = core.guildMeters(data, players);
   const states = new Map(players.map((p) => [p, core.evaluate(data, p, guild)]));
-  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
+  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), snaps: new Map(levelRows.filter((r) => r.quests !== null && r.quests !== undefined).map((r) => [r.character_key, { quests: r.quests, kills: r.kills, deaths: r.deaths, skills: r.skills }])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
   const discord = new Map(playerRows.filter((p) => p.discord_id).map((p) => [p.player_name, p.discord_id]));
   const result = plan({ core, chars, states, prev, discord });
   const first = prev.players.size === 0 && prev.levels.size === 0;
@@ -179,7 +206,10 @@ async function run(dryRun) {
 
   const now = new Date().toISOString();
   // remembered without posting: the starting point and everybody that is new
-  await upsert('ding_levels', [...result.baseline.levels.map((l) => ({ character_key: l.key, character_name: l.name, player_name: l.player, level: l.level, updated_at: now }))], 'character_key');
+  const snapRow = (l) => ({ character_key: l.key, level: l.level, quests: l.snap?.quests ?? null, kills: l.snap?.kills ?? null, deaths: l.snap?.deaths ?? null, skills: l.snap?.skills ?? null, updated_at: now });
+  await upsert('ding_levels', result.baseline.levels.map((l) => ({ ...snapRow(l), character_name: l.name, player_name: l.player })), 'character_key');
+  // the numbers of players without news (nothing to post, so nothing can be lost)
+  await upsert('ding_levels', result.quietSnaps.map((l) => snapRow({ key: l.key, level: l.level, snap: l })), 'character_key');
   await upsert('ding_players', result.baseline.players.map((p) => ({ player_name: p })), 'player_name');
   await upsert('ding_known', result.baseline.known.map((k) => ({ player_name: k.player, achievement_id: k.id })), 'player_name,achievement_id');
   // a level that went down (a glitch) is not written: the highest one stays
@@ -190,7 +220,9 @@ async function run(dryRun) {
     for (const m of result.messages) {
       try {
         await post(webhook, m);
+        // the new levels and the numbers of this player's characters are remembered only now that the message is posted
         await upsert('ding_levels', m.commit.levels.map((l) => ({ character_key: l.key, level: l.level, updated_at: now })), 'character_key');
+        await upsert('ding_levels', m.commit.snaps.map((l) => snapRow({ key: l.key, level: l.level, snap: l })), 'character_key');
         await upsert('ding_known', m.commit.known.map((k) => ({ player_name: k.player, achievement_id: k.id })), 'player_name,achievement_id');
         await db('ding_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ kind: m.kind, player_name: m.player, summary: m.commit.summary }) });
         out.posted += 1;
@@ -210,7 +242,7 @@ Deno.serve(async (req) => {
   // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
-      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky is on.', embed: { color: COLOR, title: 'Test', description: 'If you can see this, the webhook works. Level ups and achievements will show up here from now on.' }, allowed: { parse: [] } });
+      await post(env('DING_WEBHOOK_URL'), { content: 'Ding! \uD83D\uDD14 Ding Dinky is on.', embed: { color: COLOR, title: 'Test', description: 'If you can see this, the webhook works. Session recaps (level ups, quests, kills, deaths, profession skills and achievements) will show up here from now on.' }, allowed: { parse: [] } });
       return json({ test: 'posted' });
     } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
   }

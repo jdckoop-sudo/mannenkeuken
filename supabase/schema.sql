@@ -932,6 +932,11 @@ create table if not exists public.ding_levels (
   level int not null,
   updated_at timestamptz not null default now()
 );
+-- 2026-11-07: the recap shows what a character did since the previous run, so its numbers are remembered per run
+alter table public.ding_levels add column if not exists quests int;
+alter table public.ding_levels add column if not exists kills int;
+alter table public.ding_levels add column if not exists deaths int;
+alter table public.ding_levels add column if not exists skills jsonb;
 create table if not exists public.ding_known (
   player_name text not null default '',
   achievement_id text not null,
@@ -1066,3 +1071,8 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Updates every 5 minutes: bot and data$q$, $q$Characters$q$, 'check',
   $q$SQL Editor: select jobname, schedule from cron.job; shows update-characters */5, ding-bot 2-59/5 and ding-watch 4-59/5. After 10 minutes: select * from ding_status; has a last_run_at less than 5 minutes old and Developer mode > Checks shows Blizzard characters green.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Updates every 5 minutes: bot and data$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$, $q$Discord$q$, 'check',
+  $q$After deploying the Edge Function ding-bot again (the SQL with the new ding_levels columns first): the first run only remembers the numbers. Then log out in the game with a character that levelled up: #dings shows "<player> achieved this session:" with a line per character (level, +quests, +kills, +deaths, profession skills) and the achievements. Text must be English. select character_key, quests, kills, deaths, skills from ding_levels; has numbers.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$);
