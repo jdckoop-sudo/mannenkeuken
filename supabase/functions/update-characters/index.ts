@@ -77,10 +77,17 @@ function professionList(body) {
 }
 
 // Totals from the in-game statistics (/achievements/statistics; the ids are Blizzard's own). A statistic that is missing means 0: the API leaves out what never happened yet.
-const GAME_STATS = { quests: 98, kills: 1197, deaths: 60, fish: 1518 };
+// Ids seen in the answer for our own characters (7 Nov 2026, tools/blizzard-statistics.mjs): quests 98, total kills 1197, total deaths 60, fish 1518,
+// critters killed 108, times camped 64222 (our campfires), deaths from falling 114, bandages used 344, health potions 345, mana potions 922,
+// elixirs 923, beverages 346, food eaten 347, total cheers 1045, total waves 1065, times LOL'd 1066.
+const GAME_STATS = { quests: 98, kills: 1197, deaths: 60, fish: 1518, critters: 108, camps: 64222, fallDeaths: 114, bandages: 344, healthPotions: 345, manaPotions: 922, elixirs: 923, drinks: 346, food: 347, cheers: 1045, waves: 1065, laughs: 1066 };
+// Statistics that nobody of ours had counted yet when we looked (the API leaves out zeros), so we know their names but not their ids.
+const GAME_STATS_BY_NAME = { drownDeaths: /death.*drown|drown.*death/i, fatigueDeaths: /death.*fatigue|fatigue.*death/i, fireDeaths: /death.*(fire|lava)|(fire|lava).*death/i, hugs: /\bhugs?\b/i, facepalms: /facepalm/i, violin: /violin/i };
 function gameStats(body) {
   const list = (body.categories ?? []).flatMap((c) => [...(c.statistics ?? []), ...(c.sub_categories ?? []).flatMap((s) => s.statistics ?? [])]);
-  return Object.fromEntries(Object.entries(GAME_STATS).map(([key, id]) => [key, list.find((s) => s.id === id)?.quantity ?? 0]));
+  const byId = Object.entries(GAME_STATS).map(([key, id]) => [key, list.find((s) => s.id === id)?.quantity ?? 0]);
+  const byName = Object.entries(GAME_STATS_BY_NAME).map(([key, re]) => [key, list.find((s) => re.test(s.name ?? ''))?.quantity ?? 0]);
+  return Object.fromEntries([...byId, ...byName]);
 }
 
 async function run(dryRun) {
@@ -131,6 +138,7 @@ async function run(dryRun) {
       entry = {
         name: b.name ?? name, status: 'ok', level: b.level ?? null, race: b.race?.name ?? null, class: b.character_class?.name ?? null,
         faction: b.faction?.name ?? null, guild: b.guild?.name ?? null,
+        xp: typeof b.experience === 'number' ? b.experience : null, // XP inside the current level (the ding bot adds up the levels in between)
         lastLogin: b.last_login_timestamp ? new Date(b.last_login_timestamp).toISOString() : null,
         professions: prof.status === 200 ? professionList(prof.body) : (old?.professions ?? []),
         stats: stats.status === 200 ? gameStats(stats.body) : (old?.stats ?? null),

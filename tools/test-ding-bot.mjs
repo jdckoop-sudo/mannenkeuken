@@ -13,7 +13,7 @@ assert.equal(readFileSync(new URL('../supabase/functions/ding-bot/achievements-c
   'supabase/functions/ding-bot/achievements-core.js is not the same as js/achievements-core.js: copy it again (cp js/achievements-core.js supabase/functions/ding-bot/)');
 writeFileSync(join(dir, 'ding.mjs'), readFileSync(new URL('../supabase/functions/ding-bot/index.ts', import.meta.url), 'utf8'));
 writeFileSync(join(dir, 'achievements-core.js'), rules);
-const { plan, characterFrom, gameTotalsFrom } = await import(join(dir, 'ding.mjs'));
+const { plan, characterFrom, gameTotalsFrom, totalXp, XP_TO_NEXT } = await import(join(dir, 'ding.mjs'));
 const core = await import(new URL('../js/achievements-core.js', import.meta.url));
 
 const ch = (name, player, level, status = 'Main', profs = []) => ({ name, player, level, status, profs });
@@ -110,7 +110,7 @@ assert.equal(m.length, 1, 'only Jelle has a level up');
 assert.match(m[0].embed.description, /\*\*Aa\*\* · ⬆️ level 12 → \*\*14\*\* · 📜 \+12 quests · ⚔️ \+85 kills · 💀 \+1 death · 🔨 Mining 75 → \*\*80\*\*/);
 assert.ok(!/Herbalism/.test(m[0].embed.description), 'a skill that did not change is not shown');
 // the numbers of the player with the message are remembered after posting; those without news right away
-assert.deepEqual(m[0].commit.snaps.find((x) => x.key === 'aa'), { key: 'aa', level: 14, quests: 112, kills: 885, deaths: 4, skills: { Mining: 80, Herbalism: 40 }, gear: null });
+assert.deepEqual(m[0].commit.snaps.find((x) => x.key === 'aa'), { key: 'aa', level: 14, quests: 112, kills: 885, deaths: 4, camps: null, xp: null, skills: { Mining: 80, Herbalism: 40 }, gear: null });
 assert.deepEqual(r.quietSnaps.map((x) => x.key), ['bb']);
 // a character with only an alt that played (no level up): other characters of the player show up in the same recap
 r = run([withStats('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3 }, { Mining: 75, Herbalism: 40 }), withStats('Cc', 'Jelle', 8, { quests: 30, kills: 90, deaths: 2 }, {}, 'Alt'), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], { ...snapPrev(), levels: new Map([['aa', 12], ['bb', 30], ['cc', 8]]), snaps: new Map([...snapPrev().snaps, ['cc', { quests: 20, kills: 60, deaths: 2, skills: {} }]]) });
@@ -156,5 +156,35 @@ assert.deepEqual(r.messages[0].commit.snaps.find((x) => x.key === 'aa').gear, [1
 const g2 = characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [], status: 'Main' }, { status: 'ok', level: 22, stats: {}, equipment: [{ slot: 'HEAD', id: 5, name: 'Cap', quality: 2 }] });
 assert.deepEqual(g2.gear, [{ id: 5, name: 'Cap' }]);
 assert.equal(characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [], status: 'Main' }, { status: 'ok', level: 22, equipment: [] }).gear, null);
+
+// 12. campfires and XP per session (XP = the levels completed in between + the XP inside the level; a counter the earlier snapshot did not have shows nothing yet)
+assert.equal(totalXp(1, 0), 0); assert.equal(totalXp(2, 100), 500); assert.equal(totalXp(19, 3427), XP_TO_NEXT.slice(0, 18).reduce((x, y) => x + y, 0) + 3427);
+assert.equal(totalXp(null, 5), null); assert.equal(totalXp(10, null), null);
+const lvXp = (name, player, level, stats, xp, status = 'Main') => ({ ...withStats(name, player, level, stats, {}, status), xp });
+const xpPrev = () => ({ ...prev(), snaps: new Map([['aa', { quests: 100, kills: 800, deaths: 3, camps: 4, xp: totalXp(12, 5000), skills: {}, gear: null }], ['cc', { quests: 20, kills: 60, deaths: 2, camps: 0, xp: totalXp(8, 100), skills: {}, gear: null }]]), levels: new Map([['aa', 12], ['bb', 30], ['cc', 8]]) });
+// level up from 12 to 14 and 2 more campfires: XP left in level 12, all of level 13 + the 700 into level 14, that is (10100 - 5000) + 11400 + 700
+r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 6 }, 700), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], xpPrev());
+m = r.messages.filter((x) => x.kind === 'player');
+assert.match(m[0].embed.description, /\*\*Aa\*\* · ⬆️ level 12 → \*\*14\*\* · 🔥 \+2 campfires · ✨ \+17,200 XP/);
+assert.ok(!/Total this session/.test(m[0].embed.description), 'one character with XP: no extra total line');
+assert.equal(m[0].commit.snaps.find((x) => x.key === 'aa').camps, 6);
+assert.equal(m[0].commit.snaps.find((x) => x.key === 'aa').xp, totalXp(14, 700));
+// two characters with XP: a total line; one campfire is singular
+r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 5 }, 700), lvXp('Cc', 'Jelle', 8, { quests: 20, kills: 60, deaths: 2, camps: 0 }, 1100, 'Alt')], [], xpPrev());
+m = r.messages.filter((x) => x.kind === 'player');
+assert.match(m[0].embed.description, /🔥 \+1 campfire · /);
+assert.match(m[0].embed.description, /\*\*Cc\*\* · ✨ \+1,000 XP/);
+assert.match(m[0].embed.description, /✨ \*\*Total this session: \+18,200 XP\*\*/);
+// no campfire / XP numbers in the earlier snapshot (first run with this feature): nothing shown, but remembered
+r = run([lvXp('Aa', 'Jelle', 14, { quests: 112, kills: 800, deaths: 3, camps: 9 }, 700)], [], snapPrev());
+m = r.messages.filter((x) => x.kind === 'player');
+assert.ok(!/🔥|✨/.test(m[0].embed.description));
+assert.equal(m[0].commit.snaps[0].camps, 9); assert.equal(m[0].commit.snaps[0].xp, totalXp(14, 700));
+// a failed call (no XP this time) keeps the earlier XP, a character without XP in the API is not compared
+r = run([withStats('Aa', 'Jelle', 14, { quests: 101, kills: 800, deaths: 3, camps: 4 }, {})], [], xpPrev());
+assert.equal(r.messages.filter((x) => x.kind === 'player')[0].commit.snaps[0].xp, totalXp(12, 5000));
+// characterFrom hands over the XP of the API
+assert.equal(characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [], status: 'Main' }, { status: 'ok', level: 22, xp: 321, stats: {} }).xp, 321);
+assert.equal(characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, professions: [], status: 'Main' }, null).xp, null);
 
 console.log('Ding Dinky tests: all passed');
