@@ -1124,3 +1124,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Records tab: legend for rankings and professions$q$, $q$Achievements$q$, 'check',
   $q$Achievements > Records: Rankings (Levels / In the game / Guild) and Best per profession (Professions / Secondary) now work like Fun records: click a legend button and the ranking with Guild total shows on the right. Empty ones are dimmed. Check on a phone (panel above the legend) and that the /train button has a small train icon, not an airplane.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Records tab: legend for rankings and professions$q$);
+
+-- 2026-11-07: Records moved to Overview: one block with categories, stats and a panel (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Overview: all stats in one explorer$q$, $q$Overview$q$, 'check',
+  $q$Guild > Overview: totals on top, then category buttons (Levels, In the game, Gold, Fun, Roles, Classes, Races, Professions, Level brackets). Click a category: the legend shows the stats; click a stat: the ranking shows on the right. Roles/Classes/Races/Professions/Level brackets: Mains / Mains + Alts filter and Show as table work, and also have Kills, Quests, Deaths, Fish per group. Achievements now only has the tree (no Records tab). Check on a phone too.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Overview: all stats in one explorer$q$);

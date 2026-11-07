@@ -13,108 +13,338 @@
 <link rel="stylesheet" href="css/style.css?v=__V__">
 </head>
 <body>
+<body>
 <main>
   <section class="page-head"><div>
     <h1>Guild overview</h1>
-    <p class="muted">The guild in one chart: group by role, class, race, profession or level.</p>
+    <p class="muted" id="intro">Everything we keep track of, in one place: pick a category, then a stat. Characters with the status Quit don't count.</p>
   </div></section>
-  <section class="box" aria-label="Guild overview">
-        <div class="chart-filters">
-      <label>Group by<select id="ov-group">
-        <option value="role">Role</option><option value="cls">Class</option><option value="race">Race</option>
-        <option value="prof">Profession</option><option value="bracket">Level bracket</option></select></label>
-      <label>Show<select id="ov-measure">
-        <option value="n">Number of characters</option><option value="avg">Average level</option><option value="max">Highest level</option></select></label>
+  <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
+  <div class="explorer" id="explorer">
+    <nav class="cat-tabs" id="cat-tabs" aria-label="Categories"></nav>
+    <div class="explorer-tools" id="tools" hidden>
       <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
       <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
     </div>
-    <p class="muted" id="ov-caption" style="margin:0;font-size:13px"></p>
-    <div id="overview" class="bars" aria-live="polite"><p class="muted">Loading…</p></div>
-    <div id="ov-tip" class="chart-tip" role="tooltip" hidden></div>
-  </section>
+    <div class="fun" id="stats">
+      <nav class="box fun-legend" id="stats-legend" aria-label="Stats in this category"></nav>
+      <div class="fun-panel" id="stats-panel" aria-live="polite"></div>
+    </div>
+  </div>
+  <section class="box" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
 </main>
+<style>
+  .sub { font-size: 13px; margin-top: 2px; }
+  /* Ranked list: rank | name | value, so every row lines up */
+  .board { list-style: none; margin: 0; padding: 0; counter-reset: rank; display: flex; flex-direction: column; }
+  .board li { counter-increment: rank; display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--border); }
+  .board li:first-child { border-top: none; }
+  .board li::before { content: counter(rank); text-align: right; color: var(--gold); font-family: var(--font-display); font-weight: 700; }
+  .board li:first-child .who-name > a { font-weight: 700; }
+  .board .val { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
+  .board li.empty { display: block; }
+  /* Records: a bar behind every row shows how far it is from the leader; the top three get a medal colour */
+  .board li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 15%, transparent) calc(var(--p) * 100%), transparent 0); border-radius: 4px; padding-left: 4px; padding-right: 8px; }
+  #rec-totals { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  #trivia-box { margin-bottom: 12px; }
+  .board li:not(.empty):nth-child(1)::before { color: var(--gold-bright); text-shadow: 0 0 10px var(--gold); font-size: 1.15em; }
+  .board li:not(.empty):nth-child(2)::before { color: var(--text); }
+  .board li:not(.empty):nth-child(3)::before { color: var(--gold-dim); }
+  .board li:nth-child(1) .val { color: var(--gold-bright); text-shadow: 0 0 10px color-mix(in srgb, var(--gold) 55%, transparent); }
+  .rec-glyph { margin-right: 6px; opacity: .9; }
+  .board-shame li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--crimson, var(--gold)) 22%, transparent) calc(var(--p) * 100%), transparent 0); }
+  /* Fun records: a legend of buttons (grouped) and the ranking of the chosen one next to it */
+  .fun { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: 14px; align-items: start; margin-bottom: 14px; }
+  .fun-legend { display: flex; flex-direction: column; gap: 4px; }
+  .fun-legend h3 { margin: 10px 0 2px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dim); font-family: var(--font-display); }
+  .fun-legend h3:first-child { margin-top: 0; }
+  .fun-chip { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 7px 10px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; }
+  .fun-chip:hover:not(:disabled) { border-color: var(--gold-dim); background: color-mix(in srgb, var(--gold) 8%, transparent); }
+  .fun-chip[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 25%, transparent); }
+  .fun-chip:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+  .fun-chip:disabled { opacity: .45; cursor: default; }
+  .fun-chip .rec-glyph { margin: 0; text-align: center; color: var(--gold); display: inline-flex; justify-content: center; }
+  .fun-chip .chip-name { display: flex; flex-direction: column; min-width: 0; }
+  .fun-chip .chip-lead { font-size: 12px; color: var(--muted, var(--text)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fun-chip .chip-val { font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
+  .fun-total { margin: 0 0 6px; font-size: 13px; }
+  .fun-panel { position: sticky; top: 16px; }
+  @media (max-width: 800px) { .fun { grid-template-columns: minmax(0, 1fr); } .fun-panel { position: static; order: -1; scroll-margin-top: 12px; } .fun-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); } .fun-legend h3 { grid-column: 1 / -1; } }
+  .trivia { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+
+  /* Overview explorer: category pills on top, then legend + panel */
+  .explorer { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+  .cat-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cat-chip { background: var(--panel); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 8px 16px; min-height: 40px; font: inherit; font-weight: 600; cursor: pointer; }
+  .cat-chip:hover:not(:disabled) { color: var(--text); border-color: var(--gold-dim); }
+  .cat-chip[aria-pressed="true"] { background: var(--panel-3); color: var(--gold-bright); border-color: var(--gold); }
+  .cat-chip:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+  .cat-chip:disabled { opacity: .45; cursor: default; }
+  .explorer-tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .explorer-tools label { flex: 0 1 220px; }
+  .explorer-tools[hidden] { display: none; }
+  .cls-label { display: inline-flex; align-items: center; gap: 6px; }
+  .fun-panel .simple-table { width: 100%; }
+</style>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
-import { loadMembers, esc } from './js/sheet.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
+import { supabase } from './js/supabase.js?v=__V__';
+import { goldHtml } from './js/gold.js?v=__V__';
+import { professionIcon } from './js/proficons.js?v=__V__';
+import { classIcon, classColor } from './js/classicons.js?v=__V__';
+import { LAUNCH } from './js/releases.js?v=__V__';
+import { loadCharacters, loadBlizzard, gameTotals, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
 
 await renderHeader();
-const all = await loadMembers().catch(() => []);
-const mains = all.filter((m) => m.status === 'Main');
-const active = all.filter((m) => m.status !== 'Gestopt');
+const [{ characters }, blizzard] = await Promise.all([loadCharacters().catch(() => ({ characters: [] })), loadBlizzard()]);
+const { data: donationRows } = supabase ? await supabase.from('gold_donations').select('player_name,copper,created_at') : { data: [] };
+const donations = (donationRows ?? []).filter((d) => d.created_at >= LAUNCH); // counted from the launch, like Top donors on the Bank page
+const active = characters.filter((c) => c.status !== 'Gestopt' && c.hasName);
+const top = 10;
+const n = (v) => Number(v).toLocaleString('en-GB');
+const who = (c) => `<span class="who-name"><a href="${characterUrl(c.name)}">${esc(c.name)}</a>${c.player ? `<span class="who-sub"><a href="${playerUrl(c.player)}">${esc(c.player)}</a></span>` : ''}</span>`;
+const link = (p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`;
+const empty = '<li class="muted empty">No data yet.</li>';
+const row = (who, val, p) => `<li${p === undefined ? '' : ` style="--p:${p.toFixed(3)}"`}><span class="who">${who}</span><span class="val">${val}</span></li>`;
+// list = [{ label (html), name (plain), value (number), text (what is shown) }]; the bar is relative to the biggest value
+const rows = (list) => { const max = Math.max(0, ...list.map((r) => r.value)); return list.map((r) => row(r.label, r.text ?? n(r.value), max ? r.value / max : 0)).join('') || empty; };
+const board = (glyph, title, sub, list, cls = '') => `<section class="box"><div><h2><span class="rec-glyph" aria-hidden="true">${glyph}</span>${title}</h2><p class="muted sub">${sub}</p></div><ol class="board ${cls}">${rows(list)}</ol></section>`;
 
-// Guild overview: one bar chart, with filters (group by / measure / which characters)
-const PROF_KEYS = (m) => [m.prof1, m.prof2, ...[['Cooking', m.cooking], ['First Aid', m.firstAid], ['Fishing', m.fishing]].filter(([, v]) => Number(v) > 0).map(([k]) => k)];
-const skillOf = (m, prof) => ({ [m.prof1]: m.skill1, [m.prof2]: m.skill2, Cooking: m.cooking, 'First Aid': m.firstAid, Fishing: m.fishing })[prof];
+// ---- data ------------------------------------------------------------------------------------------------
+const byPlayer = {};
+for (const c of active.filter((x) => x.player)) (byPlayer[c.player] ??= []).push(c);
+const playerStats = Object.entries(byPlayer).map(([p, cs]) => ({ p, ...statsFor(cs), game: gameTotals(cs, blizzard) }));
+const withGame = playerStats.filter((s) => s.game.known);
+const byGame = (key) => withGame.filter((s) => s.game[key] > 0).sort((a, b) => b.game[key] - a.game[key]).map((s) => ({ label: link(s.p), name: s.p, value: s.game[key] }));
+const byFun = (fn) => withGame.map((s) => ({ s, v: fn(s.game) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.s.p), value: x.v, name: x.s.p }));
+const donated = {};
+for (const d of donations) donated[d.player_name] = (donated[d.player_name] ?? 0) + Number(d.copper);
+const charGame = new Map(active.map((c) => [c, gameTotals([c], blizzard)])); // the game's numbers per character (for roles, classes, races ...)
+
+// Totals of the guild
+const all = gameTotals(active, blizzard);
+const tile = (label, value) => `<div class="box stat"><span class="muted">${label}</span><strong>${value}</strong></div>`;
+const totalDonated = Object.values(donated).reduce((a, b) => a + b, 0);
+document.getElementById('rec-totals').innerHTML = [
+  tile('Kills', all.known ? n(all.kills) : '–'), tile('Quests completed', all.known ? n(all.quests) : '–'),
+  tile('Deaths', all.known ? n(all.deaths) : '–'), tile('Fish caught', all.known ? n(all.fish) : '–'),
+  tile('Campfires', all.known && all.camps ? n(all.camps) : '–'), tile('Critters killed', all.known && all.critters ? n(all.critters) : '–'),
+  tile('Gold donated', totalDonated ? goldHtml(totalDonated) : '–'), tile('Characters', n(active.length)),
+].join('');
+
+// Our own little steam locomotive (drawn in the colour of the text around it, like the other glyphs)
+const TRAIN_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="6.6" cy="3.4" r="1.3" opacity=".55"/><circle cx="9.6" cy="2" r="1" opacity=".35"/><rect x="4.2" y="5.2" width="4.4" height="1.5" rx=".6"/><rect x="5.2" y="6.4" width="2.4" height="4"/><rect x="3" y="10" width="10.5" height="6.2" rx="1.2"/><rect x="13.5" y="7" width="7.5" height="9.2" rx="1"/><rect x="15.4" y="9" width="3.7" height="3.3" rx=".5" fill="var(--panel, #1c1a26)"/><rect x="1.8" y="16" width="20.4" height="1.6" rx=".6"/><circle cx="6.5" cy="19.4" r="2.3"/><circle cx="12" cy="19.4" r="2.3"/><circle cx="17.7" cy="19.4" r="2.3"/></svg>';
+
+// ---- groups: roles, classes, races, professions, level brackets (these follow the Mains / Mains + Alts filter) ----
 const BRACKETS = [[1, 9], [10, 19], [20, 29], [30, 39], [40, 49], [50, 59], [60, 60]];
-const bracketOf = (m) => { const l = Number(m.level); const b = BRACKETS.find(([lo, hi]) => l >= lo && l <= hi); return b ? (b[0] === b[1] ? `${b[0]}` : `${b[0]}–${b[1]}`) : null; };
-const KEY = { role: (m) => m.role, cls: (m) => m.cls, race: (m) => m.race, prof: PROF_KEYS, bracket: bracketOf };
-const ov = { group: document.getElementById('ov-group'), measure: document.getElementById('ov-measure'), who: document.getElementById('ov-who'), view: document.getElementById('ov-view') };
-const tip = document.getElementById('ov-tip');
-let ovRows = [];
-
-function overviewData() {
-  const isProf = ov.group.value === 'prof';
-  const list = ov.who.value === 'all' ? active : mains;
+const bracketOf = (c) => BRACKETS.find(([lo, hi]) => c.level >= lo && c.level <= hi);
+const clsLabel = (name) => `<span class="cls-label">${classIcon(name, 18)}<span style="color:${classColor(name)}">${esc(name)}</span></span>`;
+const GROUPS = {
+  roles: { name: 'Roles', unit: 'role', plural: 'roles', measure: 'level', keys: (c) => [c.role], label: esc },
+  classes: { name: 'Classes', unit: 'class', plural: 'classes', measure: 'level', keys: (c) => [c.class], label: clsLabel },
+  races: { name: 'Races', unit: 'race', plural: 'races', measure: 'level', keys: (c) => [c.race], label: esc },
+  brackets: { name: 'Level brackets', unit: 'bracket', plural: 'brackets', measure: 'level', keys: (c) => { const b = bracketOf(c); return b ? [b[0] === b[1] ? `${b[0]}` : `${b[0]}–${b[1]}`] : []; }, label: (k) => `Level ${esc(k)}`, ordered: true },
+  profs: { name: 'Professions', unit: 'profession', plural: 'professions', measure: 'skill', game: false,
+    keys: (c) => c.profs.filter((p) => !SECONDARY.includes(p.name) || p.skill > 0).map((p) => p.name), label: (k) => `<span class="cls-label">${professionIcon(k, 16)}${esc(k)}</span>`,
+    level: (c, k) => c.profs.find((p) => p.name === k)?.skill },
+};
+function groupRows(cfg, list) {
   const g = {};
-  for (const m of list) for (const k of [].concat(KEY[ov.group.value](m))) {
+  for (const c of list) for (const k of cfg.keys(c)) {
     if (!k) continue;
-    const e = (g[k] ??= { name: k, n: 0, vals: [] });
+    const e = (g[k] ??= { name: k, label: cfg.label(k), n: 0, vals: [], kills: 0, quests: 0, deaths: 0, fish: 0 });
     e.n += 1;
-    const v = Number(isProf ? skillOf(m, k) : m.level);
+    const v = Number(cfg.level ? cfg.level(c, k) : c.level);
     if (v > 0) e.vals.push(v);
+    const gt = charGame.get(c);
+    for (const f of ['kills', 'quests', 'deaths', 'fish']) e[f] += gt?.[f] ?? 0;
   }
-  const rows = Object.values(g).map((e) => ({ ...e, avg: e.vals.length ? Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length) : 0, max: e.vals.length ? Math.max(...e.vals) : 0 }));
-  const m = ov.measure.value;
-  const order = ov.group.value === 'bracket' ? (a, b) => parseInt(a.name, 10) - parseInt(b.name, 10) : (a, b) => b[m] - a[m] || a.name.localeCompare(b.name);
-  return rows.sort(order);
+  const out = Object.values(g).map((e) => ({ ...e, avg: e.vals.length ? Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length) : 0, max: e.vals.length ? Math.max(...e.vals) : 0, ord: parseInt(e.name, 10) }));
+  return out;
+}
+// the stats of one group category: Overview (characters, average, highest) + In the game (kills ...)
+function groupGroups(cfg, list) {
+  const rs = groupRows(cfg, list);
+  const m = cfg.measure;
+  const item = (key, glyph, name, sub, field, o = {}) => ({
+    key, glyph, title: o.title ?? name, name, sub, unit: cfg.unit, plural: cfg.plural, grouped: true, all: true, cls: o.cls ?? '', total: o.total,
+    list: rs.filter((r) => r[field] > 0).sort(cfg.ordered ? (a, b) => a.ord - b.ord : (a, b) => b[field] - a[field] || a.name.localeCompare(b.name))
+      .map((r) => ({ label: r.label, name: cfg.ordered ? `Level ${r.name}` : r.name, value: r[field] })),
+  });
+  const out = [['Overview', [
+    item('n', '&#9823;', 'Characters', `Number of characters per ${cfg.unit}`, 'n', { title: `Characters per ${cfg.unit}`, total: n }),
+    item('avg', '&#9670;', `Average ${m}`, `Average ${m} per ${cfg.unit}`, 'avg'),
+    item('max', '&#9650;', `Highest ${m}`, `Highest ${m} per ${cfg.unit}`, 'max'),
+  ]]];
+  if (cfg.game !== false) out.push(['In the game', [
+    item('kills', '&#9876;', 'Kills', `Kills per ${cfg.unit}`, 'kills', { total: n }),
+    item('quests', '&#10070;', 'Quests completed', `Quests completed per ${cfg.unit}`, 'quests', { total: n }),
+    item('deaths', '&#9760;', 'Deaths', `Deaths per ${cfg.unit}`, 'deaths', { total: n, cls: 'board-shame' }),
+    item('fish', '&#9672;', 'Fish caught', `Fish caught per ${cfg.unit}`, 'fish', { total: n }),
+  ]]);
+  return out;
+}
+// the same numbers as one table
+function groupTable(cfg, list) {
+  let rs = groupRows(cfg, list);
+  rs = cfg.ordered ? rs.sort((a, b) => a.ord - b.ord) : rs.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+  const m = cfg.measure === 'skill' ? 'skill' : 'level';
+  const gameCols = cfg.game !== false && rs.some((r) => r.kills || r.quests || r.deaths || r.fish);
+  const head = [cfg.unit[0].toUpperCase() + cfg.unit.slice(1), 'Characters', `Average ${m}`, `Highest ${m}`, ...(gameCols ? ['Kills', 'Quests', 'Deaths', 'Fish'] : [])];
+  return `<section class="box"><div style="overflow-x:auto"><table class="simple-table"><thead><tr>${head.map((h, i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>
+    ${rs.map((r) => `<tr><td>${r.label}</td><td class="num">${r.n}</td><td class="num">${r.avg || '–'}</td><td class="num">${r.max || '–'}</td>${gameCols ? [r.kills, r.quests, r.deaths, r.fish].map((v) => `<td class="num">${v ? n(v) : '–'}</td>`).join('') : ''}</tr>`).join('')}</tbody></table></div></section>`;
 }
 
-function drawOverview() {
-  const isProf = ov.group.value === 'prof';
-  const unit = isProf ? 'skill' : 'level';
-  // measure labels follow the group: professions measure skill, the rest level
-  [...ov.measure.options].forEach((o) => { o.textContent = { n: 'Number of characters', avg: `Average ${unit}`, max: `Highest ${unit}` }[o.value]; });
-  const m = ov.measure.value;
-  ovRows = overviewData();
-  const cap = isProf ? 300 : 60;
-  const max = m === 'n' ? Math.max(1, ...ovRows.map((r) => r.n)) : cap;
-  document.getElementById('ov-caption').textContent = `${ov.measure.selectedOptions[0].textContent} per ${ov.group.selectedOptions[0].textContent.toLowerCase()} · ${ov.who.value === 'all' ? 'Mains and Alts' : 'Main characters'}${m === 'n' ? '' : ` · scale 0–${cap}`}`;
-  const el = document.getElementById('overview');
-  if (!all.length) { el.innerHTML = '<p class="muted">Could not read the characters.</p>'; return; }
-  if (!ovRows.length) { el.innerHTML = '<p class="muted">Nothing to show yet.</p>'; return; }
-  if (ov.view.getAttribute('aria-pressed') === 'true') {
-    el.innerHTML = `<table class="simple-table"><thead><tr><th>${esc(ov.group.selectedOptions[0].textContent)}</th><th class="num">Characters</th><th class="num">Average ${unit}</th><th class="num">Highest ${unit}</th></tr></thead><tbody>
-      ${ovRows.map((r) => `<tr><td>${esc(r.name)}</td><td class="num">${r.n}</td><td class="num">${r.avg || '–'}</td><td class="num">${r.max || '–'}</td></tr>`).join('')}</tbody></table>`;
-    return;
-  }
-  el.innerHTML = ovRows.map((r, i) => `<div class="bar-row" tabindex="0" data-i="${i}" aria-label="${esc(r.name)}: ${r[m]}">
-      <span class="bar-label">${esc(r.name)}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0, (r[m] / max) * 100)}%"></div></div>
-      <span class="bar-value">${r[m] || '–'}</span></div>`).join('');
-}
-function showTip(row, x, y) {
-  const r = ovRows[row.dataset.i];
-  const unit = ov.group.value === 'prof' ? 'skill' : 'level';
-  tip.innerHTML = `<strong>${esc(r.name)}</strong><br>${r.n} character${r.n === 1 ? '' : 's'}<br>Average ${unit}: ${r.avg || '–'}<br>Highest ${unit}: ${r.max || '–'}`;
-  tip.hidden = false;
-  tip.style.left = `${Math.min(x + 14, window.innerWidth - tip.offsetWidth - 8)}px`;
-  tip.style.top = `${y + 14}px`;
-}
-const chart = document.getElementById('overview');
-chart.addEventListener('mousemove', (e) => { const row = e.target.closest('.bar-row'); if (row) showTip(row, e.clientX, e.clientY); else tip.hidden = true; });
-chart.addEventListener('mouseleave', () => { tip.hidden = true; });
-chart.addEventListener('focusin', (e) => { const row = e.target.closest('.bar-row'); if (row) { const b = row.getBoundingClientRect(); showTip(row, b.left + 160, b.top); } });
-chart.addEventListener('focusout', () => { tip.hidden = true; });
-[ov.group, ov.measure, ov.who].forEach((c) => c.addEventListener('change', drawOverview));
-ov.view.addEventListener('click', () => {
-  const on = ov.view.getAttribute('aria-pressed') !== 'true';
-  ov.view.setAttribute('aria-pressed', String(on));
-  ov.view.textContent = on ? 'Show as chart' : 'Show as table';
-  tip.hidden = true;
-  drawOverview();
+// ---- the categories --------------------------------------------------------------------------------------
+const FUN = [
+  ['In the wild', [
+    ['camps', '&#9832;', 'Campfire kings', 'Campfires', 'Most times camped (campfires lit)', (g) => g.camps],
+    ['critters', '&#10047;', 'Critter killers', 'Critters killed', 'Most rabbits, squirrels and other critters killed', (g) => g.critters],
+  ]],
+  ['Deaths', [
+    ['fall', '&#8595;', 'Gravity victims', 'Falling', 'Most deaths from falling', (g) => g.fallDeaths, 'board-shame'],
+    ['drown', '&#8776;', 'Drowned rats', 'Drowning', 'Most deaths from drowning', (g) => g.drownDeaths, 'board-shame'],
+    ['fire', '&#9788;', 'Hot feet', 'Fire and lava', 'Most deaths from fire and lava', (g) => g.fireDeaths, 'board-shame'],
+    ['fatigue', '&#9790;', 'Sleepyheads', 'Fatigue', 'Most deaths from fatigue', (g) => g.fatigueDeaths, 'board-shame'],
+  ]],
+  ['Emotes', [
+    ['train', TRAIN_ICON, 'Choo choo', '/train', 'Most times /train', (g) => g.train],
+    ['hugs', '&#9825;', 'Huggers', 'Hugs', 'Most hugs', (g) => g.hugs],
+    ['facepalms', '&#9786;', 'Facepalm champions', 'Facepalms', 'Most facepalms', (g) => g.facepalms],
+    ['violin', '&#9835;', 'Tiny violins', 'Tiny violin', 'Most times playing the world\'s smallest violin', (g) => g.violin],
+    ['laughs', '&#9787;', 'Laughing out loud', 'LOL', 'Most times LOL\'d', (g) => g.laughs],
+    ['cheers', '&#10022;', 'Cheerleaders', 'Cheers', 'Most cheers', (g) => g.cheers],
+    ['waves', '&#9995;', 'Friendly wavers', 'Waves', 'Most waves', (g) => g.waves],
+  ]],
+  ['Supplies', [
+    ['potions', '&#9879;', 'Potion addicts', 'Potions and elixirs', 'Most health, mana and other potions and elixirs', (g) => g.healthPotions + g.manaPotions + g.elixirs],
+    ['bandages', '&#10010;', 'Bandage medics', 'Bandages', 'Most bandages used', (g) => g.bandages],
+    ['food', '&#9830;', 'Big eaters', 'Food', 'Most food eaten', (g) => g.food],
+    ['drinks', '&#9749;', 'Thirsty ones', 'Drinks', 'Most beverages consumed', (g) => g.drinks],
+  ]],
+].map(([group, items]) => [group, items.map(([key, glyph, title, name, sub, fn, cls]) => ({ key, glyph, title, name, sub, cls: cls ?? '', list: byFun(fn), total: n }))]);
+
+const profNames = [...new Set(active.flatMap((c) => c.profs.map((p) => p.name)))]
+  .sort((a, b) => (SECONDARY.includes(a) - SECONDARY.includes(b)) || a.localeCompare(b));
+const profItem = (pn) => ({
+  key: `p-${pn}`, glyph: professionIcon(pn, 18), title: pn, name: pn, sub: `Highest ${pn} skill`, unit: 'character',
+  list: active.map((c) => ({ c, skill: c.profs.find((p) => p.name === pn)?.skill })).filter((r) => r.skill !== null && r.skill !== undefined)
+    .sort((a, b) => b.skill - a.skill).map((r) => ({ label: who(r.c), name: r.c.name, value: r.skill })),
 });
-drawOverview();
 
+// Built again when the Mains / Mains + Alts filter changes
+function buildCategories(whoFilter) {
+  const list = whoFilter === 'all' ? active : active.filter((c) => c.status === 'Main');
+  const grp = (key) => ({ key, name: GROUPS[key].name, groups: groupGroups(GROUPS[key], list), table: () => groupTable(GROUPS[key], list) });
+  const profs = grp('profs');
+  profs.groups = [...profs.groups, ['Best per profession', profNames.filter((pn) => !SECONDARY.includes(pn)).map(profItem)], ['Secondary', profNames.filter((pn) => SECONDARY.includes(pn)).map(profItem)]];
+  return [
+    { key: 'levels', name: 'Levels', groups: [['Levels', [
+      { key: 'level', glyph: '&#9876;', title: 'Highest level', name: 'Highest level', sub: 'Single characters', unit: 'character',
+        list: active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).slice(0, top).map((c) => ({ label: who(c), name: c.name, value: c.level, text: `level ${c.level}` })) },
+      { key: 'player-level', glyph: '&#10070;', title: 'Player level', name: 'Player level', sub: 'All characters added together',
+        list: playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel)
+          .map((s) => ({ label: `${link(s.p)} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, name: s.p, value: s.totalLevel })) },
+      { key: 'skill', glyph: '&#9874;', title: 'Profession skill', name: 'Profession skill', sub: 'Total per player',
+        list: playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).map((s) => ({ label: link(s.p), name: s.p, value: s.totalSkill })) },
+    ]]] },
+    { key: 'game', name: 'In the game', groups: [['In the game', [
+      { key: 'kills', glyph: '&#9876;', title: 'Slayers', name: 'Kills', sub: 'Most kills, all characters', total: n, list: byGame('kills') },
+      { key: 'quests', glyph: '&#10070;', title: 'Quest masters', name: 'Quests completed', sub: 'Most quests completed', total: n, list: byGame('quests') },
+      { key: 'deaths', glyph: '&#9760;', title: 'Graveyard regulars', name: 'Deaths', sub: 'Most deaths: the Hall of Shame', cls: 'board-shame', total: n, list: byGame('deaths') },
+      { key: 'fish', glyph: '&#9672;', title: 'Big fish', name: 'Fish caught', sub: 'Most fish caught', total: n, list: byGame('fish') },
+    ]]] },
+    { key: 'gold', name: 'Gold', groups: [['Guild bank', [
+      { key: 'gold', glyph: '&#9733;', title: 'Generous souls', name: 'Gold donated', sub: 'Most gold donated to the guild bank', total: goldHtml,
+        list: Object.entries(donated).sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ label: link(p), name: p, value: c, text: goldHtml(c) })) },
+    ]]] },
+    { key: 'fun', name: 'Fun', groups: FUN },
+    grp('roles'), grp('classes'), grp('races'), profs, grp('brackets'),
+  ].map((c) => ({ ...c, groups: c.groups.map(([g, items]) => [g, items.map((f) => ({ ...f, list: f.list.slice(0, f.all ? undefined : top) }))]) }));
+}
+
+// ---- the explorer: category pills, legend of the stats, panel of the chosen stat ----------------------------
+const tabsEl = document.getElementById('cat-tabs');
+const legend = document.getElementById('stats-legend');
+const panel = document.getElementById('stats-panel');
+const tools = document.getElementById('tools');
+const whoSel = document.getElementById('ov-who');
+const viewBtn = document.getElementById('ov-view');
+const state = { who: 'main', cat: null, key: null, table: false };
+const memo = {}; // the stat chosen last in each category
+let cats = [];
+const itemsOf = (cat) => cat.groups.flatMap(([, items]) => items);
+const withData = (cat) => itemsOf(cat).filter((f) => f.list.length);
+const lead = (f) => f.list.reduce((a, r) => (r.value > a.value ? r : a), f.list[0]);
+const shown = (r) => r.text ?? n(r.value);
+
+function drawTabs() {
+  tabsEl.innerHTML = cats.map((c) => (withData(c).length
+    ? `<button type="button" class="cat-chip" data-cat="${c.key}" aria-pressed="${c.key === state.cat}">${esc(c.name)}</button>`
+    : `<button type="button" class="cat-chip" disabled title="Nobody has this yet">${esc(c.name)}</button>`)).join('');
+}
+function drawLegend() {
+  const cat = cats.find((c) => c.key === state.cat);
+  legend.setAttribute('aria-label', `${cat.name}: stats`);
+  legend.innerHTML = cat.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map((f) => {
+    if (!f.list.length) return `<button type="button" class="fun-chip" disabled title="Nobody has this yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`;
+    const l = lead(f);
+    return `<button type="button" class="fun-chip" data-key="${esc(f.key)}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(l.name)}</span></span><span class="chip-val">${shown(l)}</span></button>`;
+  }).join('')}`).join('');
+}
+function drawPanel() {
+  const cat = cats.find((c) => c.key === state.cat);
+  const f = withData(cat).find((x) => x.key === state.key) ?? withData(cat)[0];
+  state.key = f.key; memo[cat.key] = f.key;
+  legend.querySelectorAll('[data-key]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.key === f.key)));
+  tools.hidden = !f.grouped;
+  if (f.grouped && state.table) { panel.innerHTML = cat.table(); return; }
+  const unit = f.unit ?? 'player';
+  const count = f.list.length;
+  const line = `${f.total ? `Guild total: <b>${f.total(f.list.reduce((sum, r) => sum + r.value, 0))}</b> · ` : ''}${count} ${count === 1 ? unit : (f.plural ?? `${unit}s`)}`;
+  panel.innerHTML = board(f.glyph, f.title, f.sub, f.list, f.cls ?? '').replace('<ol class="board', `<p class="muted fun-total">${line}</p><ol class="board`);
+}
+function openCat(key) {
+  state.cat = key;
+  const cat = cats.find((c) => c.key === key);
+  state.key = memo[key] && withData(cat).some((f) => f.key === memo[key]) ? memo[key] : withData(cat)[0].key;
+  drawTabs(); drawLegend(); drawPanel();
+}
+function rebuild() {
+  cats = buildCategories(state.who);
+  const first = cats.find((c) => withData(c).length);
+  if (!first) { tabsEl.innerHTML = ''; legend.innerHTML = ''; panel.innerHTML = '<p class="muted">Nothing to show yet.</p>'; return; }
+  openCat(cats.some((c) => c.key === state.cat && withData(c).length) ? state.cat : first.key);
+}
+tabsEl.addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (b) openCat(b.dataset.cat); });
+legend.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-key]'); if (!b) return;
+  state.key = b.dataset.key; drawPanel();
+  // on a phone the ranking is above the legend: bring it into view after a click
+  if (matchMedia('(max-width: 800px)').matches) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+whoSel.addEventListener('change', () => { state.who = whoSel.value; rebuild(); });
+viewBtn.addEventListener('click', () => {
+  state.table = viewBtn.getAttribute('aria-pressed') !== 'true';
+  viewBtn.setAttribute('aria-pressed', String(state.table));
+  viewBtn.textContent = state.table ? 'Show as chart' : 'Show as table';
+  drawPanel();
+});
+if (!active.length) { panel.innerHTML = '<p class="muted">Could not read the characters.</p>'; tabsEl.hidden = true; legend.hidden = true; } else rebuild();
+
+// A few facts
+const facts = [];
+if (all.known && all.deaths > 0 && all.kills > 0) facts.push(`The guild has <b>${n(Math.round(all.kills / all.deaths))}</b> kills for every death.`);
+const careful = withGame.filter((s) => s.game.deaths > 0 && s.game.kills >= 50).sort((a, b) => b.game.kills / b.game.deaths - a.game.kills / a.game.deaths)[0];
+if (careful) facts.push(`${link(careful.p)} is the most careful: <b>${n(Math.round(careful.game.kills / careful.game.deaths))}</b> kills per death.`);
+const reckless = withGame.filter((s) => s.game.deaths > 0 && s.game.kills >= 50).sort((a, b) => a.game.kills / a.game.deaths - b.game.kills / b.game.deaths)[0];
+if (reckless && reckless.p !== careful?.p) facts.push(`${link(reckless.p)} lives on the edge: only <b>${n(Math.round(reckless.game.kills / reckless.game.deaths))}</b> kills per death.`);
+const mostAlts = playerStats.map((s) => ({ p: s.p, alts: byPlayer[s.p].filter((c) => c.status === 'Alt').length })).sort((a, b) => b.alts - a.alts)[0];
+if (mostAlts?.alts > 0) facts.push(`${link(mostAlts.p)} has the most alts: <b>${mostAlts.alts}</b>.`);
+document.getElementById('trivia').innerHTML = facts.map((f) => `<li>${f}</li>`).join('');
+document.getElementById('trivia-box').hidden = !facts.length;
 </script>
 </body>
 </html>
