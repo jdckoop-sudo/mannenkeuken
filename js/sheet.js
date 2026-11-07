@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js?v=__V__';
 
 // Characters (table characters) and the data from the game (Blizzard API). The file keeps its old name: nearly every page imports it.
-// Character data from the Blizzard API: the tables blizzard_characters + blizzard_update, filled every 15 minutes by the Edge Function
+// Character data from the Blizzard API: the tables blizzard_characters + blizzard_update, filled every 5 minutes by the Edge Function
 // supabase/functions/update-characters.
 // Result: { source, updated, ok, notFound, errors, message, characters }, or null when there is no data. Entries are keyed by the lowercase character name.
 async function blizzardFromDatabase() {

@@ -1,8 +1,8 @@
 // Supabase Edge Function "update-characters": reads the characters of the guild from the Blizzard API and stores them in the
-// tables blizzard_characters + blizzard_update. Started every 15 minutes by pg_cron (see supabase/schema.sql); the site reads the
+// tables blizzard_characters + blizzard_update. Started every 5 minutes by pg_cron (see supabase/schema.sql); the site reads the
 // tables with loadBlizzard() in js/sheet.js, so new data needs no commit and no deploy.
 //
-// Setup and how to check it: docs/instructies.md, "Update characters: elke 15 minuten".
+// Setup and how to check it: docs/instructies.md, "Update characters: elke 5 minuten".
 // Function secrets (Edge Functions → Secrets), never in the repo:
 //   BLIZZARD_CLIENT_ID, BLIZZARD_CLIENT_SECRET   the Battle.net client
 //   UPDATE_CHARACTERS_SECRET                     long random text; the caller sends it as header x-update-secret

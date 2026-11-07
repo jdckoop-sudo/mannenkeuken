@@ -1,5 +1,5 @@
 // Supabase Edge Function "ding-bot" (the bot in Discord is called Ding Dinky): posts a "Ding!" in the Discord channel #dings when a player's character has gone up a level or a player
-// (or the whole guild) has earned an achievement of the dashboard. Started every 15 minutes by pg_cron (see supabase/schema.sql), a few
+// (or the whole guild) has earned an achievement of the dashboard. Started every 5 minutes by pg_cron (see supabase/schema.sql), a few
 // minutes after update-characters, because the level only changes after the character has logged out.
 //
 // Setup and how to check it: docs/instructies.md, "Ding-bot".
