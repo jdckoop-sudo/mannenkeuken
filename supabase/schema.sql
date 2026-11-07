@@ -716,7 +716,7 @@ select $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$, $q$Dev
   $q$Open 🕘 History of all fixes under the board: newest first, who + what + ticket + "now: phase" + time. Click a ticket name: the card opens. Do something to a ticket (take, done, edit): a new line appears on top.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$);
 
--- 2026-11-05: character data from the Blizzard API, every 15 minutes (GitHub's own schedule proved unreliable, and data in the repo meant a commit
+-- 2026-11-05: character data from the Blizzard API, every 15 minutes (every 5 minutes since 2026-11-07) (GitHub's own schedule proved unreliable, and data in the repo meant a commit
 -- + deploy per update). The Edge Function supabase/functions/update-characters writes these tables with the service key; the site only reads them
 -- (loadBlizzard() in js/sheet.js). blizzard_characters: one row per character, data = one entry per character.
 -- blizzard_update: one row with the last successful run (updated_at), its counts, and the last problem (message).
@@ -742,13 +742,13 @@ create policy "read all" on public.blizzard_update for select using (true);
 grant select on public.blizzard_characters, public.blizzard_update to anon, authenticated;
 grant all on public.blizzard_characters, public.blizzard_update to service_role;
 
--- The timer: every 15 minutes pg_cron calls the Edge Function. The secret comes from the Vault (never in this file), once, by a developer:
+-- The timer: every 5 minutes pg_cron calls the Edge Function. The secret comes from the Vault (never in this file), once, by a developer:
 --   select vault.create_secret('<the same text as the function secret UPDATE_CHARACTERS_SECRET>', 'update_characters_secret');
 -- To change it later:  select vault.update_secret((select id from vault.secrets where name = 'update_characters_secret'), '<new text>');
 -- See what it did:     select * from cron.job_run_details order by start_time desc limit 10;  select * from net._http_response order by created desc limit 10;
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
-select cron.schedule('update-characters', '*/15 * * * *', $job$
+select cron.schedule('update-characters', '*/5 * * * *', $job$
   select net.http_post(
     url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/update-characters',
     headers := jsonb_build_object('Content-Type', 'application/json',
@@ -759,13 +759,13 @@ select cron.schedule('update-characters', '*/15 * * * *', $job$
 $job$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
-select $q$Character data every 15 minutes (Supabase)$q$, $q$Characters$q$, 'check',
-  $q$After the setup: Checks → Blizzard characters shows "Updated" less than an hour ago and comes from the database. Log out in the game with a character of level 10+, wait up to 15 minutes, reload Members: the new level and skills are there, without a new commit or deploy.$q$, 'Claude'
-where not exists (select 1 from public.dev_checks where title = $q$Character data every 15 minutes (Supabase)$q$);
+select $q$Character data every 5 minutes (Supabase)$q$, $q$Characters$q$, 'check',
+  $q$After the setup: Checks → Blizzard characters shows "Updated" less than 30 minutes ago and comes from the database. Log out in the game with a character of level 10+, wait up to 5 minutes, reload Members: the new level and skills are there, without a new commit or deploy.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character data every 5 minutes (Supabase)$q$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Game statistics on Home and player pages$q$, $q$Characters$q$, 'check',
-  $q$After deploying the Edge Function update-characters again in Supabase: within 15 minutes Home shows Activity in the game (quests, kills, deaths, fish). Compare one player page with that character's in-game statistics, and check that the player pages add up to the guild total.$q$, 'Claude'
+  $q$After deploying the Edge Function update-characters again in Supabase: within 5 minutes Home shows Activity in the game (quests, kills, deaths, fish). Compare one player page with that character's in-game statistics, and check that the player pages add up to the guild total.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Game statistics on Home and player pages$q$);
 
 -- 2026-11-06: all characters in one table (this replaced the Google Sheet and the tables profiles, alts and main_characters).
@@ -868,9 +868,9 @@ select $q$Developer mode > Characters: edit and lock$q$, $q$Developer mode$q$, '
   $q$Characters tab shows what the site shows. Game fields (level, race, class, professions) are locked for characters the game knows; role, status, name and notes can be edited, for one of your own and for another player's. Saving works and the change shows on the site.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Developer mode > Characters: edit and lock$q$);
 insert into public.dev_checks (title, area, status, note, updated_by)
-select $q$Update characters every 15 minutes (Edge Function)$q$, $q$Characters$q$, 'check',
-  $q$Developer mode > Checks: the Blizzard data line is green and not older than about 15 minutes. Level, professions and last login change after a player logs out. If you changed supabase/functions/update-characters, deploy it in Supabase first.$q$, 'Claude'
-where not exists (select 1 from public.dev_checks where title = $q$Update characters every 15 minutes (Edge Function)$q$);
+select $q$Update characters every 5 minutes (Edge Function)$q$, $q$Characters$q$, 'check',
+  $q$Developer mode > Checks: the Blizzard data line is green and not older than about 10 minutes (orange after 30). Level, professions and last login change after a player logs out. If you changed supabase/functions/update-characters, deploy it in Supabase first.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Update characters every 5 minutes (Edge Function)$q$);
 
 -- 2026-11-06: achievement tree (achievements.html, js/achievements.js). The catalogue lives in the code; this table holds what the developers
 -- changed: switch an achievement off (player_name '' only), force it unlocked / locked, enter a value, or reset it (baseline = what the
@@ -964,10 +964,10 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
--- Every 15 minutes, a few minutes after update-characters (a level only changes after the character has logged out).
+-- Every 5 minutes, 2 minutes after update-characters (a level only changes after the character has logged out).
 -- Same secret as update-characters: the Vault secret update_characters_secret and the function secret UPDATE_CHARACTERS_SECRET.
 select cron.unschedule(jobid) from cron.job where jobname = 'ding-bot';
-select cron.schedule('ding-bot', '4-59/15 * * * *', $job$
+select cron.schedule('ding-bot', '2-59/5 * * * *', $job$
   select net.http_post(
     url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/ding-bot',
     headers := jsonb_build_object(
@@ -981,13 +981,13 @@ $job$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ding-bot: level ups and achievements in #dings$q$, $q$Discord$q$, 'check',
-  $q$After deploying the Edge Function ding-bot and setting DING_WEBHOOK_URL: select * from ding_status shows a run within 15 minutes (activated_at = first run, which posts nothing). Then let a character level up or earn an achievement: one message per player with an @mention, a link to Achievements with the new ones highlighted. A guild goal gives ONE @everyone message. ding_log lists what was posted.$q$, 'Claude'
+  $q$After deploying the Edge Function ding-bot and setting DING_WEBHOOK_URL: select * from ding_status shows a run within 5 minutes (activated_at = first run, which posts nothing). Then let a character level up or earn an achievement: one message per player with an @mention, a link to Achievements with the new ones highlighted. A guild goal gives ONE @everyone message. ding_log lists what was posted.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ding-bot: level ups and achievements in #dings$q$);
 
 -- 2026-11-06: Watch over Ding Dinky. The function can crash before it writes anything (it did: "Module not found"), so the check is done
--- here in the database: every 15 minutes, 7 minutes after the bot's own run, ding_watch() looks at ding_status. It is a problem when the
+-- here in the database: every 5 minutes, 2 minutes after the bot's own run, ding_watch() looks at ding_status. It is a problem when the
 -- last run ended with an error message (for example Discord refused a message) or when there has been no successful run for 35 minutes.
--- Then ONE open card appears in Fixes (made by "Ding Dinky watch", kept up to date, not repeated every 15 minutes); when the bot is fine
+-- Then ONE open card appears in Fixes (made by "Ding Dinky watch", kept up to date, not repeated every 5 minutes); when the bot is fine
 -- again the card is closed, unless a developer already picked it up (like the deploy check).
 create or replace function public.ding_watch() returns void
 language plpgsql security definer set search_path = public, extensions as $$
@@ -1003,7 +1003,7 @@ begin
     problem := case when problem = '' then '' else problem || E'\n\n' end
       || case when st.last_run_at is null then 'The function has never finished a run (the timer started on ' else 'No successful run since ' end
       || to_char(ref at time zone 'Europe/Amsterdam', 'DD-MM-YYYY HH24:MI') || case when st.last_run_at is null then ', Dutch time).' else ' (Dutch time).' end
-      || ' The timer starts one every 15 minutes.';
+      || ' The timer starts one every 5 minutes.';
   end if;
 
   select id into open_id from public.dev_tickets where kind = 'fix' and created_by = who and status in ('open', 'doing') order by created_at desc limit 1;
@@ -1025,7 +1025,7 @@ end $$;
 revoke all on function public.ding_watch() from public, anon, authenticated;
 
 select cron.unschedule(jobid) from cron.job where jobname = 'ding-watch';
-select cron.schedule('ding-watch', '11-59/15 * * * *', $job$ select public.ding_watch(); $job$);
+select cron.schedule('ding-watch', '4-59/5 * * * *', $job$ select public.ding_watch(); $job$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ding Dinky watch: a failed run becomes a card in Fixes$q$, $q$Discord$q$, 'check',
@@ -1051,3 +1051,18 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Records tab: totals, deaths and new boards$q$, $q$Achievements$q$, 'check',
   $q$Achievements > Records: the totals on top (kills, quests, deaths, fish, gold donated, characters) match the Home / player pages. Boards for Slayers, Quest masters, Graveyard regulars (deaths), Big fish and Generous souls show players with the right numbers; the bar behind a row follows the leader. Did you know? shows sensible facts and hides itself without data.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Records tab: totals, deaths and new boards$q$);
+
+-- 2026-11-07: update every 5 minutes instead of every 15 (Jelle). The three timers moved above (update-characters, ding-bot, ding-watch);
+-- the checks that mentioned 15 minutes are renamed here, so nobody gets a second copy of them.
+update public.dev_checks set title = $q$Character data every 5 minutes (Supabase)$q$,
+  note = replace(replace(note, 'less than an hour ago', 'less than 30 minutes ago'), 'wait up to 15 minutes', 'wait up to 5 minutes')
+  where title = $q$Character data every 15 minutes (Supabase)$q$;
+update public.dev_checks set title = $q$Update characters every 5 minutes (Edge Function)$q$,
+  note = replace(note, 'not older than about 15 minutes', 'not older than about 10 minutes (orange after 30)')
+  where title = $q$Update characters every 15 minutes (Edge Function)$q$;
+update public.dev_checks set note = replace(note, 'within 15 minutes', 'within 5 minutes')
+  where title in ($q$Game statistics on Home and player pages$q$, $q$Ding-bot: level ups and achievements in #dings$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Updates every 5 minutes: bot and data$q$, $q$Characters$q$, 'check',
+  $q$SQL Editor: select jobname, schedule from cron.job; shows update-characters */5, ding-bot 2-59/5 and ding-watch 4-59/5. After 10 minutes: select * from ding_status; has a last_run_at less than 5 minutes old and Developer mode > Checks shows Blizzard characters green.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Updates every 5 minutes: bot and data$q$);

@@ -882,11 +882,11 @@ function questsRow(quests, lastRun, row, old) {
   if (!lastRun) return row('check', 'Quest list (quests.json)', `${count} · could not read the last check`);
   return row(old(lastRun, 2) ? 'check' : 'ok', 'Quest list (quests.json)', `${count} · last checked ${ago(lastRun)}`);
 }
-// Character data from the game: every 15 minutes (older than an hour = something is wrong).
+// Character data from the game: every 5 minutes (older than 30 minutes = something is wrong).
 function blizzardRow(bz, row, old) {
   if (!bz) return row('check', 'Blizzard characters', 'No data yet: the update has not run (see docs/instructies.md)');
   const when = bz.updated ? new Date(bz.updated).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?';
-  const stale = !bz.updated || old(bz.updated, 1 / 24);
+  const stale = !bz.updated || old(bz.updated, 1 / 48);
   return row(stale || bz.message ? 'check' : 'ok', 'Blizzard characters (database)', `Updated ${when} · ${bz.ok ?? '?'} found · ${bz.notFound ?? '?'} not found (under level 10?) · ${bz.errors ?? '?'} errors${bz.message ? ` · ${bz.message}` : ''}`);
 }
 async function loadSources() {
