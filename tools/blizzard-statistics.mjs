@@ -1,0 +1,23 @@
+// Prints every in-game statistic the Blizzard API gives for one WoW: Forever character: category, id, name and quantity.
+// Used to find the ids of statistics we want to show (critters killed, deaths by cause, emotes, consumables, gold ...).
+// Runs only by hand: "Blizzard statistics" workflow (.github/workflows/blizzard-statistics.yml). Prints no secrets, writes no files.
+//   BLIZZARD_CLIENT_ID, BLIZZARD_CLIENT_SECRET   required
+//   CHARACTER   e.g. "Bunte Bapsimus"      REGION   eu | us | kr | tw (default eu)
+const { BLIZZARD_CLIENT_ID: id, BLIZZARD_CLIENT_SECRET: secret } = process.env;
+const region = (process.env.REGION || 'eu').toLowerCase();
+const character = (process.env.CHARACTER || '').trim();
+if (!id || !secret || !character) { console.error('Set BLIZZARD_CLIENT_ID, BLIZZARD_CLIENT_SECRET and CHARACTER.'); process.exit(1); }
+const tokenRes = await fetch('https://oauth.battle.net/token', { method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=client_credentials' });
+if (!tokenRes.ok) { console.error(`Token request failed: ${tokenRes.status}`); process.exit(1); }
+const { access_token: token } = await tokenRes.json();
+const key = character.toLowerCase().replace(/\s+/g, '-');
+const res = await fetch(`https://${region}.api.blizzard.com/profile/wow/character/${encodeURIComponent(key)}/achievements/statistics?namespace=profile-forever-${region}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } });
+if (!res.ok) { console.error(`Statistics of ${character}: HTTP ${res.status}`); process.exit(1); }
+const body = await res.json();
+let count = 0;
+const show = (s, path) => { count += 1; console.log(`${path} | id ${s.id} | ${s.name} | ${s.quantity}`); };
+for (const c of body.categories ?? []) {
+  for (const s of c.statistics ?? []) show(s, c.name);
+  for (const sub of c.sub_categories ?? []) for (const s of sub.statistics ?? []) show(s, `${c.name} > ${sub.name}`);
+}
+console.log(`\n${count} statistics for ${character} (only the ones the game has counted so far are listed by the API).`);
