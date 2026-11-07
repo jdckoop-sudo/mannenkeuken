@@ -107,7 +107,7 @@ const snapPrev = () => ({ ...prev(), snaps: new Map([['aa', { quests: 100, kills
 r = run([withStats('Aa', 'Jelle', 14, { quests: 112, kills: 885, deaths: 4 }, { Mining: 80, Herbalism: 40 }), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], snapPrev());
 m = r.messages.filter((x) => x.kind === 'player');
 assert.equal(m.length, 1, 'only Jelle has a level up');
-assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ \+2 levels \(12 → \*\*14\*\*\)\n📜 \+12 quests · ⚔️ \+85 kills · 💀 \+1 death\n🔨 Mining 75 → \*\*80\*\*/);
+assert.match(m[0].embed.description, /\*\*Aa\*\*\n📜 \+12 quests · ⚔️ \+85 kills · 💀 \+1 death\n🔨 Mining 75 → \*\*80\*\*/);
 assert.ok(!/Herbalism/.test(m[0].embed.description), 'a skill that did not change is not shown');
 // the numbers of the player with the message are remembered after posting; those without news right away
 assert.deepEqual(m[0].commit.snaps.find((x) => x.key === 'aa'), { key: 'aa', level: 14, quests: 112, kills: 885, deaths: 4, camps: null, xp: null, skills: { Mining: 80, Herbalism: 40 }, gear: null });
@@ -165,7 +165,7 @@ const xpPrev = () => ({ ...prev(), snaps: new Map([['aa', { quests: 100, kills: 
 // level up from 12 to 14 and 2 more campfires: XP left in level 12, all of level 13 + the 700 into level 14, that is (10100 - 5000) + 11400 + 700
 r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 6 }, 700), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], xpPrev());
 m = r.messages.filter((x) => x.kind === 'player');
-assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ \+2 levels \(12 → \*\*14\*\*\) · ✨ \+17,200 XP\n🔥 \+2 campfires/);
+assert.match(m[0].embed.description, /### 📊 This session\n✨ \+17,200 XP · ⬆️ \+2 levels \(12 → \*\*14\*\*\) · \*\*Total level 14\*\*\n\n\*\*Aa\*\*\n🔥 \+2 campfires/);
 assert.equal(m[0].commit.snaps.find((x) => x.key === 'aa').camps, 6);
 assert.equal(m[0].commit.snaps.find((x) => x.key === 'aa').xp, totalXp(14, 700));
 // two characters with XP: a total line; one campfire is singular
@@ -173,7 +173,7 @@ r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 5 
 m = r.messages.filter((x) => x.kind === 'player');
 assert.match(m[0].embed.description, /🔥 \+1 campfire\n/);
 assert.match(m[0].embed.description, /\*\*Cc\*\*\n✨ \+1,000 XP/);
-assert.match(m[0].embed.description, /📊 \*\*This session:\*\* ⬆️ \+2 levels · ✨ \+18,200 XP · \*\*Total level 22\*\*/);
+assert.match(m[0].embed.description, /### 📊 This session\n✨ \+18,200 XP · ⬆️ \+2 levels \(20 → \*\*22\*\*\) · \*\*Total level 22\*\*/);
 // no campfire / XP numbers in the earlier snapshot (first run with this feature): nothing shown, but remembered
 r = run([lvXp('Aa', 'Jelle', 14, { quests: 112, kills: 800, deaths: 3, camps: 9 }, 700)], [], snapPrev());
 m = r.messages.filter((x) => x.kind === 'player');
@@ -191,11 +191,11 @@ r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 4 
 m = r.messages.filter((x) => x.kind === 'player');
 assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ \+2 levels \(12 → \*\*14\*\*\) · ✨ \+17,200 XP/);
 assert.match(m[0].embed.description, /\*\*Cc\*\*\n⬆️ \+1 level \(8 → \*\*9\*\*\) · ✨ \+5,450 XP/);
-assert.match(m[0].embed.description, /📊 \*\*This session:\*\* ⬆️ \+3 levels · ✨ \+22,650 XP · \*\*Total level 23\*\*/);
+assert.match(m[0].embed.description, /### 📊 This session\n✨ \+22,650 XP · ⬆️ \+3 levels \(20 → \*\*23\*\*\) · \*\*Total level 23\*\*/);
 assert.ok(!/total xp/i.test(m[0].embed.description), 'the XP of the whole character is never shown');
 // only an achievement (no level up): the line has just the total level
 const achOnly = run([ch('Aa', 'Jelle', 12), ch('Bb', 'Tinus', 30)], [], { ...prev(), levels: new Map([['aa', 12], ['bb', 30]]), known: new Set(), players: new Set(['Jelle', 'Tinus', '']) });
 const achMsg = achOnly.messages.find((x) => x.kind === 'player' && x.player === 'Jelle');
-if (achMsg) assert.match(achMsg.embed.description, /📊 \*\*Total level 12\*\*/);
+if (achMsg) assert.match(achMsg.embed.description, /### 📊 This session\n\*\*Total level 12\*\*/);
 
 console.log('Ding Dinky tests: all passed');
