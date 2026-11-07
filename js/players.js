@@ -36,7 +36,7 @@ export function activityOf(iso, now = new Date()) {
 // Totals from the game (quests, kills, deaths, fish) over a list of characters, from loadBlizzard(). The last known numbers keep counting when an
 // update could not read a character. known = how many characters have numbers: characters show up from level 10.
 export const GAME_STATS = [['quests', 'Quests completed'], ['kills', 'Kills'], ['deaths', 'Deaths'], ['fish', 'Fish caught']];
-// The fun counters of the Records page (Guild > Achievements > Records): no tiles, only totals. A counter that an old update did not know counts as 0.
+// The fun counters of Guild > Overview (the Fun category): no tiles, only totals. A counter that an old update did not know counts as 0.
 export const FUN_STATS = ['critters', 'camps', 'fallDeaths', 'drownDeaths', 'fireDeaths', 'fatigueDeaths', 'hugs', 'facepalms', 'violin', 'train', 'laughs', 'cheers', 'waves', 'healthPotions', 'manaPotions', 'elixirs', 'bandages', 'food', 'drinks'];
 export function gameTotals(chars, blizzard) {
   const stats = chars.map((c) => blizzard?.characters?.[norm(c.name)]?.stats).filter(Boolean);
