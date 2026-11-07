@@ -31,16 +31,25 @@
   <div class="ach-modal" id="ach-modal" hidden></div>
   <div id="records-view" hidden>
   <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
-  <div class="grid" id="boards"></div>
+  <h2 id="main-title">Rankings</h2>
+  <p class="muted sub" id="main-hint">Pick a ranking in the legend to see who leads it.</p>
+  <div class="fun" id="main">
+    <nav class="box fun-legend" id="main-legend" aria-label="Rankings legend"></nav>
+    <div class="fun-panel" id="main-panel" aria-live="polite"></div>
+  </div>
   <h2 id="fun-title" hidden>Fun records</h2>
   <p class="muted sub" id="fun-hint" hidden>Pick a record in the legend to see who leads it.</p>
   <div class="fun" id="fun" hidden>
     <nav class="box fun-legend" id="fun-legend" aria-label="Fun records legend"></nav>
-    <div id="fun-panel" aria-live="polite"></div>
+    <div class="fun-panel" id="fun-panel" aria-live="polite"></div>
   </div>
   <section class="box" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
-  <h2>Best per profession</h2>
-  <div class="grid" id="profs"><p class="muted">Loading…</p></div>
+  <h2 id="profs-title">Best per profession</h2>
+  <p class="muted sub" id="profs-hint">Pick a profession in the legend to see the best characters.</p>
+  <div class="fun" id="profs">
+    <nav class="box fun-legend" id="profs-legend" aria-label="Professions legend"></nav>
+    <div class="fun-panel" id="profs-panel" aria-live="polite"></div>
+  </div>
   </div>
 </main>
 <style>
@@ -73,13 +82,13 @@
   .fun-chip[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 25%, transparent); }
   .fun-chip:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
   .fun-chip:disabled { opacity: .45; cursor: default; }
-  .fun-chip .rec-glyph { margin: 0; text-align: center; color: var(--gold); }
+  .fun-chip .rec-glyph { margin: 0; text-align: center; color: var(--gold); display: inline-flex; justify-content: center; }
   .fun-chip .chip-name { display: flex; flex-direction: column; min-width: 0; }
   .fun-chip .chip-lead { font-size: 12px; color: var(--muted, var(--text)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fun-chip .chip-val { font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
   .fun-total { margin: 0 0 6px; font-size: 13px; }
-  #fun-panel { position: sticky; top: 16px; }
-  @media (max-width: 800px) { .fun { grid-template-columns: minmax(0, 1fr); } #fun-panel { position: static; order: -1; scroll-margin-top: 12px; } .fun-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); } .fun-legend h3 { grid-column: 1 / -1; } }
+  .fun-panel { position: sticky; top: 16px; }
+  @media (max-width: 800px) { .fun { grid-template-columns: minmax(0, 1fr); } .fun-panel { position: static; order: -1; scroll-margin-top: 12px; } .fun-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); } .fun-legend h3 { grid-column: 1 / -1; } }
   .trivia { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
   .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
 </style>
@@ -88,6 +97,7 @@ import { renderHeader } from './js/layout.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
 import { getUser, supabase } from './js/supabase.js?v=__V__';
 import { goldHtml } from './js/gold.js?v=__V__';
+import { professionIcon } from './js/proficons.js?v=__V__';
 import { LAUNCH } from './js/releases.js?v=__V__';
 import { initTree, achDefs } from './js/achievement-tree.js?v=__V__';
 import { loadCharacters, loadBlizzard, gameTotals, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
@@ -117,12 +127,42 @@ const row = (who, val, p) => `<li${p === undefined ? '' : ` style="--p:${p.toFix
 const rows = (list) => list.map((r) => row(r.label, r.text ?? n(r.value), list[0].value ? r.value / list[0].value : 0)).join('') || empty;
 const board = (glyph, title, sub, list, cls = '') => `<section class="box"><div><h2><span class="rec-glyph" aria-hidden="true">${glyph}</span>${title}</h2><p class="muted sub">${sub}</p></div><ol class="board ${cls}">${rows(list.slice(0, top))}</ol></section>`;
 
+// A legend of buttons (in groups) and the ranking of the chosen one next to it; used for every block of the Records page.
+// groups = [[group name, [{ key, glyph, title, name (in the legend), sub, cls, unit, total (sum -> html, optional), list }]]], list = [{ label (html), name (plain), value, text }]
+// A button without data is dimmed. Returns false (and hides the block) when nothing has data.
+const legendPanel = (prefix, groups) => {
+  const root = document.getElementById(prefix);
+  const legend = document.getElementById(`${prefix}-legend`);
+  const panel = document.getElementById(`${prefix}-panel`);
+  const has = groups.flatMap(([, items]) => items).filter((f) => f.list.length);
+  root.hidden = !has.length;
+  if (!has.length) return false;
+  const shown = (r) => r.text ?? n(r.value);
+  legend.innerHTML = groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${group}</h3>${items.map((f) => f.list.length
+    ? `<button type="button" class="fun-chip" data-key="${esc(f.key)}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(f.list[0].name)}</span></span><span class="chip-val">${shown(f.list[0])}</span></button>`
+    : `<button type="button" class="fun-chip" disabled title="Nobody has this yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`).join('')}`).join('');
+  const pick = (key) => {
+    const f = has.find((x) => x.key === key) ?? has[0];
+    legend.querySelectorAll('[data-key]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.key === f.key)));
+    const unit = f.unit ?? 'player';
+    const line = `${f.total ? `Guild total: <b>${f.total(f.list.reduce((sum, r) => sum + r.value, 0))}</b> · ` : ''}${f.list.length} ${unit}${f.list.length === 1 ? '' : 's'}`;
+    panel.innerHTML = board(f.glyph, f.title, f.sub, f.list, f.cls ?? '').replace('<ol class="board', `<p class="muted fun-total">${line}</p><ol class="board`);
+  };
+  legend.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-key]'); if (!b) return; pick(b.dataset.key);
+    // on a phone the ranking is above the legend: bring it into view after a click
+    if (matchMedia('(max-width: 800px)').matches) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  pick(has[0].key);
+  return true;
+};
+
 const byPlayer = {};
 for (const c of characters.filter((x) => x.status !== 'Gestopt' && x.player)) (byPlayer[c.player] ??= []).push(c);
 const link = (p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`;
 const playerStats = Object.entries(byPlayer).map(([p, cs]) => ({ p, ...statsFor(cs), game: gameTotals(cs, blizzard) }));
 const withGame = playerStats.filter((s) => s.game.known);
-const byGame = (key) => withGame.filter((s) => s.game[key] > 0).sort((a, b) => b.game[key] - a.game[key]).map((s) => ({ label: link(s.p), value: s.game[key] }));
+const byGame = (key) => withGame.filter((s) => s.game[key] > 0).sort((a, b) => b.game[key] - a.game[key]).map((s) => ({ label: link(s.p), name: s.p, value: s.game[key] }));
 const donated = {};
 for (const d of donations) donated[d.player_name] = (donated[d.player_name] ?? 0) + Number(d.copper);
 
@@ -137,20 +177,33 @@ document.getElementById('rec-totals').innerHTML = [
   tile('Gold donated', totalDonated ? goldHtml(totalDonated) : '–'), tile('Characters', n(active.length)),
 ].join('');
 
-document.getElementById('boards').innerHTML = [
-  board('&#9876;', 'Highest level', 'Single characters', active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).map((c) => ({ label: who(c), value: c.level, text: `level ${c.level}` }))),
-  board('&#10070;', 'Player level', 'All characters added together', playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel)
-    .map((s) => ({ label: `${link(s.p)} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, value: s.totalLevel }))),
-  board('&#9874;', 'Profession skill', 'Total per player', playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).map((s) => ({ label: link(s.p), value: s.totalSkill }))),
-  board('&#9876;', 'Slayers', 'Most kills, all characters', byGame('kills')),
-  board('&#10070;', 'Quest masters', 'Most quests completed', byGame('quests')),
-  board('&#9760;', 'Graveyard regulars', 'Most deaths: the Hall of Shame', byGame('deaths'), 'board-shame'),
-  board('&#9672;', 'Big fish', 'Most fish caught', byGame('fish')),
-  board('&#9733;', 'Generous souls', 'Most gold donated to the guild bank', Object.entries(donated).sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ label: link(p), value: c, text: goldHtml(c) }))),
-].join('');
+const MAIN = [
+  ['Levels', [
+    { key: 'level', glyph: '&#9876;', title: 'Highest level', name: 'Highest level', sub: 'Single characters', unit: 'character',
+      list: active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).map((c) => ({ label: who(c), name: c.name, value: c.level, text: `level ${c.level}` })) },
+    { key: 'player-level', glyph: '&#10070;', title: 'Player level', name: 'Player level', sub: 'All characters added together',
+      list: playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel)
+        .map((s) => ({ label: `${link(s.p)} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, name: s.p, value: s.totalLevel })) },
+    { key: 'skill', glyph: '&#9874;', title: 'Profession skill', name: 'Profession skill', sub: 'Total per player',
+      list: playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).map((s) => ({ label: link(s.p), name: s.p, value: s.totalSkill })) },
+  ]],
+  ['In the game', [
+    { key: 'kills', glyph: '&#9876;', title: 'Slayers', name: 'Kills', sub: 'Most kills, all characters', total: n, list: byGame('kills') },
+    { key: 'quests', glyph: '&#10070;', title: 'Quest masters', name: 'Quests completed', sub: 'Most quests completed', total: n, list: byGame('quests') },
+    { key: 'deaths', glyph: '&#9760;', title: 'Graveyard regulars', name: 'Deaths', sub: 'Most deaths: the Hall of Shame', cls: 'board-shame', total: n, list: byGame('deaths') },
+    { key: 'fish', glyph: '&#9672;', title: 'Big fish', name: 'Fish caught', sub: 'Most fish caught', total: n, list: byGame('fish') },
+  ]],
+  ['Guild', [
+    { key: 'gold', glyph: '&#9733;', title: 'Generous souls', name: 'Gold donated', sub: 'Most gold donated to the guild bank', total: goldHtml,
+      list: Object.entries(donated).sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ label: link(p), name: p, value: c, text: goldHtml(c) })) },
+  ]],
+];
+legendPanel('main', MAIN);
 
 // Fun records from the game's own statistics (the update gives them every 5 minutes; a board only shows once somebody has the counter)
 const byFun = (fn) => withGame.map((s) => ({ s, v: fn(s.game) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.s.p), value: x.v, name: x.s.p }));
+// Our own little steam locomotive (drawn in the colour of the text around it, like the other glyphs)
+const TRAIN_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="6.6" cy="3.4" r="1.3" opacity=".55"/><circle cx="9.6" cy="2" r="1" opacity=".35"/><rect x="4.2" y="5.2" width="4.4" height="1.5" rx=".6"/><rect x="5.2" y="6.4" width="2.4" height="4"/><rect x="3" y="10" width="10.5" height="6.2" rx="1.2"/><rect x="13.5" y="7" width="7.5" height="9.2" rx="1"/><rect x="15.4" y="9" width="3.7" height="3.3" rx=".5" fill="var(--panel, #1c1a26)"/><rect x="1.8" y="16" width="20.4" height="1.6" rx=".6"/><circle cx="6.5" cy="19.4" r="2.3"/><circle cx="12" cy="19.4" r="2.3"/><circle cx="17.7" cy="19.4" r="2.3"/></svg>';
 // groups of the legend: [group, [[key, glyph, board title, name in the legend, what it counts, counter, board class]]]
 const FUN = [
   ['In the wild', [
@@ -164,7 +217,7 @@ const FUN = [
     ['fatigue', '&#9790;', 'Sleepyheads', 'Fatigue', 'Most deaths from fatigue', (g) => g.fatigueDeaths, 'board-shame'],
   ]],
   ['Emotes', [
-    ['train', '&#9992;', 'Choo choo', '/train', 'Most times /train', (g) => g.train],
+    ['train', TRAIN_ICON, 'Choo choo', '/train', 'Most times /train', (g) => g.train],
     ['hugs', '&#9825;', 'Huggers', 'Hugs', 'Most hugs', (g) => g.hugs],
     ['facepalms', '&#9786;', 'Facepalm champions', 'Facepalms', 'Most facepalms', (g) => g.facepalms],
     ['violin', '&#9835;', 'Tiny violins', 'Tiny violin', 'Most times playing the world\'s smallest violin', (g) => g.violin],
@@ -178,28 +231,10 @@ const FUN = [
     ['food', '&#9830;', 'Big eaters', 'Food', 'Most food eaten', (g) => g.food],
     ['drinks', '&#9749;', 'Thirsty ones', 'Drinks', 'Most beverages consumed', (g) => g.drinks],
   ]],
-].map(([group, items]) => [group, items.map(([key, glyph, title, name, sub, fn, cls]) => ({ key, glyph, title, name, sub, cls: cls ?? '', list: byFun(fn) }))]);
-const funAll = FUN.flatMap(([, items]) => items);
-const funHas = funAll.filter((f) => f.list.length);
-if (funHas.length) {
-  const legend = document.getElementById('fun-legend');
-  const panel = document.getElementById('fun-panel');
-  legend.innerHTML = FUN.map(([group, items]) => `<h3>${group}</h3>${items.map((f) => f.list.length
-    ? `<button type="button" class="fun-chip" data-fun="${f.key}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(f.list[0].name)}</span></span><span class="chip-val">${n(f.list[0].value)}</span></button>`
-    : `<button type="button" class="fun-chip" disabled title="Nobody has this counter yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`).join('')}`).join('');
-  const pick = (key) => {
-    const f = funHas.find((x) => x.key === key) ?? funHas[0];
-    legend.querySelectorAll('[data-fun]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.fun === f.key)));
-    const total = f.list.reduce((sum, r) => sum + r.value, 0);
-    panel.innerHTML = board(f.glyph, f.title, f.sub, f.list, f.cls).replace('<ol class="board', `<p class="muted fun-total">Guild total: <b>${n(total)}</b> · ${f.list.length} player${f.list.length === 1 ? '' : 's'}</p><ol class="board`);
-  };
-  // on a phone the ranking is above the legend: bring it into view after a click
-  legend.addEventListener('click', (e) => { const b = e.target.closest('[data-fun]'); if (!b) return; pick(b.dataset.fun); if (matchMedia('(max-width: 800px)').matches) panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  pick(funHas[0].key);
-  document.getElementById('fun').hidden = false;
-  document.getElementById('fun-title').hidden = false;
-  document.getElementById('fun-hint').hidden = false;
-}
+].map(([group, items]) => [group, items.map(([key, glyph, title, name, sub, fn, cls]) => ({ key, glyph, title, name, sub, cls: cls ?? '', list: byFun(fn), total: n }))]);
+const anyFun = legendPanel('fun', FUN);
+document.getElementById('fun-title').hidden = !anyFun;
+document.getElementById('fun-hint').hidden = !anyFun;
 
 // A few facts
 const facts = [];
@@ -213,14 +248,17 @@ if (mostAlts?.alts > 0) facts.push(`${link(mostAlts.p)} has the most alts: <b>${
 document.getElementById('trivia').innerHTML = facts.map((f) => `<li>${f}</li>`).join('');
 document.getElementById('trivia-box').hidden = !facts.length;
 
-// Best per profession (top 3)
+// Best per profession: a legend of the professions, the best characters of the chosen one on the right
 const profNames = [...new Set(active.flatMap((c) => c.profs.map((p) => p.name)))]
   .sort((a, b) => (SECONDARY.includes(a) - SECONDARY.includes(b)) || a.localeCompare(b));
-document.getElementById('profs').innerHTML = profNames.map((pn) => {
-  const rows = active.map((c) => ({ c, skill: c.profs.find((p) => p.name === pn)?.skill })).filter((r) => r.skill !== null && r.skill !== undefined)
-    .sort((a, b) => b.skill - a.skill).slice(0, 3);
-  return `<section class="box"><h2>${esc(pn)}</h2><ol class="board">${rows.map((r) => row(who(r.c), r.skill)).join('') || empty}</ol></section>`;
-}).join('') || '<p class="muted">No professions yet.</p>';
+const profItem = (pn) => ({
+  key: pn, glyph: professionIcon(pn, 18), title: pn, name: pn, sub: `Highest ${pn} skill`, unit: 'character',
+  list: active.map((c) => ({ c, skill: c.profs.find((p) => p.name === pn)?.skill })).filter((r) => r.skill !== null && r.skill !== undefined)
+    .sort((a, b) => b.skill - a.skill).map((r) => ({ label: who(r.c), name: r.c.name, value: r.skill })),
+});
+const anyProf = legendPanel('profs', [['Professions', profNames.filter((pn) => !SECONDARY.includes(pn)).map(profItem)], ['Secondary', profNames.filter((pn) => SECONDARY.includes(pn)).map(profItem)]]);
+document.getElementById('profs-title').hidden = !anyProf;
+document.getElementById('profs-hint').hidden = !anyProf;
 </script>
 </body>
 </html>
