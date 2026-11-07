@@ -1095,3 +1095,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ding Dinky: campfires and XP per session$q$, $q$Discord$q$, 'check',
   $q$After deploying both Edge Functions (update-characters and ding-bot) and running the SQL: the first run of the bot only remembers campfires and XP. Then log out with a character that levelled up after lighting a campfire: the recap line has "🔥 +N campfires" and "✨ +N XP" (the XP of the whole session, also over a level up). A player with two characters that gained XP also gets a "Total this session" line. select character_key, camps, xp from ding_levels; has numbers.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: campfires and XP per session$q$);
+
+-- 2026-11-08: the recap shows levels gained, XP gained and the total level (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: levels, XP and total level in the recap$q$, $q$Discord$q$, 'check',
+  $q$After deploying the ding-bot again: a recap shows per character "⬆️ +2 levels (12 → 14)" and "✨ +N XP", and under it one line "📊 This session: ⬆️ +N levels · ✨ +N XP · Total level X" (total level = the levels of all his characters added up, same as the dashboard). The XP of the whole character is never shown. Only an achievement: the line is just "📊 Total level X".$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: levels, XP and total level in the recap$q$);
