@@ -12,9 +12,10 @@
 //  - The first run only looks: the current levels and achievements are the starting point and are NOT announced.
 //  - A character or a player that is new in the data is also only looked at the first time (a new person would otherwise get everything at once).
 //  - Everything that happened to one player in one run goes into ONE message, written as a session recap ("<player> achieved this session:"): level ups, quests, kills,
-//    deaths, campfires, XP, profession skill gains and new gear (items that were not worn in the previous run) of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
+//    deaths, campfires, XP and profession skill gains of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
 //    the quests, kills, deaths, campfires, XP and skills are remembered per character in ding_levels (columns quests, kills, deaths, camps, xp, skills, gear) and are only compared when the game knows the character.
 //  - A guild goal is announced once for the whole guild, with @everyone, not per player.
+//  - Dag Dinky (every night from 00:07 Dutch time) and Week Dinky (Mondays, same run) summarise the stats of ALL players in one message with @everyone, see planPeriod().
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
 // The achievement rules are not written here: they are in achievements-core.js next to this file, an exact copy of js/achievements-core.js of the site
@@ -94,10 +95,7 @@ export function plan({ core, chars, states, prev, discord }) {
     const up = (a, b) => Math.max(0, a - (b ?? a));
     const upN = (a, b) => (a == null || b == null ? 0 : Math.max(0, a - b)); // counters that an older snapshot did not have: no difference yet
     const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => before.skills && before.skills[n] != null && v > before.skills[n]).map(([n, v]) => ({ name: n, from: before.skills[n], to: v }));
-    // new gear: items worn now that were not worn before (a swap between the two ring or trinket slots is not new)
-    const worn = new Map(); for (const id of before.gear ?? []) worn.set(id, (worn.get(id) ?? 0) + 1);
-    const gear = !before.gear || !c.gear ? [] : c.gear.filter((g) => { const n = worn.get(g.id) ?? 0; if (n > 0) { worn.set(g.id, n - 1); return false; } return true; }).map((g) => g.name);
-    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), camps: upN(now.camps, before.camps), xp: upN(now.xp, before.xp), skills, gear };
+    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), camps: upN(now.camps, before.camps), xp: upN(now.xp, before.xp), skills };
   };
 
   // levels
@@ -129,7 +127,7 @@ export function plan({ core, chars, states, prev, discord }) {
   // one message per player
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
-    // the recap: a small block per character that did something (name, then progress / activity / skills / gear on their own lines), then the totals, then the new achievements
+    // the recap: a small block per character that did something (name, then progress / activity / skills on their own lines), then the totals, then the new achievements
     const blocks = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0;
     const row = (...bits) => bits.filter(Boolean).join(' · ');
     const mine = active.filter((x) => x.player === p);
@@ -141,7 +139,6 @@ export function plan({ core, chars, states, prev, discord }) {
         mine.length > 1 ? row(g && `⬆️ +${plural(g.to - g.from, 'level')} (${g.from} → **${g.to}**)`, ses?.xp && `✨ +${fmt(ses.xp)} XP`) : '',
         row(ses?.quests && `📜 +${plural(ses.quests, 'quest')}`, ses?.kills && `⚔️ +${plural(ses.kills, 'kill')}`, ses?.deaths && `💀 +${plural(ses.deaths, 'death')}`, ses?.camps && `🔥 +${plural(ses.camps, 'campfire')}`),
         ses?.skills?.length ? `🔨 ${ses.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ')}` : '',
-        ses?.gear.length ? `🛡️ ${plural(ses.gear.length, 'new gear piece')}: ${ses.gear.slice(0, 4).join(', ')}${ses.gear.length > 4 ? ` +${ses.gear.length - 4} more` : ''}` : '',
       ].filter(Boolean);
       if (rows.length) blocks.push([`**${c.name}**`, ...rows].join('\n'));
     }
@@ -186,6 +183,134 @@ export function plan({ core, chars, states, prev, discord }) {
   return { messages, baseline, players, quiet, quietSnaps };
 }
 
+// ---- Dag Dinky (every day) and Week Dinky (every Monday just after midnight = the end of Sunday): one message for the whole guild with @everyone.
+// Dutch time. The day is posted by the first run at or after 00:07 (update-characters has run at 00:05 by then); the week on Mondays, in the same run, after the day.
+// What a day / week is = the stats of now minus the stats at the previous post (kept in ding_period, per kind 'day' / 'week'), so a character that logs out after
+// midnight simply counts in the next day. The first run only remembers the starting point.
+const TZ = 'Europe/Amsterdam';
+const MIN_MINUTES = 7; // 00:07
+export function localParts(d = new Date()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short' }).formatToParts(d).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, minutes: Number(p.hour) * 60 + Number(p.minute), weekday: p.weekday };
+}
+export const addDays = (date, n) => { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dayName = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+const dayMonth = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long' });
+export function isoWeek(date) {
+  const d = new Date(`${date}T12:00:00Z`); const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
+  d.setUTCDate(d.getUTCDate() - dow + 3); // the Thursday of this week decides the year
+  const first = new Date(Date.UTC(d.getUTCFullYear(), 0, 4, 12));
+  return 1 + Math.round(((d - first) / 86400000 - 3 + ((first.getUTCDay() + 6) % 7)) / 7);
+}
+// last = the remembered state of this kind ({ date }) or null. 'init' = only remember the starting point, 'post' = post and move on, null = nothing to do now
+export function periodDue(kind, last, now) {
+  if (!last) return 'init';
+  if (now.minutes < MIN_MINUTES) return null;
+  if (kind === 'day') return last.date < now.date ? 'post' : null;
+  return now.weekday === 'Mon' && last.date < now.date ? 'post' : null;
+}
+
+const PERIOD_STATS = [
+  { key: 'xp', icon: '✨', label: 'XP', show: (v) => fmt(v) },
+  { key: 'levels', icon: '⬆️', label: 'Levels', show: (v) => `+${fmt(v)}` },
+  { key: 'quests', icon: '📜', label: 'Quests', show: (v) => fmt(v) },
+  { key: 'kills', icon: '⚔️', label: 'Kills', show: (v) => fmt(v) },
+  { key: 'boss', icon: '🏰', label: 'Boss kills', show: (v) => fmt(v) },
+  { key: 'camps', icon: '🔥', label: 'Campfires', show: (v) => fmt(v) },
+  { key: 'skillpts', icon: '🔨', label: 'Profession skill', show: (v) => `+${fmt(v)}` },
+  { key: 'deaths', icon: '💀', label: 'Deaths', show: (v) => fmt(v) },
+];
+const MEDALS = ['🥇', '🥈', '🥉'];
+const EMBED_LIMIT = 3800; // Discord allows 4096 characters in the description of an embed
+
+// base = { chars: Map(key -> snapshot), ach: Map(player -> Set(achievement ids)) } as it was at the previous post (empty = starting point only)
+// Returns { messages, newBase, players }: all players (alphabetical) with everything their characters did, the guild total and the messages to post (none when nothing happened).
+export function planPeriod({ kind, core, chars, states, base, today, since, prevXp, discord }) {
+  const { BY_ID } = core;
+  const active = chars.filter((c) => c.player && c.status !== 'Gestopt' && c.level > 0);
+  const byName = (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' });
+  const players = [...new Set(active.map((c) => c.player))].sort(byName);
+  const newBase = { chars: new Map(), ach: new Map() };
+  const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`;
+  const row = (...bits) => bits.filter(Boolean).join(' · ');
+  const up = (a, b) => (a == null || b == null ? 0 : Math.max(0, a - b)); // a counter the earlier snapshot did not have: no difference yet
+
+  const results = [];
+  for (const p of players) {
+    const mine = active.filter((c) => c.player === p).sort((a, b) => byName(a.name, b.name));
+    const cs = [];
+    for (const c of mine) {
+      if (!c.stats) continue; // the game does not know this character (yet): nothing to compare
+      const key = norm(c.name); const old = base.chars.get(key);
+      const now = { level: c.level, xp: totalXp(c.level, c.xp) ?? old?.xp ?? null, quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0,
+        camps: num(c.stats.camps) ?? old?.camps ?? null, boss: num(c.stats.bossKills) ?? old?.boss ?? null, skills: c.skills ?? old?.skills ?? null };
+      newBase.chars.set(key, now);
+      if (!old) continue; // new in the data: starting point only
+      const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => old.skills && old.skills[n] != null && v > old.skills[n]).map(([n, v]) => ({ name: n, from: old.skills[n], to: v }));
+      const d = { name: c.name, level: now.level, from: Math.min(old.level, now.level), levels: Math.max(0, now.level - old.level), xp: up(now.xp, old.xp), quests: up(now.quests, old.quests), kills: up(now.kills, old.kills),
+        deaths: up(now.deaths, old.deaths), camps: up(now.camps, old.camps), boss: up(now.boss, old.boss), skills, skillpts: skills.reduce((n, k) => n + (k.to - k.from), 0) };
+      d.any = !!(d.levels || d.xp || d.quests || d.kills || d.deaths || d.camps || d.boss || skills.length);
+      cs.push(d);
+    }
+    // achievements of the player since the previous post
+    const st = states.get(p);
+    const done = st ? [...st.values()].filter((s) => s.done && BY_ID.get(s.id).scope !== 'guild').map((s) => s.id) : [];
+    const before = base.ach.get(p);
+    newBase.ach.set(p, new Set(done));
+    const ach = before ? done.filter((id) => !before.has(id)).map((id) => BY_ID.get(id)) : [];
+    const t = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skillpts: 0 };
+    for (const c of cs) for (const k of Object.keys(t)) t[k] += c[k];
+    const totalLevel = mine.reduce((n, c) => n + c.level, 0);
+    results.push({ name: p, chars: cs.filter((c) => c.any), totals: t, totalLevel, ach, any: cs.some((c) => c.any) || ach.length > 0, discordId: discord?.get(p) ?? null });
+  }
+  const busy = results.filter((r) => r.any); // somebody who did nothing is left out
+  if (!busy.length) return { messages: [], newBase, players: results };
+
+  const word = kind === 'week' ? 'week' : 'day';
+  // top 3 per stat (ties share the medal, at most three names), over the totals of all characters of a player
+  const top = PERIOD_STATS.map((s) => {
+    const list = busy.filter((r) => r.totals[s.key] > 0).sort((a, b) => b.totals[s.key] - a.totals[s.key] || byName(a.name, b.name));
+    const ranked = list.map((r) => ({ r, rank: list.filter((x) => x.totals[s.key] > r.totals[s.key]).length })).filter((x) => x.rank < 3);
+    // at most three names; a tie that does not fit ends with "+N more"
+    const more = ranked.length > 3 ? ` · +${ranked.length - 3} more` : '';
+    return ranked.length ? `${s.icon} **${s.label}** — ${ranked.slice(0, 3).map(({ r, rank }) => `${MEDALS[rank]} ${r.name} ${s.show(r.totals[s.key])}`).join(' · ')}${more}` : null;
+  }).filter(Boolean);
+  const blocks = [];
+  if (top.length) blocks.push(`### 🏅 Top 3 of the ${word}\n${top.join('\n')}`);
+  const acts = (x, skip) => row(x.xp && !skip && `✨ +${fmt(x.xp)} XP`, x.quests && `📜 +${plural(x.quests, 'quest')}`, x.kills && `⚔️ +${plural(x.kills, 'kill')}`, x.boss && `🏰 +${plural(x.boss, 'boss kill')}`, x.deaths && `💀 +${plural(x.deaths, 'death')}`, x.camps && `🔥 +${plural(x.camps, 'campfire')}`);
+  const skillText = (c) => c.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ');
+  busy.forEach((r, i) => {
+    const t = r.totals; const lines = [`**${r.name}**`];
+    const head = row(t.xp && `✨ +${fmt(t.xp)} XP`, t.levels && `⬆️ +${plural(t.levels, 'level')} (${fmt(r.totalLevel - t.levels)} → **${fmt(r.totalLevel)}**)`);
+    if (head) lines.push(head);
+    const a = acts(t, true); if (a) lines.push(a);
+    if (r.chars.length === 1) { if (r.chars[0].skills.length) lines.push(`🔨 ${skillText(r.chars[0])}`); }
+    else for (const c of r.chars) lines.push(`↳ **${c.name}**: ${row(c.levels && `⬆️ ${c.from} → **${c.level}**`, c.xp && `✨ +${fmt(c.xp)} XP`, acts(c, true), c.skills.length && `🔨 ${skillText(c)}`)}`);
+    if (r.ach.length) lines.push(`🏆 ${r.ach.map((x) => `**${x.title}**`).join(' · ')}`);
+    blocks.push((i === 0 ? '### 👥 Everyone\n' : '') + lines.join('\n'));
+  });
+  const g = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skillpts: 0 }; let achN = 0;
+  for (const r of busy) { for (const k of Object.keys(g)) g[k] += r.totals[k]; achN += r.ach.length; }
+  const trend = kind === 'week' && prevXp > 0 && g.xp > 0 ? ` (${g.xp >= prevXp ? '▲' : '▼'} ${Math.abs(Math.round(((g.xp - prevXp) / prevXp) * 100))}% vs last week)` : '';
+  blocks.push(`### 🧮 Guild total\n${row(g.xp && `✨ ${fmt(g.xp)} XP${trend}`, g.levels && `⬆️ +${plural(g.levels, 'level')}`, g.quests && `📜 ${plural(g.quests, 'quest')}`, g.kills && `⚔️ ${plural(g.kills, 'kill')}`, g.boss && `🏰 ${plural(g.boss, 'boss kill')}`, g.deaths && `💀 ${plural(g.deaths, 'death')}`, g.camps && `🔥 ${plural(g.camps, 'campfire')}`, g.skillpts && `🔨 +${fmt(g.skillpts)} profession skill`, achN && `🏆 ${plural(achN, 'new achievement')}`)}`);
+
+  // pack the blocks into as few messages as fit (@everyone only in the first)
+  const pages = [[]]; let size = 0;
+  for (const b of blocks) {
+    if (size + b.length > EMBED_LIMIT && pages[pages.length - 1].length) { pages.push([]); size = 0; }
+    pages[pages.length - 1].push(b); size += b.length + 2;
+  }
+  const title = kind === 'week' ? `Week Dinky · week ${isoWeek(addDays(today, -1))} (${since >= addDays(today, -1) ? dayMonth(addDays(today, -1)) : `${dayMonth(since)} – ${dayMonth(addDays(today, -1))}`})` : `Dag Dinky · ${dayName(addDays(today, -1))}`;
+  const messages = pages.map((bl, i) => ({
+    kind, player: '', discordId: null,
+    content: i === 0 ? `@everyone ${kind === 'week' ? 'The week in review 📅' : 'The day in review 🌙'}` : '',
+    embed: { color: COLOR, title: pages.length > 1 ? `${title} (${i + 1}/${pages.length})` : title, url: `${SITE}/overview.html`, description: bl.join('\n\n') },
+    allowed: i === 0 ? { parse: ['everyone'] } : { parse: [] },
+    commit: { levels: [], known: [], summary: `${title}: ${busy.map((r) => r.name).join(', ')}` },
+  }));
+  return { messages, newBase, players: results, totalXp: g.xp };
+}
+
 // ---- Discord
 async function post(webhook, m) {
   const body = { username: 'Ding Dinky', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding Dinky' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
@@ -198,8 +323,41 @@ async function post(webhook, m) {
   throw new Error('Discord: still rate limited after 3 tries');
 }
 
+// Dag Dinky / Week Dinky: see planPeriod. Everything is kept per kind in ding_period (key c:<character> = the stats at the previous post, p:<player> = the finished achievements, _run = { date, since, xp }).
+// force = 'day' | 'week' (only together with dryRun): works out what would be posted now, as if it were time.
+async function runPeriods(data, chars, states, discord, dryRun, force) {
+  const now = localParts(new Date());
+  const all = await db('ding_period?select=kind,key,snap');
+  const webhook = env('DING_WEBHOOK_URL');
+  const out = []; let error = null;
+  for (const kind of ['day', 'week']) {
+    const rows = all.filter((r) => r.kind === kind);
+    const last = rows.find((r) => r.key === '_run')?.snap ?? null;
+    const due = force === kind ? 'post' : periodDue(kind, last, now);
+    if (!due) continue;
+    const base = due === 'init' ? { chars: new Map(), ach: new Map() } : { chars: new Map(rows.filter((r) => r.key.startsWith('c:')).map((r) => [r.key.slice(2), r.snap])), ach: new Map(rows.filter((r) => r.key.startsWith('p:')).map((r) => [r.key.slice(2), new Set(r.snap.done ?? [])])) };
+    const since = kind === 'week' && last?.since && last.since > addDays(now.date, -7) ? last.since : addDays(now.date, -7);
+    const result = planPeriod({ kind, core, chars, states, base, today: now.date, since, prevXp: last?.xp ?? 0, discord });
+    out.push({ kind, due, messages: result.messages.map((m) => ({ content: m.content, title: m.embed.title, description: m.embed.description })) });
+    if (dryRun) continue;
+    if (result.messages.length && !webhook) { error = 'DING_WEBHOOK_URL is not set: the news is kept until it is'; continue; }
+    try {
+      for (const m of result.messages) {
+        await post(webhook, m);
+        await db('ding_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ kind: m.kind, player_name: '', summary: m.commit.summary }) });
+        await sleep(800);
+      }
+    } catch (e) { error = e.message; console.warn(error); continue; } // nothing is moved on: the same day or week is tried again in the next run
+    const stamp = new Date().toISOString();
+    const snaps = [...result.newBase.chars].map(([k, v]) => ({ kind, key: `c:${k}`, snap: v, updated_at: stamp }));
+    const achs = [...result.newBase.ach].map(([p, ids]) => ({ kind, key: `p:${p}`, snap: { done: [...ids] }, updated_at: stamp }));
+    await upsert('ding_period', [...snaps, ...achs, { kind, key: '_run', snap: { date: now.date, since: now.date, xp: kind === 'week' ? (result.totalXp ?? 0) : null }, updated_at: stamp }], 'kind,key');
+  }
+  return { out, error };
+}
+
 // ---- the run
-async function run(dryRun) {
+export async function run(dryRun, force) {
   const [rows, blizzardRows, donations, overrides, playerRows, levelRows, knownRows, doneRows] = await Promise.all([
     db('characters?select=name,player_name,race,class,level,professions,status'),
     db('blizzard_characters?select=key,data'),
@@ -221,7 +379,7 @@ async function run(dryRun) {
   const result = plan({ core, chars, states, prev, discord });
   const first = prev.players.size === 0 && prev.levels.size === 0;
   const out = { first, baselined: { characters: result.baseline.levels.length, players: result.baseline.players.length }, messages: result.messages.map((m) => ({ kind: m.kind, player: m.player, content: m.content, description: m.embed.description })), posted: 0 };
-  if (dryRun) return out;
+  if (dryRun) { try { out.periods = (await runPeriods(data, chars, states, discord, true, force)).out; } catch (e) { out.periods = String(e.message ?? e); } return out; }
 
   const now = new Date().toISOString();
   // remembered without posting: the starting point and everybody that is new
@@ -249,6 +407,9 @@ async function run(dryRun) {
       } catch (e) { error = e.message; console.warn(error); break; }
     }
   }
+  // Dag Dinky and Week Dinky: a problem here (for instance the table ding_period does not exist yet) never stops the session recaps above
+  try { const pr = await runPeriods(data, chars, states, discord, false, null); out.periods = pr.out.map((x) => `${x.kind}: ${x.due} (${x.messages.length})`); if (pr.error && !error) error = pr.error; out.posted += pr.out.reduce((n, x) => n + (x.due === 'post' ? x.messages.length : 0), 0); }
+  catch (e) { console.warn(e); if (!error) error = `Dag/Week Dinky: ${String(e.message ?? e).slice(0, 200)}`; }
   await upsert('ding_status', [{ id: 1, last_run_at: now, posted: out.posted, message: error, ...(first ? { activated_at: now } : {}) }], 'id');
   return { ...out, error };
 }
@@ -256,8 +417,8 @@ async function run(dryRun) {
 Deno.serve(async (req) => {
   const secret = env('UPDATE_CHARACTERS_SECRET');
   if (!secret || req.headers.get('x-update-secret') !== secret) return json({ error: 'forbidden' }, 403);
-  let dryRun = false; let test = false;
-  try { const body = await req.json(); dryRun = !!body.dryRun; test = !!body.test; } catch { /* no body */ }
+  let dryRun = false; let test = false; let force = null;
+  try { const body = await req.json(); dryRun = !!body.dryRun; test = !!body.test; force = dryRun && ['day', 'week'].includes(body.force) ? body.force : null; } catch { /* no body */ }
   // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
@@ -265,5 +426,5 @@ Deno.serve(async (req) => {
       return json({ test: 'posted' });
     } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
   }
-  try { return json(await run(dryRun)); } catch (e) { console.error(e); return json({ error: String(e.message ?? e) }, 500); }
+  try { return json(await run(dryRun, force)); } catch (e) { console.error(e); return json({ error: String(e.message ?? e) }, 500); }
 });

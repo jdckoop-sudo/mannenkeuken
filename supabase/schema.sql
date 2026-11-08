@@ -1148,3 +1148,22 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Overview: new categories and Blizzard stats$q$, $q$Overview$q$, 'check',
   $q$After deploying update-characters (Supabase, Deploy updates) and waiting one update: Guild > Overview has Players (Levels, Combat, Dungeons, Quests, Gear and loot, Travel, Achievements, Fun, Gold) and Characters (Roles, Classes, Races, Professions, Level brackets, Factions, Genders, Guild). Check that Combat, Dungeons (per boss), Gear and Travel get data, that every result shows (not only 10) and that it looks good on a phone.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Overview: new categories and Blizzard stats$q$);
+
+-- 2026-11-09: Dag Dinky and Week Dinky (Edge Function ding-bot): one message for the whole guild every night / every Monday. ding_period is their memory:
+-- kind = 'day' | 'week'; key c:<character> = the stats at the previous post, p:<player> = the finished achievements, _run = { date, since, xp } (when it was posted last).
+-- Run this BEFORE deploying the new ding-bot, otherwise ding_status shows an error and Ding Dinky watch opens a card in Fixes.
+create table if not exists public.ding_period (
+  kind text not null check (kind in ('day', 'week')),
+  key text not null,
+  snap jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (kind, key)
+);
+alter table public.ding_period enable row level security;
+drop policy if exists "read all" on public.ding_period;
+create policy "read all" on public.ding_period for select using (true);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Dag Dinky and Week Dinky in #dings$q$, $q$Discord$q$, 'check',
+  $q$After running this SQL and deploying ding-bot: the first run only remembers the starting point (select kind, key from ding_period where key = '_run'; has a day and a week row). The next night from 00:07 Dutch time one message "Dag Dinky" with @everyone: top 3 per stat, then every player alphabetically (alts included), then the guild total. Players without activity are not listed; a day without any activity posts nothing. Mondays right after it "Week Dinky" with the week. No gear/armor line anywhere. Preview without posting: POST {"dryRun": true, "force": "day"} (or "week") with the x-update-secret header.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Dag Dinky and Week Dinky in #dings$q$);
