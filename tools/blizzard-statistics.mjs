@@ -18,6 +18,21 @@ if (sumRes.ok) {
   console.log(`Summary fields: ${Object.keys(sum).filter((k) => !k.startsWith('_')).join(', ')}`);
   for (const [k, v] of Object.entries(sum)) if (typeof v === 'number') console.log(`Summary number: ${k} = ${v}`);
 } else console.log(`Summary of ${character}: HTTP ${sumRes.status}`);
+// Other things we may show: what is in the summary besides numbers, and do /achievements and /titles exist for Forever?
+if (sumRes.ok) {
+  const sum = await sumRes.clone().json();
+  for (const k of ['gender', 'faction', 'guild', 'race', 'character_class']) console.log(`Summary ${k}: ${sum[k] ? JSON.stringify(sum[k].name ?? sum[k]) : '(none)'}`);
+  for (const k of ['achievements', 'titles', 'pvp_summary', 'encounters']) console.log(`Summary ${k}: ${sum[k] ? JSON.stringify(sum[k]).slice(0, 160) : '(none)'}`);
+}
+for (const part of ['achievements', 'titles']) {
+  const r = await fetch(`https://${region}.api.blizzard.com/profile/wow/character/${encodeURIComponent(key)}/${part}?namespace=profile-forever-${region}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) { console.log(`/${part}: HTTP ${r.status}`); continue; }
+  const b = await r.json();
+  console.log(`/${part}: fields ${Object.keys(b).filter((k) => !k.startsWith('_')).join(', ')}`);
+  for (const [k, v] of Object.entries(b)) if (typeof v === 'number') console.log(`/${part} number: ${k} = ${v}`);
+  const list = b.achievements ?? b.titles ?? [];
+  console.log(`/${part}: ${list.length} entries${list[0] ? `, first: ${JSON.stringify(list[0]).slice(0, 200)}` : ''}`);
+}
 const res = await fetch(`https://${region}.api.blizzard.com/profile/wow/character/${encodeURIComponent(key)}/achievements/statistics?namespace=profile-forever-${region}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } });
 if (!res.ok) { console.error(`Statistics of ${character}: HTTP ${res.status}`); process.exit(1); }
 const body = await res.json();
