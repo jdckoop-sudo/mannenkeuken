@@ -13,7 +13,7 @@ assert.equal(readFileSync(new URL('../supabase/functions/ding-bot/achievements-c
   'supabase/functions/ding-bot/achievements-core.js is not the same as js/achievements-core.js: copy it again (cp js/achievements-core.js supabase/functions/ding-bot/)');
 writeFileSync(join(dir, 'ding.mjs'), readFileSync(new URL('../supabase/functions/ding-bot/index.ts', import.meta.url), 'utf8'));
 writeFileSync(join(dir, 'achievements-core.js'), rules);
-const { plan, planPeriod, periodDue, localParts, addDays, isoWeek, characterFrom, gameTotalsFrom, totalXp, XP_TO_NEXT } = await import(join(dir, 'ding.mjs'));
+const { plan, planPeriod, launchBase, LAUNCH_DAY, periodDue, localParts, addDays, isoWeek, characterFrom, gameTotalsFrom, totalXp, XP_TO_NEXT } = await import(join(dir, 'ding.mjs'));
 const core = await import(new URL('../js/achievements-core.js', import.meta.url));
 
 const ch = (name, player, level, status = 'Main', profs = []) => ({ name, player, level, status, profs });
@@ -274,6 +274,17 @@ assert.equal(r.messages[1].content, '');
 assert.match(r.messages[0].embed.title, /\(1\/\d\)$/);
 for (const x of r.messages) assert.ok(x.embed.description.length < 4096);
 assert.match(r.messages[r.messages.length - 1].embed.description, /### 🧮 Guild total/);
+
+// the first Week Dinky: everything since the launch (level 1, skills at 1, all achievements)
+const lb = launchBase(pnow());
+assert.deepEqual([...lb.chars.keys()].sort(), ['ha', 'ja', 'pa', 'pb']);
+assert.deepEqual(lb.chars.get('pa'), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skills: { Mining: 1 } });
+r = periodRun('week', pnow(), lb, { since: LAUNCH_DAY });
+assert.equal(r.messages[0].embed.title, 'Week Dinky · week 45 (5 November – 8 November)');
+assert.match(r.messages[0].embed.description, /\*\*Pim\*\*\n✨ \+[\d,]+ XP · ⬆️ \+\d+ levels? \(2 → \*\*40\*\*\)/);
+assert.match(r.messages[0].embed.description, /🔨 Mining 1 → \*\*80\*\*/);
+assert.match(r.messages[0].embed.description, /\*\*Justin\*\*/, 'everybody who did something since the launch is in');
+assert.match(r.messages[0].embed.description, /🏆 \*\*/, 'achievements since the launch');
 
 // 14. when are they posted (Dutch time, the first run from 00:07)
 const at = (iso) => localParts(new Date(iso));

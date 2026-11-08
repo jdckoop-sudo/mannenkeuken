@@ -186,7 +186,7 @@ export function plan({ core, chars, states, prev, discord }) {
 // ---- Dag Dinky (every day) and Week Dinky (every Monday just after midnight = the end of Sunday): one message for the whole guild with @everyone.
 // Dutch time. The day is posted by the first run at or after 00:07 (update-characters has run at 00:05 by then); the week on Mondays, in the same run, after the day.
 // What a day / week is = the stats of now minus the stats at the previous post (kept in ding_period, per kind 'day' / 'week'), so a character that logs out after
-// midnight simply counts in the next day. The first run only remembers the starting point.
+// midnight simply counts in the next day. The first run only remembers the starting point of the Dag Dinky (started in the last two hours before midnight: the first Dag Dinky is the day after); the first Week Dinky is the whole time since the launch (launchBase).
 const TZ = 'Europe/Amsterdam';
 const MIN_MINUTES = 7; // 00:07
 export function localParts(d = new Date()) {
@@ -208,6 +208,17 @@ export function periodDue(kind, last, now) {
   if (now.minutes < MIN_MINUTES) return null;
   if (kind === 'day') return last.date < now.date ? 'post' : null;
   return now.weekday === 'Mon' && last.date < now.date ? 'post' : null;
+}
+
+// The first Week Dinky (the first week of WoW: Forever, 9 nov, Jelle): there is no earlier snapshot, but every counter of the game started at the launch, so the starting point is
+// "level 1, nothing done, every profession at skill 1, no achievements" and the first Week Dinky is the whole time since the launch.
+export const LAUNCH_DAY = '2026-11-05'; // the launch in Dutch time (LAUNCH in js/releases.js is 2026-11-04T23:00:00Z)
+export function launchBase(chars) {
+  const active = chars.filter((c) => c.player && c.status !== 'Gestopt' && c.level > 0);
+  return {
+    chars: new Map(active.filter((c) => c.stats).map((c) => [norm(c.name), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skills: Object.fromEntries(Object.keys(c.skills ?? {}).map((n) => [n, 1])) }])),
+    ach: new Map([...new Set(active.map((c) => c.player))].map((p) => [p, new Set()])),
+  };
 }
 
 const PERIOD_STATS = [
@@ -332,10 +343,12 @@ async function runPeriods(data, chars, states, discord, dryRun, force) {
   const out = []; let error = null;
   for (const kind of ['day', 'week']) {
     const rows = all.filter((r) => r.kind === kind);
-    const last = rows.find((r) => r.key === '_run')?.snap ?? null;
+    // no earlier post: the first Dag Dinky starts from now, the first Week Dinky is the whole time since the launch (posted on the first Monday)
+    const seeded = kind === 'week' && !rows.some((r) => r.key === '_run');
+    const last = rows.find((r) => r.key === '_run')?.snap ?? (seeded ? { date: '1970-01-01', since: LAUNCH_DAY, xp: 0 } : null);
     const due = force === kind ? 'post' : periodDue(kind, last, now);
     if (!due) continue;
-    const base = due === 'init' ? { chars: new Map(), ach: new Map() } : { chars: new Map(rows.filter((r) => r.key.startsWith('c:')).map((r) => [r.key.slice(2), r.snap])), ach: new Map(rows.filter((r) => r.key.startsWith('p:')).map((r) => [r.key.slice(2), new Set(r.snap.done ?? [])])) };
+    const base = due === 'init' ? { chars: new Map(), ach: new Map() } : seeded ? launchBase(chars) : { chars: new Map(rows.filter((r) => r.key.startsWith('c:')).map((r) => [r.key.slice(2), r.snap])), ach: new Map(rows.filter((r) => r.key.startsWith('p:')).map((r) => [r.key.slice(2), new Set(r.snap.done ?? [])])) };
     const since = kind === 'week' && last?.since && last.since > addDays(now.date, -7) ? last.since : addDays(now.date, -7);
     const result = planPeriod({ kind, core, chars, states, base, today: now.date, since, prevXp: last?.xp ?? 0, discord });
     out.push({ kind, due, messages: result.messages.map((m) => ({ content: m.content, title: m.embed.title, description: m.embed.description })) });
@@ -351,7 +364,7 @@ async function runPeriods(data, chars, states, discord, dryRun, force) {
     const stamp = new Date().toISOString();
     const snaps = [...result.newBase.chars].map(([k, v]) => ({ kind, key: `c:${k}`, snap: v, updated_at: stamp }));
     const achs = [...result.newBase.ach].map(([p, ids]) => ({ kind, key: `p:${p}`, snap: { done: [...ids] }, updated_at: stamp }));
-    await upsert('ding_period', [...snaps, ...achs, { kind, key: '_run', snap: { date: now.date, since: now.date, xp: kind === 'week' ? (result.totalXp ?? 0) : null }, updated_at: stamp }], 'kind,key');
+    await upsert('ding_period', [...snaps, ...achs, { kind, key: '_run', snap: { date: due === 'init' && now.minutes >= 22 * 60 ? addDays(now.date, 1) : now.date, since: now.date, xp: kind === 'week' ? (result.totalXp ?? 0) : null }, updated_at: stamp }], 'kind,key');
   }
   return { out, error };
 }
