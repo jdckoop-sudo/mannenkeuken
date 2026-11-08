@@ -13,7 +13,7 @@ assert.equal(readFileSync(new URL('../supabase/functions/ding-bot/achievements-c
   'supabase/functions/ding-bot/achievements-core.js is not the same as js/achievements-core.js: copy it again (cp js/achievements-core.js supabase/functions/ding-bot/)');
 writeFileSync(join(dir, 'ding.mjs'), readFileSync(new URL('../supabase/functions/ding-bot/index.ts', import.meta.url), 'utf8'));
 writeFileSync(join(dir, 'achievements-core.js'), rules);
-const { plan, characterFrom, gameTotalsFrom, totalXp, XP_TO_NEXT } = await import(join(dir, 'ding.mjs'));
+const { plan, planPeriod, periodDue, localParts, addDays, isoWeek, characterFrom, gameTotalsFrom, totalXp, XP_TO_NEXT } = await import(join(dir, 'ding.mjs'));
 const core = await import(new URL('../js/achievements-core.js', import.meta.url));
 
 const ch = (name, player, level, status = 'Main', profs = []) => ({ name, player, level, status, profs });
@@ -191,5 +191,106 @@ assert.ok(!/total xp/i.test(m[0].embed.description), 'the XP of the whole charac
 const achOnly = run([ch('Aa', 'Jelle', 12), ch('Bb', 'Tinus', 30)], [], { ...prev(), levels: new Map([['aa', 12], ['bb', 30]]), known: new Set(), players: new Set(['Jelle', 'Tinus', '']) });
 const achMsg = achOnly.messages.find((x) => x.kind === 'player' && x.player === 'Jelle');
 if (achMsg) assert.match(achMsg.embed.description, /### 📊 This session\n\*\*Total level 12\*\*/);
+
+// 13. Dag Dinky and Week Dinky: one message for the whole guild, players alphabetical, top 3 per stat, nobody without activity
+const pc = (name, player, level, xp, stats, skills = {}, status = 'Main') => ({ ...withStats(name, player, level, stats, skills, status), xp });
+const baseSnap = (level, xp, quests, kills, deaths, camps, boss, skills = {}) => ({ level, xp: totalXp(level, xp), quests, kills, deaths, camps, boss, skills });
+const periodRun = (kind, chars, base, extra = {}) => {
+  const data = { characters: chars, blizzard, donations: [], overrides: [], gameTotals: gameTotalsFrom(blizzard) };
+  const players = [...new Set(chars.filter((c) => c.status !== 'Gestopt').map((c) => c.player))];
+  const guild = core.guildMeters(data, players);
+  const states = new Map(players.map((p) => [p, core.evaluate(data, p, guild)]));
+  return planPeriod({ kind, core, chars, states, base, today: '2026-11-09', since: '2026-11-02', prevXp: 0, discord: new Map(), ...extra });
+};
+const noAch = (chars) => ({ chars: new Map(chars), ach: new Map() });
+const pbase = () => {
+  const b = noAch([['pa', baseSnap(25, 0, 100, 1000, 2, 1, 0, { Mining: 75 })], ['pb', baseSnap(10, 0, 20, 100, 0, 0, 0)], ['ha', baseSnap(31, 0, 300, 4000, 5, 2, 1)], ['ja', baseSnap(20, 100, 50, 500, 1, 0, 0)]]);
+  return b;
+};
+const pnow = () => [
+  pc('Pa', 'Pim', 28, 500, { quests: 131, kills: 1410, deaths: 4, camps: 4, bossKills: 2 }, { Mining: 80 }),
+  pc('Pb', 'Pim', 12, 50, { quests: 25, kills: 160, deaths: 0, camps: 0, bossKills: 0 }, {}, 'Alt'),
+  pc('Ha', 'Henk', 33, 10, { quests: 324, kills: 4355, deaths: 10, camps: 3, bossKills: 2 }),
+  pc('Ja', 'Justin', 20, 100, { quests: 50, kills: 500, deaths: 1, camps: 0, bossKills: 0 }), // did nothing
+  pc('Ka', 'Jacco', 5, 0, undefined), // the game does not know him
+];
+r = periodRun('day', pnow(), pbase());
+assert.equal(r.messages.length, 1);
+let d = r.messages[0];
+assert.equal(d.content, '@everyone The day in review 🌙');
+assert.deepEqual(d.allowed, { parse: ['everyone'] });
+assert.equal(d.embed.title, 'Dag Dinky · Sunday 8 November');
+const text = d.embed.description;
+assert.ok(text.indexOf('**Henk**') < text.indexOf('**Pim**'), 'players alphabetical');
+assert.ok(!/Justin|Jacco/.test(text), 'a player without activity is left out');
+assert.match(text, /### 🏅 Top 3 of the day\n/);
+assert.match(text, /📜 \*\*Quests\*\* — 🥇 Pim 36 · 🥈 Henk 24/);
+assert.match(text, /⬆️ \*\*Levels\*\* — 🥇 Pim \+5 · 🥈 Henk \+2/);
+assert.match(text, /💀 \*\*Deaths\*\* — 🥇 Henk 5 · 🥈 Pim 2/);
+assert.match(text, /🏰 \*\*Boss kills\*\* — 🥇 Pim 2 · 🥈 Henk 1/);
+// all characters of a player count, with a line per character when more than one was busy
+assert.match(text, /\*\*Pim\*\*\n✨ \+\d[\d,]* XP · ⬆️ \+5 levels \(35 → \*\*40\*\*\)\n📜 \+36 quests/);
+assert.match(text, /↳ \*\*Pa\*\*: ⬆️ 25 → \*\*28\*\* · /);
+assert.match(text, /↳ \*\*Pb\*\*: ⬆️ 10 → \*\*12\*\* · /);
+assert.match(text, /🔨 Mining 75 → \*\*80\*\*/);
+assert.ok(/### 🧮 Guild total\n/.test(text) && /📜 60 quests/.test(text));
+assert.ok(!/🛡️|gear/i.test(text));
+// a single busy character has no extra line
+assert.ok(!/↳ \*\*Ha\*\*/.test(text));
+// the starting point of the next period = the stats of now (all characters the game knows)
+assert.deepEqual([...r.newBase.chars.keys()].sort(), ['ha', 'ja', 'pa', 'pb']);
+assert.equal(r.newBase.chars.get('pa').quests, 131);
+// nothing happened: no message, but the starting point still moves on
+r = periodRun('day', [pc('Pa', 'Pim', 25, 0, { quests: 100, kills: 1000, deaths: 2, camps: 1, bossKills: 0 }, { Mining: 75 })], noAch([['pa', baseSnap(25, 0, 100, 1000, 2, 1, 0, { Mining: 75 })]]));
+assert.equal(r.messages.length, 0);
+assert.equal(r.newBase.chars.size, 1);
+// the first run (no starting point): nothing posted
+r = periodRun('day', pnow(), noAch([]));
+assert.equal(r.messages.length, 0);
+assert.equal(r.newBase.chars.size, 4);
+// a counter the starting point did not have (boss kills before the Edge Function was redeployed): no difference yet
+const oldBase = pbase(); for (const v of oldBase.chars.values()) { delete v.boss; }
+r = periodRun('day', pnow(), oldBase);
+assert.ok(!/🏰/.test(r.messages[0].embed.description));
+// achievements since the previous post are listed per player
+const achBase = pbase(); achBase.ach.set('Pim', new Set());
+r = periodRun('day', pnow(), achBase);
+assert.match(r.messages[0].embed.description, /🏆 \*\*[^*]+\*\*/);
+// the week: same layout, week number and dates in the title, trend against last week
+r = periodRun('week', pnow(), pbase(), { prevXp: 1000 });
+assert.equal(r.messages[0].embed.title, 'Week Dinky · week 45 (2 November – 8 November)');
+assert.equal(r.messages[0].content, '@everyone The week in review 📅');
+assert.match(r.messages[0].embed.description, /### 🏅 Top 3 of the week/);
+assert.match(r.messages[0].embed.description, /\(▲ \d+% vs last week\)/);
+// many players: split over several messages, @everyone only in the first, each within the Discord limit
+const many = []; const manyBase = noAch([]);
+for (let i = 0; i < 45; i++) { many.push(pc(`Char${i}`, `Player ${String(i).padStart(2, '0')}`, 20, 0, { quests: 50 + i, kills: 500 + i, deaths: 1, camps: 1, bossKills: 1 }, { Mining: 60 })); manyBase.chars.set(`char${i}`, baseSnap(18, 0, 10, 100, 0, 0, 0, { Mining: 50 })); }
+r = periodRun('day', many, manyBase);
+assert.ok(r.messages.length > 1, 'split');
+assert.match(r.messages[0].embed.description, /💀 \*\*Deaths\*\* — 🥇 Player 00 1 · 🥇 Player 01 1 · 🥇 Player 02 1 · \+42 more/, 'a big tie is cut');
+assert.equal(r.messages[0].allowed.parse[0], 'everyone');
+assert.deepEqual(r.messages[1].allowed, { parse: [] });
+assert.equal(r.messages[1].content, '');
+assert.match(r.messages[0].embed.title, /\(1\/\d\)$/);
+for (const x of r.messages) assert.ok(x.embed.description.length < 4096);
+assert.match(r.messages[r.messages.length - 1].embed.description, /### 🧮 Guild total/);
+
+// 14. when are they posted (Dutch time, the first run from 00:07)
+const at = (iso) => localParts(new Date(iso));
+assert.deepEqual(at('2026-11-09T23:30:00Z'), { date: '2026-11-10', minutes: 30, weekday: 'Tue' }); // winter time
+assert.deepEqual(at('2026-07-05T22:10:00Z'), { date: '2026-07-06', minutes: 10, weekday: 'Mon' }); // summer time
+assert.equal(periodDue('day', null, at('2026-11-09T12:00:00Z')), 'init');
+assert.equal(periodDue('day', { date: '2026-11-08' }, at('2026-11-08T23:05:00Z')), null, 'same day');
+assert.equal(periodDue('day', { date: '2026-11-08' }, at('2026-11-08T23:02:00Z')), null, 'before 00:07');
+assert.equal(periodDue('day', { date: '2026-11-08' }, at('2026-11-08T23:07:00Z')), 'post');
+assert.equal(periodDue('day', { date: '2026-11-09' }, at('2026-11-09T23:07:00Z')), 'post');
+assert.equal(periodDue('day', { date: '2026-11-10' }, at('2026-11-10T08:00:00Z')), null, 'already posted today');
+assert.equal(periodDue('week', { date: '2026-11-02' }, at('2026-11-09T23:12:00Z')), null, 'Tuesday');
+assert.equal(periodDue('week', { date: '2026-11-02' }, at('2026-11-08T23:12:00Z')), 'post', 'Monday 00:12');
+assert.equal(periodDue('week', { date: '2026-11-09' }, at('2026-11-09T09:00:00Z')), null, 'once a week');
+assert.equal(addDays('2026-11-01', -1), '2026-10-31');
+assert.equal(isoWeek('2026-11-08'), 45);
+assert.equal(isoWeek('2026-11-09'), 46);
+assert.equal(isoWeek('2027-01-03'), 53);
 
 console.log('Ding Dinky tests: all passed');
