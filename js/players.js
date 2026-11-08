@@ -37,7 +37,17 @@ export function activityOf(iso, now = new Date()) {
 // update could not read a character. known = how many characters have numbers: characters show up from level 10.
 export const GAME_STATS = [['quests', 'Quests completed'], ['kills', 'Kills'], ['deaths', 'Deaths'], ['fish', 'Fish caught']];
 // The fun counters of Guild > Overview (the Fun category): no tiles, only totals. A counter that an old update did not know counts as 0.
-export const FUN_STATS = ['critters', 'camps', 'fallDeaths', 'drownDeaths', 'fireDeaths', 'fatigueDeaths', 'hugs', 'laughs', 'cheers', 'waves', 'healthPotions', 'manaPotions', 'elixirs', 'bandages', 'food', 'drinks'];
+export const FUN_STATS = ['critters', 'camps', 'fallDeaths', 'drownDeaths', 'fireDeaths', 'fatigueDeaths', 'hugs', 'laughs', 'cheers', 'waves', 'healthPotions', 'manaPotions', 'elixirs', 'bandages', 'food', 'drinks',
+  // since 8 Nov: combat, dungeons, loot, travel, quests, mounts
+  'killingBlows', 'worldKillingBlows', 'bossKills', 'dungeonDeaths', 'fiveManDeaths', 'needRolls', 'greedRolls', 'flightPaths', 'hearths', 'questsAbandoned', 'questsPerDay', 'mounts'];
+// Boss kills over a list of characters: { 'Edwin VanCleef (Deadmines)': 3, ... } (the API gives one counter per boss, zeros left out).
+export function bossKills(chars, blizzard) {
+  const out = {};
+  for (const c of chars) for (const [boss, n] of Object.entries(blizzard?.characters?.[norm(c.name)]?.stats?.bosses ?? {})) out[boss] = (out[boss] ?? 0) + n;
+  return out;
+}
+// What the Blizzard API knows about one character (level, item level, gender, faction, guild ...), or null when it does not know it (yet).
+export const apiOf = (c, blizzard) => { const e = blizzard?.characters?.[norm(c.name)]; return e && e.status === 'ok' ? e : null; };
 export function gameTotals(chars, blizzard) {
   const stats = chars.map((c) => blizzard?.characters?.[norm(c.name)]?.stats).filter(Boolean);
   const totals = { known: stats.length };

@@ -80,14 +80,24 @@ function professionList(body) {
 // Ids seen in the answer for our own characters (7 Nov 2026, tools/blizzard-statistics.mjs): quests 98, total kills 1197, total deaths 60, fish 1518,
 // critters killed 108, times camped 64222 (our campfires), deaths from falling 114, bandages used 344, health potions 345, mana potions 922,
 // elixirs 923, beverages 346, food eaten 347, total cheers 1045, total waves 1065, times LOL'd 1066.
-const GAME_STATS = { quests: 98, kills: 1197, deaths: 60, fish: 1518, critters: 108, camps: 64222, fallDeaths: 114, bandages: 344, healthPotions: 345, manaPotions: 922, elixirs: 923, drinks: 346, food: 347, cheers: 1045, waves: 1065, laughs: 1066 };
+const GAME_STATS = { quests: 98, kills: 1197, deaths: 60, fish: 1518, critters: 108, camps: 64222, fallDeaths: 114, bandages: 344, healthPotions: 345, manaPotions: 922, elixirs: 923, drinks: 346, food: 347, cheers: 1045, waves: 1065, laughs: 1066,
+  // 8 Nov 2026 (same tool, Pala Pim): total killing blows 1487, killing blows in the world 1488, deaths in raids and dungeons 321, deaths in 5-player dungeons 918,
+  // greed rolls 1043, need rolls 1044, flight paths taken 349, times hearthed 353, quests abandoned 94, average quests per day 95, mounts owned 339.
+  killingBlows: 1487, worldKillingBlows: 1488, dungeonDeaths: 321, fiveManDeaths: 918, greedRolls: 1043, needRolls: 1044, flightPaths: 349, hearths: 353, questsAbandoned: 94, questsPerDay: 95, mounts: 339 };
 // Statistics that nobody of ours had counted yet when we looked (the API leaves out zeros), so we know their names but not their ids.
 const GAME_STATS_BY_NAME = { drownDeaths: /death.*drown|drown.*death/i, fatigueDeaths: /death.*fatigue|fatigue.*death/i, fireDeaths: /death.*(fire|lava)|(fire|lava).*death/i, hugs: /\bhugs?\b/i, facepalms: /facepalm/i, violin: /violin/i, train: /\btrain\b|choo/i };
 function gameStats(body) {
   const list = (body.categories ?? []).flatMap((c) => [...(c.statistics ?? []), ...(c.sub_categories ?? []).flatMap((s) => s.statistics ?? [])]);
   const byId = Object.entries(GAME_STATS).map(([key, id]) => [key, list.find((s) => s.id === id)?.quantity ?? 0]);
   const byName = Object.entries(GAME_STATS_BY_NAME).map(([key, re]) => [key, list.find((s) => re.test(s.name ?? ''))?.quantity ?? 0]);
-  return Object.fromEntries([...byId, ...byName]);
+  // Boss kills: one statistic per boss, named "Edwin VanCleef Kills (Deadmines)" (the capital of "kills" varies). Stored as { "Edwin VanCleef (Deadmines)": 1 } + the total.
+  const bosses = {};
+  for (const st of list) {
+    const m = /^(.+?)\s+kills\s+\((.+)\)$/i.exec(st.name ?? '');
+    if (m && st.quantity > 0) bosses[`${m[1]} (${m[2]})`] = st.quantity;
+  }
+  const bossKills = Object.values(bosses).reduce((a, b) => a + b, 0);
+  return { ...Object.fromEntries([...byId, ...byName]), bossKills, bosses };
 }
 
 async function run(dryRun) {
@@ -135,9 +145,15 @@ async function run(dryRun) {
       const stats = await call(`${base}/achievements/statistics`);
       const media = await call(`${base}/character-media`);
       const gear = await call(`${base}/equipment`);
+      const ach = await call(`${base}/achievements`); // only the totals are kept (the list itself is long)
       entry = {
         name: b.name ?? name, status: 'ok', level: b.level ?? null, race: b.race?.name ?? null, class: b.character_class?.name ?? null,
         faction: b.faction?.name ?? null, guild: b.guild?.name ?? null,
+        gender: b.gender?.name ?? old?.gender ?? null,
+        itemLevel: typeof b.average_item_level === 'number' ? b.average_item_level : (old?.itemLevel ?? null), // average item level (bags included)
+        gearLevel: typeof b.equipped_item_level === 'number' ? b.equipped_item_level : (old?.gearLevel ?? null), // item level of what is worn
+        achievementPoints: typeof b.achievement_points === 'number' ? b.achievement_points : (old?.achievementPoints ?? null),
+        achievementCount: ach.status === 200 && typeof ach.body?.total_quantity === 'number' ? ach.body.total_quantity : (old?.achievementCount ?? null),
         xp: typeof b.experience === 'number' ? b.experience : null, // XP inside the current level (the ding bot adds up the levels in between)
         lastLogin: b.last_login_timestamp ? new Date(b.last_login_timestamp).toISOString() : null,
         professions: prof.status === 200 ? professionList(prof.body) : (old?.professions ?? []),

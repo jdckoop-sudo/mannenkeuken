@@ -1142,3 +1142,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Discord recap: summary on top$q$, $q$Discord$q$, 'check',
   $q$After deploying the ding-bot function: the next session recap starts with a header "This session" and one line (XP, levels with total level before to after, Total level), then a block per character, then the Achievements header. Check that the ### headers show correctly in the embed on desktop and phone.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Discord recap: summary on top$q$);
+
+-- 2026-11-08: Overview with all stats in categories, new Blizzard stats (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Overview: new categories and Blizzard stats$q$, $q$Overview$q$, 'check',
+  $q$After deploying update-characters (Supabase, Deploy updates) and waiting one update: Guild > Overview has Players (Levels, Combat, Dungeons, Quests, Gear and loot, Travel, Achievements, Fun, Gold) and Characters (Roles, Classes, Races, Professions, Level brackets, Factions, Genders, Guild). Check that Combat, Dungeons (per boss), Gear and Travel get data, that every result shows (not only 10) and that it looks good on a phone.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Overview: new categories and Blizzard stats$q$);
