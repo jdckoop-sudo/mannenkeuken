@@ -13,13 +13,12 @@
 <link rel="stylesheet" href="css/style.css?v=__V__">
 </head>
 <body>
-<body>
 <main>
-  <section class="page-head"><div>
+  <section class="page-head ov-head"><div>
     <h1>Guild overview</h1>
-    <p class="muted" id="intro">Everything we keep track of, in one place: pick a category, then a stat. Characters with the status Quit don't count.</p>
+    <p class="muted" id="intro">Everything we keep track of, in one place: pick a category on the left, then a stat. Most numbers come straight from the game (Blizzard) and update every few minutes. Characters with the status Quit don't count.</p>
   </div></section>
-  <div class="grid glance" id="rec-totals" aria-label="Guild totals"></div>
+  <div class="ov-tiles" id="rec-totals" aria-label="Guild totals"></div>
   <div class="box explorer-box" id="explorer">
     <nav class="cat-list" id="cat-list" aria-label="Categories and stats"></nav>
     <div class="fun-panel" id="stats-panel" aria-live="polite"></div>
@@ -28,69 +27,90 @@
     <label>Characters<select id="ov-who"><option value="main">Mains</option><option value="all">Mains + Alts</option></select></label>
     <button class="btn" type="button" id="ov-view" aria-pressed="false">Show as table</button>
   </div>
-  <section class="box" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
+  <section class="box ov-trivia" id="trivia-box" hidden><h2>Did you know?</h2><ul class="trivia" id="trivia"></ul></section>
 </main>
 <style>
-  .sub { font-size: 13px; margin-top: 2px; }
-  /* Ranked list: rank | name | value, so every row lines up */
-  .board { list-style: none; margin: 0; padding: 0; counter-reset: rank; display: flex; flex-direction: column; }
-  .board li { counter-increment: rank; display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--border); }
-  .board li:first-child { border-top: none; }
-  .board li::before { content: counter(rank); text-align: right; color: var(--gold); font-family: var(--font-display); font-weight: 700; }
-  .board li:first-child .who-name > a { font-weight: 700; }
-  .board .val { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
-  .board li.empty { display: block; }
-  /* Records: a bar behind every row shows how far it is from the leader; the top three get a medal colour */
-  .board li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 15%, transparent) calc(var(--p) * 100%), transparent 0); border-radius: 4px; padding-left: 4px; padding-right: 8px; }
-  #rec-totals { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-  #trivia-box { margin-bottom: 12px; }
-  .board li:not(.empty):nth-child(1)::before { color: var(--gold-bright); text-shadow: 0 0 10px var(--gold); font-size: 1.15em; }
-  .board li:not(.empty):nth-child(2)::before { color: var(--text); }
-  .board li:not(.empty):nth-child(3)::before { color: var(--gold-dim); }
-  .board li:nth-child(1) .val { color: var(--gold-bright); text-shadow: 0 0 10px color-mix(in srgb, var(--gold) 55%, transparent); }
-  .rec-glyph { margin-right: 6px; opacity: .9; }
-  .board-shame li[style*="--p"] { background: linear-gradient(90deg, color-mix(in srgb, var(--crimson, var(--gold)) 22%, transparent) calc(var(--p) * 100%), transparent 0); }
-  /* Fun records: a legend of buttons (grouped) and the ranking of the chosen one next to it */
-  .cat-body h3 { margin: 10px 0 2px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dim); font-family: var(--font-display); }
-  .cat-body h3:first-of-type { margin-top: 0; }
-  .fun-chip { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 7px 10px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; }
-  .fun-chip:hover:not(:disabled) { border-color: var(--gold-dim); background: color-mix(in srgb, var(--gold) 8%, transparent); }
-  .fun-chip[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, transparent); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 25%, transparent); }
+  /* ---- totals ---- */
+  .ov-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 4px 0 18px; }
+  .ov-tile { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; background: linear-gradient(160deg, var(--panel-2), var(--panel)); border: 1px solid var(--border); border-top-color: var(--gold-dim); border-radius: 10px; }
+  .ov-tile .t-glyph { position: absolute; right: 10px; top: 6px; font-size: 30px; line-height: 1; color: var(--gold); opacity: .16; }
+  .ov-tile .t-label { padding-right: 30px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .ov-tile strong { font-family: var(--font-display); font-size: 24px; line-height: 1.2; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+
+  /* ---- the explorer: categories on the left, the chosen stat on the right ---- */
+  .explorer-box { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); grid-template-areas: "list panel"; column-gap: 28px; margin-bottom: 16px; padding: 20px; }
+  .explorer-box > .cat-list { grid-area: list; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .explorer-box > .fun-panel { grid-area: panel; align-self: start; position: sticky; top: 16px; min-width: 0; padding-left: 28px; border-left: 1px solid var(--border); scroll-margin-top: 12px; }
+  .cat-section { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px; font-family: var(--font-display); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-dim); }
+  .cat-section:first-child { margin-top: 0; }
+  .cat-section::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .cat-head { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 14px; gap: 10px; align-items: center; width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; min-height: 44px; font: inherit; font-weight: 600; cursor: pointer; text-align: left; transition: border-color .15s, background .15s; }
+  .cat-head:hover:not(:disabled) { border-color: var(--gold-dim); background: var(--panel-3); }
+  .cat-head[aria-expanded="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 18%, var(--panel-3)), var(--panel-3)); color: var(--gold-bright); border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }
+  .cat-head:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+  .cat-head:disabled { opacity: .4; cursor: default; }
+  .cat-head .c-glyph { text-align: center; font-size: 17px; color: var(--gold); }
+  .cat-head .c-count { font-size: 11px; font-weight: 600; min-width: 22px; text-align: center; padding: 1px 7px; border-radius: 999px; background: var(--field); color: var(--muted); border: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .cat-head[aria-expanded="true"] .c-count { color: var(--gold-bright); border-color: var(--gold-dim); }
+  .cat-head .chev { transition: transform .15s; color: var(--muted); }
+  .cat-head[aria-expanded="true"] .chev { transform: rotate(180deg); color: var(--gold-bright); }
+  .cat-body { display: flex; flex-direction: column; gap: 5px; padding: 6px 0 10px 10px; margin: 2px 0 4px 14px; border-left: 1px solid var(--gold-dim); }
+  .cat-body h3 { margin: 10px 0 0; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold-dim); font-family: var(--font-display); }
+  .cat-body h3:first-of-type { margin-top: 2px; }
+  .fun-chip { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; text-align: left; padding: 7px 10px; background: var(--field); color: var(--text); border: 1px solid var(--border); border-radius: 9px; font: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
+  .fun-chip:hover:not(:disabled) { border-color: var(--gold-dim); background: color-mix(in srgb, var(--gold) 8%, var(--field)); }
+  .fun-chip[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, var(--field)); box-shadow: 0 0 14px color-mix(in srgb, var(--gold) 22%, transparent); }
   .fun-chip:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
   .fun-chip:disabled { opacity: .45; cursor: default; }
-  .fun-chip .rec-glyph { margin: 0; text-align: center; color: var(--gold); display: inline-flex; justify-content: center; }
-  .fun-chip .chip-name { display: flex; flex-direction: column; min-width: 0; }
-  .fun-chip .chip-lead { font-size: 12px; color: var(--muted, var(--text)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rec-glyph { display: inline-flex; justify-content: center; align-items: center; color: var(--gold); }
+  .fun-chip .rec-glyph { width: 28px; height: 28px; border-radius: 50%; background: var(--panel-3); font-size: 14px; }
+  .fun-chip .chip-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .fun-chip .chip-lead { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fun-chip .chip-val { font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 600; }
-  .fun-total { margin: 0 0 6px; font-size: 13px; }
-  .trivia { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
-  .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
-
-  /* Overview explorer: category pills on top, then legend + panel */
-  /* One block: on the left the categories under each other (the open one shows its stats), on the right the chosen stat */
-  .explorer-box { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); grid-template-areas: "list panel"; column-gap: 24px; margin-bottom: 14px; }
-  .explorer-box > .cat-list { grid-area: list; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .explorer-box > .fun-panel { grid-area: panel; align-self: start; position: sticky; top: 16px; min-width: 0; padding-left: 24px; border-left: 1px solid var(--border); scroll-margin-top: 12px; }
-  .fun-panel h2 { margin-top: 0; }
-  .fun-panel .board { margin-top: 4px; }
-  .cat-head { display: flex; justify-content: space-between; align-items: center; width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; min-height: 44px; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
-  .cat-head:hover:not(:disabled) { border-color: var(--gold-dim); }
-  .cat-head[aria-expanded="true"] { background: var(--panel-3); color: var(--gold-bright); border-color: var(--gold); }
-  .cat-head:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
-  .cat-head:disabled { opacity: .45; cursor: default; }
-  .cat-head .chev { transition: transform .15s; }
-  .cat-head[aria-expanded="true"] .chev { transform: rotate(180deg); }
-  .cat-body { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 8px 10px; margin-left: 6px; border-left: 1px solid var(--gold-dim); }
   .explorer-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 2px 0 6px; }
   .explorer-tools label { flex: 1 1 130px; }
   .explorer-tools .btn { flex: none; }
   .explorer-tools[hidden] { display: none; }
-  @media (max-width: 800px) {
-    .explorer-box { grid-template-columns: minmax(0, 1fr); grid-template-areas: "panel" "list"; }
-    .explorer-box > .fun-panel { position: static; padding: 0 0 14px; margin: 0 0 12px; border-left: 0; border-bottom: 1px solid var(--border); }
-  }
+
+  /* ---- the panel: header, pills, ranking ---- */
+  .pn-head { display: flex; gap: 14px; align-items: center; }
+  .pn-glyph { flex: none; width: 46px; height: 46px; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; font-size: 22px; color: var(--gold-bright); background: linear-gradient(160deg, var(--panel-3), var(--panel-2)); border: 1px solid var(--gold-dim); box-shadow: 0 0 18px color-mix(in srgb, var(--gold) 18%, transparent); }
+  .pn-head h2 { margin: 0; font-size: 22px; }
+  .pn-head .sub { margin: 2px 0 0; font-size: 13px; }
+  .pn-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 12px; }
+  .pill { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 12px; border-radius: 999px; background: var(--field); border: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+  .pill b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+  .board { list-style: none; margin: 0; padding: 0; counter-reset: rank; display: flex; flex-direction: column; gap: 6px; }
+  .board li { --w: calc(var(--p, 0) * 100%); counter-increment: rank; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 14px 8px 8px; min-height: 46px; border: 1px solid var(--border); border-radius: 10px; background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 20%, transparent) var(--w), transparent var(--w)), var(--panel-2); }
+  .board li::before { content: counter(rank); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--field); border: 1px solid var(--border); color: var(--muted); font-family: var(--font-display); font-weight: 700; font-size: 13px; }
+  .board li:nth-child(1) { border-color: var(--gold-dim); }
+  .board li:nth-child(1)::before { background: var(--gold); border-color: var(--gold-bright); color: var(--bg); box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 50%, transparent); }
+  .board li:nth-child(2)::before { background: var(--silver); border-color: var(--silver); color: var(--bg); }
+  .board li:nth-child(3)::before { background: var(--copper); border-color: var(--copper); color: var(--bg); }
+  .board .who { min-width: 0; }
+  .board li:first-child .who-name > a { font-weight: 700; }
+  .board .val { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--gold-bright); font-weight: 700; font-size: 16px; }
+  .board li:nth-child(1) .val { font-size: 19px; text-shadow: 0 0 12px color-mix(in srgb, var(--gold) 50%, transparent); }
+  .board li.empty { display: block; padding: 14px; }
+  .board li.empty::before { content: none; }
+  .board-shame li { background: linear-gradient(90deg, color-mix(in srgb, var(--crimson-bright) 26%, transparent) var(--w), transparent var(--w)), var(--panel-2); }
+  .board-shame li:nth-child(1) { border-color: var(--crimson-bright); }
+  .board-shame li:nth-child(1)::before { background: var(--crimson-bright); border-color: var(--bad); color: var(--text); box-shadow: 0 0 12px color-mix(in srgb, var(--crimson-bright) 50%, transparent); }
   .cls-label { display: inline-flex; align-items: center; gap: 6px; }
   .fun-panel .simple-table { width: 100%; }
+  .fun-panel .simple-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+
+  /* ---- facts ---- */
+  .ov-trivia h2 { margin-top: 0; }
+  .trivia { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .trivia b { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 800px) {
+    .explorer-box { grid-template-columns: minmax(0, 1fr); grid-template-areas: "panel" "list"; padding: 14px; }
+    .explorer-box > .fun-panel { position: static; padding: 0 0 16px; margin: 0 0 14px; border-left: 0; border-bottom: 1px solid var(--border); }
+    .pn-glyph { width: 40px; height: 40px; font-size: 19px; }
+    .pn-head h2 { font-size: 19px; }
+  }
 </style>
 <script type="module">
 import { renderHeader } from './js/layout.js?v=__V__';
@@ -100,57 +120,75 @@ import { goldHtml } from './js/gold.js?v=__V__';
 import { professionIcon } from './js/proficons.js?v=__V__';
 import { classIcon, classColor } from './js/classicons.js?v=__V__';
 import { LAUNCH } from './js/releases.js?v=__V__';
-import { loadCharacters, loadBlizzard, gameTotals, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, gameTotals, bossKills, apiOf, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
 
 await renderHeader();
 const [{ characters }, blizzard] = await Promise.all([loadCharacters().catch(() => ({ characters: [] })), loadBlizzard()]);
 const { data: donationRows } = supabase ? await supabase.from('gold_donations').select('player_name,copper,created_at') : { data: [] };
 const donations = (donationRows ?? []).filter((d) => d.created_at >= LAUNCH); // counted from the launch, like Top donors on the Bank page
 const active = characters.filter((c) => c.status !== 'Gestopt' && c.hasName);
-const top = 10;
 const n = (v) => Number(v).toLocaleString('en-GB');
 const who = (c) => `<span class="who-name"><a href="${characterUrl(c.name)}">${esc(c.name)}</a>${c.player ? `<span class="who-sub"><a href="${playerUrl(c.player)}">${esc(c.player)}</a></span>` : ''}</span>`;
 const link = (p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`;
-const empty = '<li class="muted empty">No data yet.</li>';
-const row = (who, val, p) => `<li${p === undefined ? '' : ` style="--p:${p.toFixed(3)}"`}><span class="who">${who}</span><span class="val">${val}</span></li>`;
-// list = [{ label (html), name (plain), value (number), text (what is shown) }]; the bar is relative to the biggest value
-const rows = (list) => { const max = Math.max(0, ...list.map((r) => r.value)); return list.map((r) => row(r.label, r.text ?? n(r.value), max ? r.value / max : 0)).join('') || empty; };
-const board = (glyph, title, sub, list, cls = '') => `<section><div><h2><span class="rec-glyph" aria-hidden="true">${glyph}</span>${title}</h2><p class="muted sub">${sub}</p></div><ol class="board ${cls}">${rows(list)}</ol></section>`;
+const api = (c) => apiOf(c, blizzard);
 
-// ---- data ------------------------------------------------------------------------------------------------
+// ---- one ranking: header, pills, rows (every row; the bar is the distance to the leader) ----------------------------------------------------
+// list = [{ label (html), name (plain), value (number), text (what is shown, default the number) }]
+const rows = (list) => {
+  const max = Math.max(0, ...list.map((r) => r.value));
+  return list.map((r) => `<li style="--p:${max ? (r.value / max).toFixed(3) : 0}"><span class="who">${r.label}</span><span class="val">${r.text ?? n(r.value)}</span></li>`).join('') || '<li class="muted empty">No data yet.</li>';
+};
+const board = ({ glyph, title, sub, list, cls = '', pills = [] }) => `<section>
+  <header class="pn-head"><span class="pn-glyph" aria-hidden="true">${glyph}</span><div><h2>${title}</h2><p class="muted sub">${sub}</p></div></header>
+  <div class="pn-pills">${pills.map((p) => `<span class="pill">${p}</span>`).join('')}</div>
+  <ol class="board ${cls}">${rows(list)}</ol></section>`;
+
+// ---- data -------------------------------------------------------------------------------------------------------------------------------
 const byPlayer = {};
 for (const c of active.filter((x) => x.player)) (byPlayer[c.player] ??= []).push(c);
 const playerStats = Object.entries(byPlayer).map(([p, cs]) => ({ p, ...statsFor(cs), game: gameTotals(cs, blizzard) }));
 const withGame = playerStats.filter((s) => s.game.known);
-const byGame = (key) => withGame.filter((s) => s.game[key] > 0).sort((a, b) => b.game[key] - a.game[key]).map((s) => ({ label: link(s.p), name: s.p, value: s.game[key] }));
-const byFun = (fn) => withGame.map((s) => ({ s, v: fn(s.game) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.s.p), value: x.v, name: x.s.p }));
+// a ranking of players on one of the game's numbers
+const byGame = (fn) => withGame.map((s) => ({ s, v: fn(s.game) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.s.p), name: x.s.p, value: x.v }));
+// a ranking of players on a number that is taken per character (item level, achievements ...), added up
+const byApi = (fn) => Object.entries(byPlayer).map(([p, cs]) => ({ p, v: cs.reduce((a, c) => a + (Number(fn(api(c))) || 0), 0) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: link(x.p), name: x.p, value: x.v }));
+// a ranking of single characters
+const byChar = (fn, text) => active.map((c) => ({ c, v: Number(fn(c)) || 0 })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).map((x) => ({ label: who(x.c), name: x.c.name, value: x.v, text: text?.(x.v) }));
 const donated = {};
 for (const d of donations) donated[d.player_name] = (donated[d.player_name] ?? 0) + Number(d.copper);
 const charGame = new Map(active.map((c) => [c, gameTotals([c], blizzard)])); // the game's numbers per character (for roles, classes, races ...)
 
+// one stat: key, glyph, title (big), name (legend), sub, list, plus: unit / plural (what is counted), total (how to show the guild total), cls
+const stat = (key, glyph, title, name, sub, list, o = {}) => ({ key, glyph, title, name, sub, list, unit: 'player', ...o });
+const player = (key, glyph, title, name, sub, fn, o = {}) => stat(key, glyph, title, name, sub, byGame(fn), { total: n, ...o });
+
 // Totals of the guild
 const all = gameTotals(active, blizzard);
-const tile = (label, value) => `<div class="box stat"><span class="muted">${label}</span><strong>${value}</strong></div>`;
+const tile = (glyph, label, value) => `<div class="ov-tile"><span class="t-glyph" aria-hidden="true">${glyph}</span><span class="t-label">${label}</span><strong>${value}</strong></div>`;
+const known = (v) => (all.known && v ? n(v) : '–');
 const totalDonated = Object.values(donated).reduce((a, b) => a + b, 0);
 document.getElementById('rec-totals').innerHTML = [
-  tile('Kills', all.known ? n(all.kills) : '–'), tile('Quests completed', all.known ? n(all.quests) : '–'),
-  tile('Deaths', all.known ? n(all.deaths) : '–'), tile('Fish caught', all.known ? n(all.fish) : '–'),
-  tile('Campfires', all.known && all.camps ? n(all.camps) : '–'), tile('Critters killed', all.known && all.critters ? n(all.critters) : '–'),
-  tile('Gold donated', totalDonated ? goldHtml(totalDonated) : '–'), tile('Characters', n(active.length)),
+  tile('&#9876;', 'Kills', known(all.kills)), tile('&#10070;', 'Quests completed', known(all.quests)), tile('&#9760;', 'Deaths', known(all.deaths)), tile('&#9672;', 'Fish caught', known(all.fish)),
+  tile('&#9820;', 'Boss kills', known(all.bossKills)), tile('&#9832;', 'Campfires', known(all.camps)), tile('&#10148;', 'Flight paths', known(all.flightPaths)),
+  tile('&#9679;', 'Gold donated', totalDonated ? goldHtml(totalDonated) : '–'), tile('&#9823;', 'Characters', n(active.length)),
 ].join('');
 
-// ---- groups: roles, classes, races, professions, level brackets (these follow the Mains / Mains + Alts filter) ----
+// ---- the characters' groups: roles, classes, races, professions, level brackets, factions, genders, guild (they follow Mains / Mains + Alts) ----
 const BRACKETS = [[1, 9], [10, 19], [20, 29], [30, 39], [40, 49], [50, 59], [60, 60]];
 const bracketOf = (c) => BRACKETS.find(([lo, hi]) => c.level >= lo && c.level <= hi);
 const clsLabel = (name) => `<span class="cls-label">${classIcon(name, 18)}<span style="color:${classColor(name)}">${esc(name)}</span></span>`;
+const apiKey = (field, none) => (c) => { const e = api(c); return e ? [e[field] || none].filter(Boolean) : []; }; // what the Blizzard API says; characters it does not know are left out
 const GROUPS = {
-  roles: { name: 'Roles', unit: 'role', plural: 'roles', measure: 'level', keys: (c) => [c.role], label: esc },
-  classes: { name: 'Classes', unit: 'class', plural: 'classes', measure: 'level', keys: (c) => [c.class], label: clsLabel },
-  races: { name: 'Races', unit: 'race', plural: 'races', measure: 'level', keys: (c) => [c.race], label: esc },
-  brackets: { name: 'Level brackets', unit: 'bracket', plural: 'brackets', measure: 'level', keys: (c) => { const b = bracketOf(c); return b ? [b[0] === b[1] ? `${b[0]}` : `${b[0]}–${b[1]}`] : []; }, label: (k) => `Level ${esc(k)}`, ordered: true },
-  profs: { name: 'Professions', unit: 'profession', plural: 'professions', measure: 'skill', game: false,
+  roles: { name: 'Roles', glyph: '&#9823;', unit: 'role', plural: 'roles', measure: 'level', keys: (c) => [c.role], label: esc },
+  classes: { name: 'Classes', glyph: '&#9818;', unit: 'class', plural: 'classes', measure: 'level', keys: (c) => [c.class], label: clsLabel },
+  races: { name: 'Races', glyph: '&#9790;', unit: 'race', plural: 'races', measure: 'level', keys: (c) => [c.race], label: esc },
+  profs: { name: 'Professions', glyph: '&#9874;', unit: 'profession', plural: 'professions', measure: 'skill', game: false,
     keys: (c) => c.profs.filter((p) => !SECONDARY.includes(p.name) || p.skill > 0).map((p) => p.name), label: (k) => `<span class="cls-label">${professionIcon(k, 16)}${esc(k)}</span>`,
     level: (c, k) => c.profs.find((p) => p.name === k)?.skill },
+  brackets: { name: 'Level brackets', glyph: '&#8801;', unit: 'bracket', plural: 'brackets', measure: 'level', keys: (c) => { const b = bracketOf(c); return b ? [b[0] === b[1] ? `${b[0]}` : `${b[0]}–${b[1]}`] : []; }, label: (k) => `Level ${esc(k)}`, ordered: true },
+  factions: { name: 'Factions', glyph: '&#9873;', unit: 'faction', plural: 'factions', measure: 'level', keys: apiKey('faction'), label: esc },
+  genders: { name: 'Genders', glyph: '&#9893;', unit: 'gender', plural: 'genders', measure: 'level', keys: apiKey('gender'), label: esc },
+  guilds: { name: 'Guild', glyph: '&#9819;', unit: 'guild', plural: 'guilds', measure: 'level', keys: apiKey('guild', 'No guild'), label: esc },
 };
 function groupRows(cfg, list) {
   const g = {};
@@ -163,18 +201,16 @@ function groupRows(cfg, list) {
     const gt = charGame.get(c);
     for (const f of ['kills', 'quests', 'deaths', 'fish']) e[f] += gt?.[f] ?? 0;
   }
-  const out = Object.values(g).map((e) => ({ ...e, avg: e.vals.length ? Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length) : 0, max: e.vals.length ? Math.max(...e.vals) : 0, ord: parseInt(e.name, 10) }));
-  return out;
+  return Object.values(g).map((e) => ({ ...e, avg: e.vals.length ? Math.round(e.vals.reduce((a, b) => a + b, 0) / e.vals.length) : 0, max: e.vals.length ? Math.max(...e.vals) : 0, ord: parseInt(e.name, 10) }));
 }
 // the stats of one group category: Overview (characters, average, highest) + In the game (kills ...)
 function groupGroups(cfg, list) {
   const rs = groupRows(cfg, list);
   const m = cfg.measure;
-  const item = (key, glyph, name, sub, field, o = {}) => ({
-    key, glyph, title: o.title ?? name, name, sub, unit: cfg.unit, plural: cfg.plural, grouped: true, all: true, cls: o.cls ?? '', total: o.total,
-    list: rs.filter((r) => r[field] > 0).sort(cfg.ordered ? (a, b) => a.ord - b.ord : (a, b) => b[field] - a[field] || a.name.localeCompare(b.name))
+  const item = (key, glyph, name, sub, field, o = {}) => stat(key, glyph, o.title ?? name, name, sub,
+    rs.filter((r) => r[field] > 0).sort(cfg.ordered ? (a, b) => a.ord - b.ord : (a, b) => b[field] - a[field] || a.name.localeCompare(b.name))
       .map((r) => ({ label: r.label, name: cfg.ordered ? `Level ${r.name}` : r.name, value: r[field] })),
-  });
+    { unit: cfg.unit, plural: cfg.plural, grouped: true, total: o.total, cls: o.cls ?? '' });
   const out = [['Overview', [
     item('n', '&#9823;', 'Characters', `Number of characters per ${cfg.unit}`, 'n', { title: `Characters per ${cfg.unit}`, total: n }),
     item('avg', '&#9670;', `Average ${m}`, `Average ${m} per ${cfg.unit}`, 'avg'),
@@ -199,7 +235,7 @@ function groupTable(cfg, list) {
     ${rs.map((r) => `<tr><td>${r.label}</td><td class="num">${r.n}</td><td class="num">${r.avg || '–'}</td><td class="num">${r.max || '–'}</td>${gameCols ? [r.kills, r.quests, r.deaths, r.fish].map((v) => `<td class="num">${v ? n(v) : '–'}</td>`).join('') : ''}</tr>`).join('')}</tbody></table></div></section>`;
 }
 
-// ---- the categories --------------------------------------------------------------------------------------
+// ---- the fun counters -------------------------------------------------------------------------------------------------------------------
 const FUN = [
   ['In the wild', [
     ['camps', '&#9832;', 'Campfire kings', 'Campfires', 'Most times camped (campfires lit)', (g) => g.camps],
@@ -223,48 +259,94 @@ const FUN = [
     ['food', '&#9830;', 'Big eaters', 'Food', 'Most food eaten', (g) => g.food],
     ['drinks', '&#9749;', 'Thirsty ones', 'Drinks', 'Most beverages consumed', (g) => g.drinks],
   ]],
-].map(([group, items]) => [group, items.map(([key, glyph, title, name, sub, fn, cls]) => ({ key, glyph, title, name, sub, cls: cls ?? '', list: byFun(fn), total: n }))]);
+].map(([group, items]) => [group, items.map(([key, glyph, title, name, sub, fn, cls]) => player(key, glyph, title, name, sub, fn, { cls: cls ?? '' }))]);
 
+// ---- professions: best per profession ----------------------------------------------------------------------------------------------------
 const profNames = [...new Set(active.flatMap((c) => c.profs.map((p) => p.name)))]
   .sort((a, b) => (SECONDARY.includes(a) - SECONDARY.includes(b)) || a.localeCompare(b));
-const profItem = (pn) => ({
-  key: `p-${pn}`, glyph: professionIcon(pn, 18), title: pn, name: pn, sub: `Highest ${pn} skill`, unit: 'character',
-  list: active.map((c) => ({ c, skill: c.profs.find((p) => p.name === pn)?.skill })).filter((r) => r.skill !== null && r.skill !== undefined)
-    .sort((a, b) => b.skill - a.skill).map((r) => ({ label: who(r.c), name: r.c.name, value: r.skill })),
-});
+const profItem = (pn) => stat(`p-${pn}`, professionIcon(pn, 18), pn, pn, `Highest ${pn} skill`,
+  active.map((c) => ({ c, skill: c.profs.find((p) => p.name === pn)?.skill })).filter((r) => r.skill !== null && r.skill !== undefined)
+    .sort((a, b) => b.skill - a.skill).map((r) => ({ label: who(r.c), name: r.c.name, value: r.skill })), { unit: 'character' });
 
-// Built again when the Mains / Mains + Alts filter changes
+// ---- boss kills: per dungeon, per boss ("Edwin VanCleef (Deadmines)" in the data) --------------------------------------------------------------
+const bossesOfPlayers = Object.fromEntries(Object.entries(byPlayer).map(([p, cs]) => [p, bossKills(cs, blizzard)]));
+const bossGuild = bossKills(active, blizzard);
+const bossGroups = () => {
+  const byDungeon = {};
+  for (const boss of Object.keys(bossGuild)) {
+    const m = /^(.*) \((.*)\)$/.exec(boss);
+    (byDungeon[m ? m[2] : 'Other'] ??= []).push({ boss, name: m ? m[1] : boss });
+  }
+  return Object.entries(byDungeon).sort((a, b) => a[0].localeCompare(b[0])).map(([dungeon, list]) => [dungeon, list.sort((a, b) => a.name.localeCompare(b.name)).map(({ boss, name }) =>
+    stat(`boss-${boss}`, '&#9760;', esc(name), esc(name), `Kills of ${esc(name)} (${esc(dungeon)})`,
+      Object.entries(bossesOfPlayers).filter(([, b]) => b[boss] > 0).sort((a, b) => b[1][boss] - a[1][boss]).map(([p, b]) => ({ label: link(p), name: p, value: b[boss] })), { total: n }))]);
+};
+
+// ---- the categories ----------------------------------------------------------------------------------------------------------------------
+// section "Players": rankings of players or single characters. Section "Characters": the groups above (roles, classes ...).
+// Built again when the Mains / Mains + Alts filter changes.
 function buildCategories(whoFilter) {
   const list = whoFilter === 'all' ? active : active.filter((c) => c.status === 'Main');
-  const grp = (key) => ({ key, name: GROUPS[key].name, groups: groupGroups(GROUPS[key], list), table: () => groupTable(GROUPS[key], list) });
+  const grp = (key) => ({ key, section: 'Characters', glyph: GROUPS[key].glyph, name: GROUPS[key].name, groups: groupGroups(GROUPS[key], list), table: () => groupTable(GROUPS[key], list) });
   const profs = grp('profs');
   profs.groups = [...profs.groups, ['Best per profession', profNames.filter((pn) => !SECONDARY.includes(pn)).map(profItem)], ['Secondary', profNames.filter((pn) => SECONDARY.includes(pn)).map(profItem)]];
+  const P = 'Players';
   return [
-    { key: 'levels', name: 'Levels', groups: [['Levels', [
-      { key: 'level', glyph: '&#9876;', title: 'Highest level', name: 'Highest level', sub: 'Single characters', unit: 'character',
-        list: active.filter((c) => c.level > 0).sort((a, b) => b.level - a.level).slice(0, top).map((c) => ({ label: who(c), name: c.name, value: c.level, text: `level ${c.level}` })) },
-      { key: 'player-level', glyph: '&#10070;', title: 'Player level', name: 'Player level', sub: 'All characters added together',
-        list: playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel)
-          .map((s) => ({ label: `${link(s.p)} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, name: s.p, value: s.totalLevel })) },
-      { key: 'skill', glyph: '&#9874;', title: 'Profession skill', name: 'Profession skill', sub: 'Total per player',
-        list: playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).map((s) => ({ label: link(s.p), name: s.p, value: s.totalSkill })) },
+    { key: 'levels', section: P, glyph: '&#9650;', name: 'Levels', groups: [['Levels', [
+      stat('level', '&#9876;', 'Highest level', 'Highest level', 'Single characters', byChar((c) => c.level, (v) => `level ${v}`), { unit: 'character' }),
+      stat('player-level', '&#10070;', 'Player level', 'Player level', 'All characters added together',
+        playerStats.filter((s) => s.totalLevel > 0).sort((a, b) => b.totalLevel - a.totalLevel).map((s) => ({ label: `${link(s.p)} <span class="muted">(${s.characters} character${s.characters === 1 ? '' : 's'})</span>`, name: s.p, value: s.totalLevel }))),
+      stat('skill', '&#9874;', 'Profession skill', 'Profession skill', 'Total per player', playerStats.filter((s) => s.totalSkill > 0).sort((a, b) => b.totalSkill - a.totalSkill).map((s) => ({ label: link(s.p), name: s.p, value: s.totalSkill }))),
     ]]] },
-    { key: 'game', name: 'In the game', groups: [['In the game', [
-      { key: 'kills', glyph: '&#9876;', title: 'Slayers', name: 'Kills', sub: 'Most kills, all characters', total: n, list: byGame('kills') },
-      { key: 'quests', glyph: '&#10070;', title: 'Quest masters', name: 'Quests completed', sub: 'Most quests completed', total: n, list: byGame('quests') },
-      { key: 'deaths', glyph: '&#9760;', title: 'Graveyard regulars', name: 'Deaths', sub: 'Most deaths: the Hall of Shame', cls: 'board-shame', total: n, list: byGame('deaths') },
-      { key: 'fish', glyph: '&#9672;', title: 'Big fish', name: 'Fish caught', sub: 'Most fish caught', total: n, list: byGame('fish') },
+    { key: 'combat', section: P, glyph: '&#9876;', name: 'Combat', groups: [
+      ['Kills', [
+        player('kills', '&#9876;', 'Slayers', 'Kills', 'Most kills, all characters', (g) => g.kills),
+        player('blows', '&#10026;', 'Finishers', 'Killing blows', 'Most killing blows: who gives the last hit', (g) => g.killingBlows),
+        player('world-blows', '&#9873;', 'World finishers', 'World killing blows', 'Most killing blows in the open world', (g) => g.worldKillingBlows),
+      ]],
+      ['Deaths', [
+        player('deaths', '&#9760;', 'Graveyard regulars', 'Deaths', 'Most deaths: the Hall of Shame', (g) => g.deaths, { cls: 'board-shame' }),
+        player('dungeon-deaths', '&#9820;', 'Dungeon casualties', 'Dungeon and raid deaths', 'Most deaths in dungeons and raids', (g) => g.dungeonDeaths, { cls: 'board-shame' }),
+        player('5man-deaths', '&#9819;', '5-player casualties', '5-player deaths', 'Most deaths in 5-player dungeons', (g) => g.fiveManDeaths, { cls: 'board-shame' }),
+      ]],
+    ] },
+    { key: 'dungeons', section: P, glyph: '&#9820;', name: 'Dungeons', groups: [
+      ['Overview', [player('boss-kills', '&#9820;', 'Boss slayers', 'Boss kills', 'Most dungeon bosses killed (every kill counts)', (g) => g.bossKills)]],
+      ...bossGroups(),
+    ] },
+    { key: 'quests', section: P, glyph: '&#10070;', name: 'Quests', groups: [['Quests', [
+      player('quests', '&#10070;', 'Quest masters', 'Quests completed', 'Most quests completed', (g) => g.quests),
+      player('abandoned', '&#10005;', 'Quest quitters', 'Quests abandoned', 'Most quests abandoned', (g) => g.questsAbandoned, { cls: 'board-shame' }),
+      player('per-day', '&#9788;', 'Daily questers', 'Quests per day', 'Average quests completed per day (the game rounds this number)', (g) => g.questsPerDay, { total: undefined }),
     ]]] },
-    { key: 'gold', name: 'Gold', groups: [['Guild bank', [
-      { key: 'gold', glyph: '&#9733;', title: 'Generous souls', name: 'Gold donated', sub: 'Most gold donated to the guild bank', total: goldHtml,
-        list: Object.entries(donated).sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ label: link(p), name: p, value: c, text: goldHtml(c) })) },
+    { key: 'gear', section: P, glyph: '&#9881;', name: 'Gear and loot', groups: [
+      ['Item level', [
+        stat('gear-level', '&#9881;', 'Best geared', 'Equipped item level', 'Item level of what a character wears', byChar((c) => api(c)?.gearLevel), { unit: 'character' }),
+        stat('item-level', '&#9670;', 'Best equipped', 'Average item level', 'Average item level, bags included', byChar((c) => api(c)?.itemLevel), { unit: 'character' }),
+      ]],
+      ['Loot and mounts', [
+        player('need', '&#9856;', 'Need rollers', 'Need rolls', 'Most need rolls made on loot', (g) => g.needRolls),
+        player('greed', '&#9858;', 'Greed rollers', 'Greed rolls', 'Most greed rolls made on loot', (g) => g.greedRolls),
+        player('mounts', '&#9816;', 'Stable masters', 'Mounts owned', 'Most mounts owned', (g) => g.mounts),
+      ]],
+    ] },
+    { key: 'travel', section: P, glyph: '&#10148;', name: 'Travel', groups: [['Travel', [
+      player('flights', '&#10148;', 'Frequent flyers', 'Flight paths', 'Most flight paths taken', (g) => g.flightPaths),
+      player('hearths', '&#8962;', 'Homebodies', 'Times hearthed', 'Most times the hearthstone was used', (g) => g.hearths),
     ]]] },
-    { key: 'fun', name: 'Fun', groups: FUN },
-    grp('roles'), grp('classes'), grp('races'), profs, grp('brackets'),
-  ].map((c) => ({ ...c, groups: c.groups.map(([g, items]) => [g, items.map((f) => ({ ...f, list: f.list.slice(0, f.all ? undefined : top) }))]) }));
+    { key: 'achievements', section: P, glyph: '&#9812;', name: 'Achievements', groups: [['From the game', [
+      stat('ach-points', '&#9733;', 'Achievement hunters', 'Achievement points', 'Most achievement points in the game (added up per player)', byApi((e) => e?.achievementPoints), { total: n }),
+      stat('ach-count', '&#9812;', 'Achievement collectors', 'Game achievements', 'Most achievements earned in the game (added up per player)', byApi((e) => e?.achievementCount), { total: n }),
+    ]]] },
+    { key: 'fun', section: P, glyph: '&#9786;', name: 'Fun', groups: FUN },
+    { key: 'gold', section: P, glyph: '&#9679;', name: 'Gold', groups: [['Guild bank', [
+      stat('gold', '&#9733;', 'Generous souls', 'Gold donated', 'Most gold donated to the guild bank', Object.entries(donated).sort((a, b) => b[1] - a[1]).map(([p, c]) => ({ label: link(p), name: p, value: c, text: goldHtml(c) })), { total: goldHtml }),
+    ]]] },
+    grp('roles'), grp('classes'), grp('races'), profs, grp('brackets'), grp('factions'), grp('genders'), grp('guilds'),
+  ];
 }
 
-// ---- the explorer: categories under each other; the open one shows its stats; the panel shows the chosen stat ----
+// ---- the explorer: categories under each other; the open one shows its stats; the panel shows the chosen stat ----------------------------------
 const list = document.getElementById('cat-list');
 const panel = document.getElementById('stats-panel');
 const tools = document.getElementById('tools'); // moves into the open category when it has group stats
@@ -284,10 +366,13 @@ const chipHtml = (f) => {
 };
 function drawList() {
   tools.remove();
+  let section = '';
   list.innerHTML = cats.map((c) => {
-    const has = withData(c).length > 0;
-    const open = has && c.key === state.cat && state.open;
-    return `<div class="cat"><button type="button" class="cat-head" data-cat="${c.key}" aria-expanded="${open}"${has ? '' : ' disabled title="Nobody has this yet"'}><span>${esc(c.name)}</span><svg class="chev" width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5 L7 9 L11 5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+    const has = withData(c).length;
+    const open = has > 0 && c.key === state.cat && state.open;
+    const head = c.section !== section ? `<div class="cat-section">${esc(c.section)}</div>` : '';
+    section = c.section;
+    return `${head}<div class="cat"><button type="button" class="cat-head" data-cat="${c.key}" aria-expanded="${open}"${has ? '' : ' disabled title="Nobody has this yet"'}><span class="c-glyph" aria-hidden="true">${c.glyph}</span><span>${esc(c.name)}</span><span class="c-count" title="Stats with data">${has}</span><svg class="chev" width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5 L7 9 L11 5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
       ${open ? `<div class="cat-body" id="cat-body">${c.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map(chipHtml).join('')}`).join('')}</div>` : ''}</div>`;
   }).join('');
   const body = document.getElementById('cat-body');
@@ -302,8 +387,8 @@ function drawPanel() {
   if (f.grouped && state.table) { panel.innerHTML = cat.table(); return; }
   const unit = f.unit ?? 'player';
   const count = f.list.length;
-  const line = `${f.total ? `Guild total: <b>${f.total(f.list.reduce((sum, r) => sum + r.value, 0))}</b> · ` : ''}${count} ${count === 1 ? unit : (f.plural ?? `${unit}s`)}`;
-  panel.innerHTML = board(f.glyph, f.title, f.sub, f.list, f.cls ?? '').replace('<ol class="board', `<p class="muted fun-total">${line}</p><ol class="board`);
+  const pills = [...(f.total ? [`Guild total <b>${f.total(f.list.reduce((sum, r) => sum + r.value, 0))}</b>`] : []), `<b>${count}</b> ${count === 1 ? unit : (f.plural ?? `${unit}s`)}`];
+  panel.innerHTML = board({ glyph: f.glyph, title: f.title, sub: f.sub, list: f.list, cls: f.cls ?? '', pills });
 }
 function openCat(key) {
   if (key === state.cat) state.open = !state.open; // click the open category again: fold it
