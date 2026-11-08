@@ -12,7 +12,7 @@
 //  - The first run only looks: the current levels and achievements are the starting point and are NOT announced.
 //  - A character or a player that is new in the data is also only looked at the first time (a new person would otherwise get everything at once).
 //  - Everything that happened to one player in one run goes into ONE message, written as a session recap ("<player> achieved this session:"): level ups, quests, kills,
-//    deaths, campfires, XP, profession skill gains and new gear (items that were not worn in the previous run) of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
+//    deaths, campfires, XP and profession skill gains of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
 //    the quests, kills, deaths, campfires, XP and skills are remembered per character in ding_levels (columns quests, kills, deaths, camps, xp, skills, gear) and are only compared when the game knows the character.
 //  - A guild goal is announced once for the whole guild, with @everyone, not per player.
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
@@ -94,10 +94,7 @@ export function plan({ core, chars, states, prev, discord }) {
     const up = (a, b) => Math.max(0, a - (b ?? a));
     const upN = (a, b) => (a == null || b == null ? 0 : Math.max(0, a - b)); // counters that an older snapshot did not have: no difference yet
     const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => before.skills && before.skills[n] != null && v > before.skills[n]).map(([n, v]) => ({ name: n, from: before.skills[n], to: v }));
-    // new gear: items worn now that were not worn before (a swap between the two ring or trinket slots is not new)
-    const worn = new Map(); for (const id of before.gear ?? []) worn.set(id, (worn.get(id) ?? 0) + 1);
-    const gear = !before.gear || !c.gear ? [] : c.gear.filter((g) => { const n = worn.get(g.id) ?? 0; if (n > 0) { worn.set(g.id, n - 1); return false; } return true; }).map((g) => g.name);
-    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), camps: upN(now.camps, before.camps), xp: upN(now.xp, before.xp), skills, gear };
+    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), camps: upN(now.camps, before.camps), xp: upN(now.xp, before.xp), skills };
   };
 
   // levels
@@ -129,7 +126,7 @@ export function plan({ core, chars, states, prev, discord }) {
   // one message per player
   for (const p of new Set([...gains.keys(), ...earned.keys()])) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
-    // the recap: a small block per character that did something (name, then progress / activity / skills / gear on their own lines), then the totals, then the new achievements
+    // the recap: a small block per character that did something (name, then progress / activity / skills on their own lines), then the totals, then the new achievements
     const blocks = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0;
     const row = (...bits) => bits.filter(Boolean).join(' · ');
     const mine = active.filter((x) => x.player === p);
@@ -141,7 +138,6 @@ export function plan({ core, chars, states, prev, discord }) {
         mine.length > 1 ? row(g && `⬆️ +${plural(g.to - g.from, 'level')} (${g.from} → **${g.to}**)`, ses?.xp && `✨ +${fmt(ses.xp)} XP`) : '',
         row(ses?.quests && `📜 +${plural(ses.quests, 'quest')}`, ses?.kills && `⚔️ +${plural(ses.kills, 'kill')}`, ses?.deaths && `💀 +${plural(ses.deaths, 'death')}`, ses?.camps && `🔥 +${plural(ses.camps, 'campfire')}`),
         ses?.skills?.length ? `🔨 ${ses.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ')}` : '',
-        ses?.gear.length ? `🛡️ ${plural(ses.gear.length, 'new gear piece')}: ${ses.gear.slice(0, 4).join(', ')}${ses.gear.length > 4 ? ` +${ses.gear.length - 4} more` : ''}` : '',
       ].filter(Boolean);
       if (rows.length) blocks.push([`**${c.name}**`, ...rows].join('\n'));
     }
