@@ -13,14 +13,14 @@ const { access_token: token } = await tokenRes.json();
 const key = character.toLowerCase().replace(/\s+/g, '-');
 // Which fields does the character summary have (is there an experience / XP value?). Prints names and the numbers among them only.
 const sumRes = await fetch(`https://${region}.api.blizzard.com/profile/wow/character/${encodeURIComponent(key)}?namespace=profile-forever-${region}&locale=en_US`, { headers: { Authorization: `Bearer ${token}` } });
+let sum = null;
 if (sumRes.ok) {
-  const sum = await sumRes.json();
+  sum = await sumRes.json();
   console.log(`Summary fields: ${Object.keys(sum).filter((k) => !k.startsWith('_')).join(', ')}`);
   for (const [k, v] of Object.entries(sum)) if (typeof v === 'number') console.log(`Summary number: ${k} = ${v}`);
 } else console.log(`Summary of ${character}: HTTP ${sumRes.status}`);
 // Other things we may show: what is in the summary besides numbers, and do /achievements and /titles exist for Forever?
-if (sumRes.ok) {
-  const sum = await sumRes.clone().json();
+if (sum) {
   for (const k of ['gender', 'faction', 'guild', 'race', 'character_class']) console.log(`Summary ${k}: ${sum[k] ? JSON.stringify(sum[k].name ?? sum[k]) : '(none)'}`);
   for (const k of ['achievements', 'titles', 'pvp_summary', 'encounters']) console.log(`Summary ${k}: ${sum[k] ? JSON.stringify(sum[k]).slice(0, 160) : '(none)'}`);
 }
