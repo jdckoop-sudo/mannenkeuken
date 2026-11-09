@@ -1167,3 +1167,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Dag Dinky and Week Dinky in #dings$q$, $q$Discord$q$, 'check',
   $q$After running this SQL and deploying ding-bot: the first run only remembers the starting point (select kind, key from ding_period where key = '_run'; shows day and week). Next night from 00:07 Dutch time: Dag Dinky with @everyone (top 3, all players A-Z, guild total). Mondays: Week Dinky. Quiet players are left out; a quiet day posts nothing. No gear line. Preview: POST {"dryRun": true, "force": "day" or "week"}.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Dag Dinky and Week Dinky in #dings$q$);
+
+-- 2026-11-10: Blizzard now draws Pala Pim and Pietrein Defeinkleijn right, so WRONG_PICTURE_CHARACTERS is empty (Justin)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character pictures: Pala Pim and Pietrein show their picture$q$, $q$Roster$q$, 'check',
+  $q$Pala Pim and Pietrein Defeinkleijn (the Undead paladins of Pim and Ian): Home, My profile, character page and player page now show their picture from the game (an Undead, not a gnome, not the class icon). If a picture is wrong again, put the name back in WRONG_PICTURE_CHARACTERS in js/charpicture.js.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character pictures: Pala Pim and Pietrein show their picture$q$);
