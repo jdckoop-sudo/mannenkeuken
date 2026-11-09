@@ -232,7 +232,9 @@ const PERIOD_STATS = [
   { key: 'deaths', icon: '💀', label: 'Deaths', show: (v) => fmt(v) },
 ];
 const MEDALS = ['🥇', '🥈', '🥉'];
-const EMBED_LIMIT = 3800; // Discord allows 4096 characters in the description of an embed
+// Discord says 4096 characters, but the first Week Dinky (9 nov) was cut off after 2,687 characters / 52 lines (the rest of that message, with the block of Mike, never showed in Discord), so a message stays well below that
+const EMBED_LIMIT = 2200;
+const EMBED_LINES = 32;
 
 // base = { chars: Map(key -> snapshot), ach: Map(player -> Set(achievement ids)) } as it was at the previous post (empty = starting point only)
 // Returns { messages, newBase, players }: all players (alphabetical) with everything their characters did, the guild total and the messages to post (none when nothing happened).
@@ -299,10 +301,11 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
   blocks.push(`### 🧮 Guild total\n${row(g.xp && `✨ ${fmt(g.xp)} XP${trend}`, g.levels && `⬆️ +${plural(g.levels, 'level')}`, g.quests && `📜 ${plural(g.quests, 'quest')}`, g.kills && `⚔️ ${plural(g.kills, 'kill')}`, g.boss && `🏰 ${plural(g.boss, 'boss kill')}`, g.deaths && `💀 ${plural(g.deaths, 'death')}`, g.camps && `🔥 ${plural(g.camps, 'campfire')}`, g.skillpts && `🔨 +${fmt(g.skillpts)} profession skill`, achN && `🏆 ${plural(achN, 'new achievement')}`)}`);
 
   // pack the blocks into as few messages as fit (@everyone only in the first)
-  const pages = [[]]; let size = 0;
+  const pages = [[]]; let size = 0; let rows = 0;
   for (const b of blocks) {
-    if (size + b.length > EMBED_LIMIT && pages[pages.length - 1].length) { pages.push([]); size = 0; }
-    pages[pages.length - 1].push(b); size += b.length + 2;
+    const n = b.split('\n').length + 1;
+    if ((size + b.length > EMBED_LIMIT || rows + n > EMBED_LINES) && pages[pages.length - 1].length) { pages.push([]); size = 0; rows = 0; }
+    pages[pages.length - 1].push(b); size += b.length + 2; rows += n;
   }
   const title = kind === 'week' ? `Week Dinky · week ${isoWeek(addDays(today, -1))} (${since >= addDays(today, -1) ? dayMonth(addDays(today, -1)) : `${dayMonth(since)} – ${dayMonth(addDays(today, -1))}`})` : `Dag Dinky · ${dayName(addDays(today, -1))}`;
   const messages = pages.map((bl, i) => ({
