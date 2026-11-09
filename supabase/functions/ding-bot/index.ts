@@ -232,6 +232,7 @@ const PERIOD_STATS = [
   { key: 'deaths', icon: '💀', label: 'Deaths', show: (v) => fmt(v) },
 ];
 const MEDALS = ['🥇', '🥈', '🥉'];
+const MENU_SIZE = 25; // a select menu holds 25 options, a message 5 menus
 const EMBED_LIMIT = 3800; // Discord allows 4096 characters in the description of an embed
 
 // base = { chars: Map(key -> snapshot), ach: Map(player -> Set(achievement ids)) } as it was at the previous post (empty = starting point only)
@@ -290,6 +291,7 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
   if (top.length) blocks.push(`### 🏅 Top 3 of the ${word}\n${top.join('\n')}`);
   const acts = (x, skip) => row(x.xp && !skip && `✨ +${fmt(x.xp)} XP`, x.quests && `📜 +${plural(x.quests, 'quest')}`, x.kills && `⚔️ +${plural(x.kills, 'kill')}`, x.boss && `🏰 +${plural(x.boss, 'boss kill')}`, x.deaths && `💀 +${plural(x.deaths, 'death')}`, x.camps && `🔥 +${plural(x.camps, 'campfire')}`);
   const skillText = (c) => c.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ');
+  const details = []; // per player: the text for the menu of the widget (the same lines as in the long message)
   busy.forEach((r, i) => {
     const t = r.totals; const lines = [`**${r.name}**`];
     const head = row(t.xp && `✨ +${fmt(t.xp)} XP`, t.levels && `⬆️ +${plural(t.levels, 'level')} (${fmt(r.totalLevel - t.levels)} → **${fmt(r.totalLevel)}**)`);
@@ -298,6 +300,7 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
     if (r.chars.length === 1) { if (r.chars[0].skills.length) lines.push(`🔨 ${skillText(r.chars[0])}`); }
     else for (const c of r.chars) lines.push(`↳ **${c.name}**: ${row(c.levels && `⬆️ ${c.from} → **${c.level}**`, c.xp && `✨ +${fmt(c.xp)} XP`, acts(c, true), c.skills.length && `🔨 ${skillText(c)}`)}`);
     if (r.ach.length) lines.push(`🏆 ${r.ach.map((x) => `**${x.title}**`).join(' · ')}`);
+    details.push({ name: r.name, text: lines.join('\n'), summary: row(t.xp && `✨ +${fmt(t.xp)} XP`, t.levels && `⬆️ +${fmt(t.levels)}`, t.quests && `📜 ${fmt(t.quests)}`, t.kills && `⚔️ ${fmt(t.kills)}`, r.ach.length && `🏆 ${r.ach.length}`) });
     blocks.push((i === 0 ? '### 👥 Everyone\n' : '') + lines.join('\n'));
   });
   const g = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skillpts: 0 }; let achN = 0;
@@ -319,7 +322,22 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
     allowed: i === 0 ? { parse: ['everyone'] } : { parse: [] },
     commit: { levels: [], known: [], summary: `${title}: ${busy.map((r) => r.name).join(', ')}` },
   }));
-  return { messages, newBase, players: results, totalXp: g.xp };
+  // the widget (needs the Discord app, see runPeriods): a short message (top 3 + guild total) with a menu per 25 players; a click shows that player's lines to the one who clicked
+  const recapId = `${kind}-${addDays(today, -1)}`;
+  const menus = [];
+  for (let i = 0; i < details.length; i += MENU_SIZE) {
+    const part = details.slice(i, i + MENU_SIZE);
+    menus.push({ type: 1, components: [{ type: 3, custom_id: `recap|${recapId}|${menus.length}`, placeholder: details.length > MENU_SIZE ? `Players ${part[0].name} – ${part[part.length - 1].name}`.slice(0, 150) : 'Pick a player for the details',
+      options: part.map((d) => ({ label: d.name.slice(0, 100), value: d.name.slice(0, 100), description: d.summary.slice(0, 100) || undefined })) }] });
+  }
+  const shortBlocks = [top.length ? blocks[0] : null, blocks[blocks.length - 1], '*Pick a player in the menu below to see his details (only you see them).*'].filter(Boolean);
+  const widget = menus.length && menus.length <= 5 ? {
+    recapId,
+    details: details.map((d) => ({ recap: recapId, player: d.name.slice(0, 100), title, details: d.text })),
+    message: { kind, player: '', discordId: null, content: messages[0].content, components: menus, allowed: { parse: ['everyone'] },
+      embed: { color: COLOR, title, url: `${SITE}/overview.html`, description: shortBlocks.join('\n\n') }, commit: messages[0].commit },
+  } : null;
+  return { messages, newBase, players: results, totalXp: g.xp, widget };
 }
 
 // ---- Discord
@@ -340,7 +358,7 @@ async function runPeriods(data, chars, states, discord, dryRun, force) {
   const now = localParts(new Date());
   const all = await db('ding_period?select=kind,key,snap');
   const webhook = env('DING_WEBHOOK_URL');
-  const out = []; let error = null;
+  const out = []; let error = null; let note = null;
   for (const kind of ['day', 'week']) {
     const rows = all.filter((r) => r.kind === kind);
     // no earlier post: the first Dag Dinky starts from now, the first Week Dinky is the whole time since the launch (posted on the first Monday)
@@ -351,22 +369,49 @@ async function runPeriods(data, chars, states, discord, dryRun, force) {
     const base = due === 'init' ? { chars: new Map(), ach: new Map() } : seeded ? launchBase(chars) : { chars: new Map(rows.filter((r) => r.key.startsWith('c:')).map((r) => [r.key.slice(2), r.snap])), ach: new Map(rows.filter((r) => r.key.startsWith('p:')).map((r) => [r.key.slice(2), new Set(r.snap.done ?? [])])) };
     const since = kind === 'week' && last?.since && last.since > addDays(now.date, -7) ? last.since : addDays(now.date, -7);
     const result = planPeriod({ kind, core, chars, states, base, today: now.date, since, prevXp: last?.xp ?? 0, discord });
-    out.push({ kind, due, messages: result.messages.map((m) => ({ content: m.content, title: m.embed.title, description: m.embed.description })) });
+    const bot = env('DISCORD_BOT_TOKEN'); const channel = env('DING_CHANNEL_ID');
+    out.push({ kind, due, widget: result.widget ? { enabled: !!(bot && channel), menus: result.widget.message.components.length, title: result.widget.message.embed.title, description: result.widget.message.embed.description, players: result.widget.details.map((d) => d.player) } : null,
+      messages: result.messages.map((m) => ({ content: m.content, title: m.embed.title, description: m.embed.description })) });
     if (dryRun) continue;
-    if (result.messages.length && !webhook) { error = 'DING_WEBHOOK_URL is not set: the news is kept until it is'; continue; }
-    try {
-      for (const m of result.messages) {
-        await post(webhook, m);
-        await db('ding_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ kind: m.kind, player_name: '', summary: m.commit.summary }) });
-        await sleep(800);
-      }
-    } catch (e) { error = e.message; console.warn(error); continue; } // nothing is moved on: the same day or week is tried again in the next run
+    // 1. the short message with the menu through the Discord app (when its secrets are set); the lines per player are stored for the menu first
+    let widgetDone = false;
+    if (result.widget && bot && channel) {
+      try {
+        await upsert('ding_recap_details', result.widget.details, 'recap,player');
+        await postBot(bot, channel, result.widget.message);
+        await db('ding_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ kind: result.widget.message.kind, player_name: '', summary: `${result.widget.message.commit.summary} (widget)` }) });
+        widgetDone = true;
+      } catch (e) { note = `Widget failed, the long message is posted instead: ${String(e.message ?? e).slice(0, 160)}`; console.warn(note); }
+    }
+    // 2. otherwise (no secrets, or the app could not post) the long message through the webhook, as before
+    if (!widgetDone) {
+      if (result.messages.length && !webhook) { error = 'DING_WEBHOOK_URL is not set: the news is kept until it is'; continue; }
+      try {
+        for (const m of result.messages) {
+          await post(webhook, m);
+          await db('ding_log', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ kind: m.kind, player_name: '', summary: m.commit.summary }) });
+          await sleep(800);
+        }
+      } catch (e) { error = e.message; console.warn(error); continue; } // nothing is moved on: the same day or week is tried again in the next run
+    }
     const stamp = new Date().toISOString();
     const snaps = [...result.newBase.chars].map(([k, v]) => ({ kind, key: `c:${k}`, snap: v, updated_at: stamp }));
     const achs = [...result.newBase.ach].map(([p, ids]) => ({ kind, key: `p:${p}`, snap: { done: [...ids] }, updated_at: stamp }));
     await upsert('ding_period', [...snaps, ...achs, { kind, key: '_run', snap: { date: due === 'init' && now.minutes >= 22 * 60 ? addDays(now.date, 1) : now.date, since: now.date, xp: kind === 'week' ? (result.totalXp ?? 0) : null }, updated_at: stamp }], 'kind,key');
   }
-  return { out, error };
+  return { out, error, note };
+}
+
+// the same message through the Discord app (a bot) so that it can have a menu: webhooks made by hand may not send components
+async function postBot(token, channel, m) {
+  const body = { content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding Dinky' }, timestamp: new Date().toISOString() }], components: m.components, allowed_mentions: m.allowed };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(`https://discord.com/api/v10/channels/${channel}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bot ${token}` }, body: JSON.stringify(body) });
+    if (res.status === 429) { const wait = Number((await res.json().catch(() => ({}))).retry_after ?? 1); await sleep(Math.min(5, wait) * 1000 + 100); continue; }
+    if (!res.ok) throw new Error(`Discord bot: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    return;
+  }
+  throw new Error('Discord bot: still rate limited after 3 tries');
 }
 
 // ---- the run
@@ -421,7 +466,7 @@ export async function run(dryRun, force) {
     }
   }
   // Dag Dinky and Week Dinky: a problem here (for instance the table ding_period does not exist yet) never stops the session recaps above
-  try { const pr = await runPeriods(data, chars, states, discord, false, null); out.periods = pr.out.map((x) => `${x.kind}: ${x.due} (${x.messages.length})`); if (pr.error && !error) error = pr.error; out.posted += pr.out.reduce((n, x) => n + (x.due === 'post' ? x.messages.length : 0), 0); }
+  try { const pr = await runPeriods(data, chars, states, discord, false, null); out.periods = pr.out.map((x) => `${x.kind}: ${x.due} (${x.messages.length})`); if (pr.error && !error) error = pr.error; else if (pr.note && !error) error = pr.note; out.posted += pr.out.reduce((n, x) => n + (x.due === 'post' ? x.messages.length : 0), 0); }
   catch (e) { console.warn(e); if (!error) error = `Dag/Week Dinky: ${String(e.message ?? e).slice(0, 200)}`; }
   await upsert('ding_status', [{ id: 1, last_run_at: now, posted: out.posted, message: error, ...(first ? { activated_at: now } : {}) }], 'id');
   return { ...out, error };
