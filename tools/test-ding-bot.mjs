@@ -268,7 +268,9 @@ assert.equal(r.messages[0].allowed.parse[0], 'everyone');
 assert.deepEqual(r.messages[1].allowed, { parse: [] });
 assert.equal(r.messages[1].content, '');
 assert.match(r.messages[0].embed.title, /\(1\/\d\)$/);
-for (const x of r.messages) assert.ok(x.embed.description.length < 4096);
+for (const x of r.messages) assert.ok(x.embed.description.length < 2700 && x.embed.description.split('\n').length <= 40, 'a message stays below the size where Discord cut the first Week Dinky off');
+// nobody gets lost between the messages
+for (let i = 0; i < 45; i++) assert.ok(r.messages.some((x) => x.embed.description.includes(`**Player ${String(i).padStart(2, '0')}**`)), `player ${i} is in a message`);
 assert.match(r.messages[r.messages.length - 1].embed.description, /### 🧮 Guild total/);
 
 // the first Week Dinky: everything since the launch (level 1, skills at 1, all achievements)
