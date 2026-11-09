@@ -4,10 +4,10 @@ import { esc } from './sheet.js?v=__V__';
 import { classIcon } from './classicons.js?v=__V__';
 import { wowheadUrl, qualityColor } from './itemsearch.js?v=__V__';
 
-// Characters whose picture the game draws wrong for now: Blizzard's own render server shows a gnome for the Undead Paladin of Pim (Pala Pim) and the
-// other Undead Paladin (Pietrein Defeinkleijn, Ian's) has no picture at all (checked 7 Nov 2026). These two show the class icon; every other character,
-// also another Undead, shows its picture. Names in lower case, as in loadBlizzard(). Take a name out of this list as soon as its picture is right.
-export const WRONG_PICTURE_CHARACTERS = ['pala pim', 'pietrein defeinkleijn'];
+// Characters whose picture the game draws wrong: they show the class icon instead; every other character shows its picture. Names in lower case,
+// as in loadBlizzard(). Take a name out of this list as soon as its picture is right. Empty since 10 Nov 2026: Pala Pim (a gnome on 7 Nov) and
+// Pietrein Defeinkleijn (no picture on 7 Nov) now both have a right Undead picture.
+export const WRONG_PICTURE_CHARACTERS = [];
 
 // The picture from the game: the full character if there is one, otherwise the smaller versions. Null when the game has none (or draws it wrong).
 export const pictureOf = (entry) => {
