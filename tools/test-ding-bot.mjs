@@ -214,13 +214,19 @@ const pnow = () => [
   pc('Ja', 'Justin', 20, 100, { quests: 50, kills: 500, deaths: 1, camps: 0, bossKills: 0 }), // did nothing
   pc('Ka', 'Jacco', 5, 0, undefined), // the game does not know him
 ];
+const all = (res) => res.messages.map((x) => x.embed.description).join('\n');
 r = periodRun('day', pnow(), pbase());
-assert.equal(r.messages.length, 1);
+assert.equal(r.messages.length, 2, 'two separate messages: top 3 + guild total, and the players');
 let d = r.messages[0];
 assert.equal(d.content, '@everyone The day in review 🌙');
 assert.deepEqual(d.allowed, { parse: ['everyone'] });
 assert.equal(d.embed.title, 'Dag Dinky · Sunday 8 November');
-const text = d.embed.description;
+const text = all(r);
+assert.ok(/### 🏅 Top 3 of the day/.test(d.embed.description) && /### 🧮 Guild total/.test(d.embed.description) && !/Everyone/.test(d.embed.description), 'message 1 = top 3 + guild total');
+assert.match(r.messages[1].embed.description, /^### 👥 Everyone\n/);
+assert.equal(r.messages[1].content, '');
+assert.deepEqual(r.messages[1].allowed, { parse: [] });
+assert.ok(!/🧮|🏅/.test(r.messages[1].embed.description), 'message 2 = only the players');
 assert.ok(text.indexOf('**Henk**') < text.indexOf('**Pim**'), 'players alphabetical');
 assert.ok(!/Justin|Jacco/.test(text), 'a player without activity is left out');
 assert.match(text, /### 🏅 Top 3 of the day\n/);
@@ -229,7 +235,8 @@ assert.match(text, /⬆️ \*\*Levels\*\* — 🥇 Pim \+5 · 🥈 Henk \+2/);
 assert.match(text, /💀 \*\*Deaths\*\* — 🥇 Henk 5 · 🥈 Pim 2/);
 assert.match(text, /🏰 \*\*Boss kills\*\* — 🥇 Pim 2 · 🥈 Henk 1/);
 // one short line per player; all characters of a player are added up (alts included); under each other, alphabetical
-assert.match(text, /### 👥 Everyone\n\*✨ XP[^\n]*\n\*\*Henk\*\* · ✨ 105,310 · ⬆️ \+2 · 📜 24 · ⚔️ 355 · 🏰 1 · 💀 5 · 🔥 1\n\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+5 · 📜 36 · ⚔️ 470 · 🏰 2 · 💀 2 · 🔥 3 · 🔨 \+5\n\n### 🧮/);
+assert.match(r.messages[1].embed.description, /### 👥 Everyone\n\*✨ XP[^\n]*\n\*\*Henk\*\* · ✨ 105,310 · ⬆️ \+2 · 📜 24 · ⚔️ 355 · 🏰 1 · 💀 5 · 🔥 1\n\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+5 · 📜 36 · ⚔️ 470 · 🏰 2 · 💀 2 · 🔥 3 · 🔨 \+5$/);
+assert.ok(!/🏆/.test(r.messages[1].embed.description), 'no achievements per player');
 assert.ok(!/↳|Mining/.test(text), 'no lines per character in the message');
 assert.ok(/### 🧮 Guild total\n/.test(text) && /📜 60 quests/.test(text));
 assert.ok(!/🛡️|gear/i.test(text));
@@ -247,11 +254,12 @@ assert.equal(r.newBase.chars.size, 4);
 // a counter the starting point did not have (boss kills before the Edge Function was redeployed): no difference yet
 const oldBase = pbase(); for (const v of oldBase.chars.values()) { delete v.boss; }
 r = periodRun('day', pnow(), oldBase);
-assert.ok(!/Boss kills|\*\*Pim\*\* · [^\n]*🏰/.test(r.messages[0].embed.description));
-// achievements since the previous post are listed per player
+assert.ok(!/Boss kills|\*\*Pim\*\* · [^\n]*🏰/.test(all(r)));
+// achievements since the previous post: only in the guild total (9 nov, Jelle: not per player)
 const achBase = pbase(); achBase.ach.set('Pim', new Set());
 r = periodRun('day', pnow(), achBase);
-assert.match(r.messages[0].embed.description, /\*\*Pim\*\* · [^\n]*🏆 \d/);
+assert.match(r.messages[0].embed.description, /🏆 \d+ new achievement/);
+assert.ok(!/🏆/.test(r.messages[1].embed.description));
 // the week: same layout, week number and dates in the title, trend against last week
 r = periodRun('week', pnow(), pbase(), { prevXp: 1000 });
 assert.equal(r.messages[0].embed.title, 'Week Dinky · week 45 (2 November – 8 November)');
@@ -267,11 +275,13 @@ assert.match(r.messages[0].embed.description, /💀 \*\*Deaths\*\* — 🥇 Play
 assert.equal(r.messages[0].allowed.parse[0], 'everyone');
 assert.deepEqual(r.messages[1].allowed, { parse: [] });
 assert.equal(r.messages[1].content, '');
-assert.match(r.messages[0].embed.title, /\(1\/\d\)$/);
+assert.equal(r.messages[0].embed.title, 'Dag Dinky · Sunday 8 November');
+assert.match(r.messages[1].embed.title, /\(1\/\d\)$/);
+assert.deepEqual(r.messages.slice(2).map((x) => x.content), r.messages.slice(2).map(() => ''));
 for (const x of r.messages) assert.ok(x.embed.description.length < 2700 && x.embed.description.split('\n').length <= 40, 'a message stays below the size where Discord cut the first Week Dinky off');
 // nobody gets lost between the messages
 for (let i = 0; i < 45; i++) assert.ok(r.messages.some((x) => x.embed.description.includes(`**Player ${String(i).padStart(2, '0')}**`)), `player ${i} is in a message`);
-assert.match(r.messages[r.messages.length - 1].embed.description, /### 🧮 Guild total/);
+assert.match(r.messages[0].embed.description, /### 🧮 Guild total/);
 
 // the first Week Dinky: everything since the launch (level 1, skills at 1, all achievements)
 const lb = launchBase(pnow());
@@ -279,10 +289,10 @@ assert.deepEqual([...lb.chars.keys()].sort(), ['ha', 'ja', 'pa', 'pb']);
 assert.deepEqual(lb.chars.get('pa'), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skills: { Mining: 1 } });
 r = periodRun('week', pnow(), lb, { since: LAUNCH_DAY });
 assert.equal(r.messages[0].embed.title, 'Week Dinky · week 45 (5 November – 8 November)');
-assert.match(r.messages[0].embed.description, /\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+38 /, 'levels since the launch: 2 characters from level 1 to 28 and 12');
-assert.match(r.messages[0].embed.description, /🔨 \+79/, 'skills since the launch (1 → 80)');
-assert.match(r.messages[0].embed.description, /\*\*Justin\*\*/, 'everybody who did something since the launch is in');
-assert.match(r.messages[0].embed.description, /🏆 \d/, 'achievements since the launch');
+assert.match(all(r), /\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+38 /, 'levels since the launch: 2 characters from level 1 to 28 and 12');
+assert.match(all(r), /🔨 \+79/, 'skills since the launch (1 → 80)');
+assert.match(all(r), /\*\*Justin\*\*/, 'everybody who did something since the launch is in');
+assert.match(r.messages[0].embed.description, /🏆 \d+ new achievement/, 'achievements since the launch');
 
 // 14. when are they posted (Dutch time, the first run from 00:07)
 const at = (iso) => localParts(new Date(iso));
