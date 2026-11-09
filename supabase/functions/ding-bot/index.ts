@@ -233,8 +233,8 @@ const PERIOD_STATS = [
 ];
 const MEDALS = ['🥇', '🥈', '🥉'];
 // Discord says 4096 characters, but the first Week Dinky (9 nov) was cut off after 2,687 characters / 52 lines (the rest of that message, with the block of Mike, never showed in Discord), so a message stays well below that
-const EMBED_LIMIT = 2200;
-const EMBED_LINES = 32;
+const EMBED_LIMIT = 2400;
+const EMBED_LINES = 40;
 
 // base = { chars: Map(key -> snapshot), ach: Map(player -> Set(achievement ids)) } as it was at the previous post (empty = starting point only)
 // Returns { messages, newBase, players }: all players (alphabetical) with everything their characters did, the guild total and the messages to post (none when nothing happened).
