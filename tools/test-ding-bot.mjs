@@ -228,15 +228,11 @@ assert.match(text, /📜 \*\*Quests\*\* — 🥇 Pim 36 · 🥈 Henk 24/);
 assert.match(text, /⬆️ \*\*Levels\*\* — 🥇 Pim \+5 · 🥈 Henk \+2/);
 assert.match(text, /💀 \*\*Deaths\*\* — 🥇 Henk 5 · 🥈 Pim 2/);
 assert.match(text, /🏰 \*\*Boss kills\*\* — 🥇 Pim 2 · 🥈 Henk 1/);
-// all characters of a player count, with a line per character when more than one was busy
-assert.match(text, /\*\*Pim\*\*\n✨ \+\d[\d,]* XP · ⬆️ \+5 levels \(35 → \*\*40\*\*\)\n📜 \+36 quests/);
-assert.match(text, /↳ \*\*Pa\*\*: ⬆️ 25 → \*\*28\*\* · /);
-assert.match(text, /↳ \*\*Pb\*\*: ⬆️ 10 → \*\*12\*\* · /);
-assert.match(text, /🔨 Mining 75 → \*\*80\*\*/);
+// one short line per player; all characters of a player are added up (alts included); under each other, alphabetical
+assert.match(text, /### 👥 Everyone\n\*✨ XP[^\n]*\n\*\*Henk\*\* · ✨ 105,310 · ⬆️ \+2 · 📜 24 · ⚔️ 355 · 🏰 1 · 💀 5 · 🔥 1\n\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+5 · 📜 36 · ⚔️ 470 · 🏰 2 · 💀 2 · 🔥 3 · 🔨 \+5\n\n### 🧮/);
+assert.ok(!/↳|Mining/.test(text), 'no lines per character in the message');
 assert.ok(/### 🧮 Guild total\n/.test(text) && /📜 60 quests/.test(text));
 assert.ok(!/🛡️|gear/i.test(text));
-// a single busy character has no extra line
-assert.ok(!/↳ \*\*Ha\*\*/.test(text));
 // the starting point of the next period = the stats of now (all characters the game knows)
 assert.deepEqual([...r.newBase.chars.keys()].sort(), ['ha', 'ja', 'pa', 'pb']);
 assert.equal(r.newBase.chars.get('pa').quests, 131);
@@ -251,11 +247,11 @@ assert.equal(r.newBase.chars.size, 4);
 // a counter the starting point did not have (boss kills before the Edge Function was redeployed): no difference yet
 const oldBase = pbase(); for (const v of oldBase.chars.values()) { delete v.boss; }
 r = periodRun('day', pnow(), oldBase);
-assert.ok(!/🏰/.test(r.messages[0].embed.description));
+assert.ok(!/Boss kills|\*\*Pim\*\* · [^\n]*🏰/.test(r.messages[0].embed.description));
 // achievements since the previous post are listed per player
 const achBase = pbase(); achBase.ach.set('Pim', new Set());
 r = periodRun('day', pnow(), achBase);
-assert.match(r.messages[0].embed.description, /🏆 \*\*[^*]+\*\*/);
+assert.match(r.messages[0].embed.description, /\*\*Pim\*\* · [^\n]*🏆 \d/);
 // the week: same layout, week number and dates in the title, trend against last week
 r = periodRun('week', pnow(), pbase(), { prevXp: 1000 });
 assert.equal(r.messages[0].embed.title, 'Week Dinky · week 45 (2 November – 8 November)');
@@ -281,10 +277,10 @@ assert.deepEqual([...lb.chars.keys()].sort(), ['ha', 'ja', 'pa', 'pb']);
 assert.deepEqual(lb.chars.get('pa'), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skills: { Mining: 1 } });
 r = periodRun('week', pnow(), lb, { since: LAUNCH_DAY });
 assert.equal(r.messages[0].embed.title, 'Week Dinky · week 45 (5 November – 8 November)');
-assert.match(r.messages[0].embed.description, /\*\*Pim\*\*\n✨ \+[\d,]+ XP · ⬆️ \+\d+ levels? \(2 → \*\*40\*\*\)/);
-assert.match(r.messages[0].embed.description, /🔨 Mining 1 → \*\*80\*\*/);
+assert.match(r.messages[0].embed.description, /\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+38 /, 'levels since the launch: 2 characters from level 1 to 28 and 12');
+assert.match(r.messages[0].embed.description, /🔨 \+79/, 'skills since the launch (1 → 80)');
 assert.match(r.messages[0].embed.description, /\*\*Justin\*\*/, 'everybody who did something since the launch is in');
-assert.match(r.messages[0].embed.description, /🏆 \*\*/, 'achievements since the launch');
+assert.match(r.messages[0].embed.description, /🏆 \d/, 'achievements since the launch');
 
 // 14. when are they posted (Dutch time, the first run from 00:07)
 const at = (iso) => localParts(new Date(iso));

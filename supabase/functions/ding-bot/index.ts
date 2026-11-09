@@ -288,18 +288,11 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
   }).filter(Boolean);
   const blocks = [];
   if (top.length) blocks.push(`### 🏅 Top 3 of the ${word}\n${top.join('\n')}`);
-  const acts = (x, skip) => row(x.xp && !skip && `✨ +${fmt(x.xp)} XP`, x.quests && `📜 +${plural(x.quests, 'quest')}`, x.kills && `⚔️ +${plural(x.kills, 'kill')}`, x.boss && `🏰 +${plural(x.boss, 'boss kill')}`, x.deaths && `💀 +${plural(x.deaths, 'death')}`, x.camps && `🔥 +${plural(x.camps, 'campfire')}`);
-  const skillText = (c) => c.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ');
-  busy.forEach((r, i) => {
-    const t = r.totals; const lines = [`**${r.name}**`];
-    const head = row(t.xp && `✨ +${fmt(t.xp)} XP`, t.levels && `⬆️ +${plural(t.levels, 'level')} (${fmt(r.totalLevel - t.levels)} → **${fmt(r.totalLevel)}**)`);
-    if (head) lines.push(head);
-    const a = acts(t, true); if (a) lines.push(a);
-    if (r.chars.length === 1) { if (r.chars[0].skills.length) lines.push(`🔨 ${skillText(r.chars[0])}`); }
-    else for (const c of r.chars) lines.push(`↳ **${c.name}**: ${row(c.levels && `⬆️ ${c.from} → **${c.level}**`, c.xp && `✨ +${fmt(c.xp)} XP`, acts(c, true), c.skills.length && `🔨 ${skillText(c)}`)}`);
-    if (r.ach.length) lines.push(`🏆 ${r.ach.map((x) => `**${x.title}**`).join(' · ')}`);
-    blocks.push((i === 0 ? '### 👥 Everyone\n' : '') + lines.join('\n'));
-  });
+  // one short line per player (all his characters added up), alphabetical; the details per character are not in the message (9 nov, Jelle: too long)
+  const legend = '*✨ XP · ⬆️ levels · 📜 quests · ⚔️ kills · 🏰 boss kills · 💀 deaths · 🔥 campfires · 🔨 profession skill · 🏆 achievements*';
+  const lineOf = (r) => { const t = r.totals; return `**${r.name}** · ${row(t.xp && `✨ ${fmt(t.xp)}`, t.levels && `⬆️ +${fmt(t.levels)}`, t.quests && `📜 ${fmt(t.quests)}`, t.kills && `⚔️ ${fmt(t.kills)}`, t.boss && `🏰 ${fmt(t.boss)}`, t.deaths && `💀 ${fmt(t.deaths)}`, t.camps && `🔥 ${fmt(t.camps)}`, t.skillpts && `🔨 +${fmt(t.skillpts)}`, r.ach.length && `🏆 ${fmt(r.ach.length)}`)}`; };
+  const lines = new Set(); // the player lines come under each other (no empty line in between)
+  busy.forEach((r, i) => { const b = (i === 0 ? `### 👥 Everyone\n${legend}\n` : '') + lineOf(r); lines.add(b); blocks.push(b); });
   const g = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skillpts: 0 }; let achN = 0;
   for (const r of busy) { for (const k of Object.keys(g)) g[k] += r.totals[k]; achN += r.ach.length; }
   const trend = kind === 'week' && prevXp > 0 && g.xp > 0 ? ` (${g.xp >= prevXp ? '▲' : '▼'} ${Math.abs(Math.round(((g.xp - prevXp) / prevXp) * 100))}% vs last week)` : '';
@@ -315,7 +308,7 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
   const messages = pages.map((bl, i) => ({
     kind, player: '', discordId: null,
     content: i === 0 ? `@everyone ${kind === 'week' ? 'The week in review 📅' : 'The day in review 🌙'}` : '',
-    embed: { color: COLOR, title: pages.length > 1 ? `${title} (${i + 1}/${pages.length})` : title, url: `${SITE}/overview.html`, description: bl.join('\n\n') },
+    embed: { color: COLOR, title: pages.length > 1 ? `${title} (${i + 1}/${pages.length})` : title, url: `${SITE}/overview.html`, description: bl.reduce((acc, b, k) => (k ? acc + (lines.has(b) && lines.has(bl[k - 1]) ? '\n' : '\n\n') + b : b), '') },
     allowed: i === 0 ? { parse: ['everyone'] } : { parse: [] },
     commit: { levels: [], known: [], summary: `${title}: ${busy.map((r) => r.name).join(', ')}` },
   }));
