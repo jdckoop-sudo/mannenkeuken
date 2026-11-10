@@ -55,7 +55,7 @@ import { loadCharacters, loadBlizzard, playerUrl, statusLabel } from './js/playe
 import { characterDoll } from './js/charpicture.js?v=__V__';
 import { refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { renderTalents } from './js/talents.js?v=__V__';
-import { loadRecipes, recipeLink, reagentsHtml } from './js/recipes.js?v=__V__';
+import { loadRecipes, knownRecipesHtml } from './js/recipes.js?v=__V__';
 
 await renderHeader();
 const name = new URLSearchParams(location.search).get('name') || '';
@@ -104,10 +104,10 @@ if (!c) {
   if (recipes) {
     for (const el of document.querySelectorAll('#profs [data-prof]')) {
       const known = (bz.professions ?? []).find((x) => x.name === el.dataset.prof)?.recipes ?? [];
-      const list = known.map((id) => recipes[id]).filter(Boolean).sort((a, b) => a.c.localeCompare(b.c) || a.n.localeCompare(b.n));
+      const list = known.map((id) => recipes[id]).filter(Boolean);
       if (!list.length) continue;
-      el.insertAdjacentHTML('beforeend', `<details class="recipe-list"><summary>${list.length} recipe${list.length === 1 ? '' : 's'} known</summary><ul>${list.map((r) =>
-        `<li>${recipeLink(r)}${r.r?.length ? `<span class="muted"> · ${reagentsHtml(r)}</span>` : ''}</li>`).join('')}</ul></details>`);
+      el.insertAdjacentHTML('beforeend', `<details class="recipe-list"><summary>${list.length} recipe${list.length === 1 ? '' : 's'} known</summary>
+        <div class="rcp-cols" aria-hidden="true"><span>Recipe</span><span>Reagents</span></div>${knownRecipesHtml(list)}</details>`);
     }
     refreshTooltips();
   }

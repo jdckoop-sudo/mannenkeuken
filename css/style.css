@@ -400,17 +400,47 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .player-char-text { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 @media (max-width: 900px) { .player-char { grid-template-columns: minmax(0, 1fr); } }
 
-/* ---- Who can make this? (js/recipes.js): a crafter (character + player + skill) on Professions and the Market; the known recipes on the character page ---- */
-.crafter { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.crafter > a:first-child { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; }
-.crafter > a:first-child:hover, .crafter > a:first-child:focus-visible { text-decoration: underline; }
-.crafter .crafter-player { font-size: .9em; }
-.market-crafters { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; margin-top: 2px; }
-.recipe-list { margin-top: 6px; font-size: 13px; }
-.recipe-list summary { cursor: pointer; color: var(--gold); width: fit-content; }
+/* ---- Who can make this? (js/recipes.js): recipe cards on Professions, crafters on the Market, the known recipes on the character page ---- */
+/* A crafter: one block with the character (class colour), the player (player colour) and the skill */
+.crafter { display: inline-flex; align-items: center; gap: 8px; padding: 3px 4px 3px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); font-size: 14px; white-space: nowrap; }
+.crafter-char { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; text-decoration: none; }
+.crafter-char:hover, .crafter-char:focus-visible { text-decoration: underline; }
+.crafter-player { font-size: 13px; }
+.crafter-skill { min-width: 34px; padding: 1px 6px; border-radius: 6px; background: var(--field); color: var(--gold-bright); font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.market-crafters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; margin-top: 6px; }
+.market-crafters-label { color: var(--good); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+/* Reagents: "2 × Linen Cloth" blocks, the number in gold */
+.rcp-reagents { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rcp-reagents li { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); font-size: 13px; line-height: 1.5; }
+.rcp-n { color: var(--gold-bright); font-weight: 700; font-variant-numeric: tabular-nums; }
+.rcp-x { color: var(--muted); }
+.rcp-reagents a { color: var(--text); }
+/* Professions: one card per recipe; name on top, profession on the right, then the labelled rows Reagents and Made by */
+.rcp { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-left: 3px solid var(--gold-dim); border-radius: 8px; background: var(--field); }
+.rcp.nobody { border-left-color: var(--border-strong); }
+.rcp-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+.rcp-name { font-size: 16px; font-weight: 700; }
+.rcp-name a { text-decoration: none; }
+.rcp-name a:hover, .rcp-name a:focus-visible { text-decoration: underline; }
+.rcp.nobody .rcp-name a { color: var(--muted); }
+.rcp-qty { margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: var(--panel-2); color: var(--muted); font-size: 12px; font-weight: 600; }
+.rcp-prof { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.rcp-parts { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px 14px; margin: 0; align-items: start; }
+.rcp-parts dt { padding-top: 4px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.rcp-parts dd { margin: 0; min-width: 0; }
+.rcp-crafters { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 520px) { .rcp-parts { grid-template-columns: minmax(0, 1fr); gap: 4px; } .rcp-parts dd + dt { margin-top: 6px; } }
+/* Character page: under a profession, the known recipes per category; recipe on the left, reagents on the right */
+.recipe-list { margin-top: 8px; }
+.recipe-list summary { cursor: pointer; color: var(--gold); width: fit-content; font-size: 14px; }
 .recipe-list summary:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
-.recipe-list ul { margin: 6px 0 0; padding-left: 18px; columns: 2 280px; column-gap: 28px; }
-.recipe-list li { break-inside: avoid; margin-bottom: 3px; }
+.rcp-cols, .rcp-line { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: 6px 18px; align-items: center; }
+.rcp-cols { margin-top: 10px; padding: 0 0 6px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.rcp-group h4 { margin: 12px 0 2px; color: var(--gold); font-size: 13px; font-weight: 700; }
+.rcp-group h4 .muted { font-weight: 400; }
+.rcp-line { padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.rcp-line .rcp-name { font-size: 14px; font-weight: 600; }
+@media (max-width: 560px) { .rcp-cols { display: none; } .rcp-line { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
 /* A Wowhead link without Wowhead's icon, also on pages that iconize links (the icon is a background or a span it adds) */
 a.no-wh-icon { background-image: none !important; padding-left: 0 !important; }
 a.no-wh-icon > span[class^="icon"] { display: none !important; }
