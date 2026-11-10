@@ -1224,7 +1224,7 @@ where not exists (select 1 from public.dev_checks where title = $q$Home: portrai
 -- 2026-11-10: Who can make this? (Justin): update-characters stores the known recipes per profession, data/recipes.json every recipe
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Who can make this? (recipes)$q$, $q$Professions$q$, 'check',
-  $q$After running "Update recipes" once (Actions) and deploying update-characters: Professions has "Who can make this?" on top; type "linen bandage": Heavy Linen Bandage with Linen Cloth and the characters that know it, highest skill first. Market: a request for a craftable item shows "Can make this:" with the crafters; "I can craft" uses the real recipes. New listing: picking a craftable item names who can make it and fills in the profession. Character page: under each profession "N recipes known" folds open; reagents have no Wowhead icons.$q$, 'Claude'
+  $q$Needs "Update recipes" (Actions) and the new update-characters. Professions: "Who can make this?" on top; "linen bandage" shows the recipe, its reagents and who knows it (highest skill first). Market: a request for a craftable item shows "Can make this"; "I can craft" uses real recipes; a new listing names the crafters. Character page: "N recipes known" under each profession, per category.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Who can make this? (recipes)$q$);
 
 -- 2026-11-10: a fourth column on the Ideas and Fixes boards (Justin): Won't do = tickets we don't want or can't do now, but maybe later.
