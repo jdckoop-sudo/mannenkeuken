@@ -9,11 +9,12 @@ import { esc } from './sheet.js?v=__V__';
 const norm = (s) => String(s ?? '').trim().toLowerCase();
 
 // All rows of one character (oldest first), or of everyone when no key is given. [] when the table is not there (yet).
+// Since 10 Nov also the Week Dinky counters (xp_total, quests, kills, deaths, camps, boss); without those columns (SQL not run yet) the basic ones.
 export async function loadHistory(name) {
   if (!supabase) return [];
-  let q = supabase.from('character_history').select('day,key,name,player,level,professions,source').order('day');
-  if (name) q = q.eq('key', norm(name));
-  const { data, error } = await q;
+  const run = (cols) => { let q = supabase.from('character_history').select(cols).order('day'); if (name) q = q.eq('key', norm(name)); return q; };
+  let { data, error } = await run('day,key,name,player,level,professions,source,xp_total,quests,kills,deaths,camps,boss');
+  if (error) ({ data, error } = await run('day,key,name,player,level,professions,source'));
   return error ? [] : data ?? [];
 }
 

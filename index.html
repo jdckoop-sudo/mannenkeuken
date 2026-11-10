@@ -253,8 +253,21 @@ async function drawForMe() {
 }
 drawForMe();
 
-// This week (Monday 00:00 Dutch time until now): levels and profession skill from the history (table character_history: the last day before
-// Monday against the newest day), finished market trades, new listings and reservations, donations to the guild bank and this week's events.
+// This week (Monday 00:00 Dutch time until now), in the shape of Week Dinky in Discord (10 Nov 2026, Justin: "in line with Ding Dinky"):
+// the same eight counters per player (all his characters added up), the Guild total, the Top 3 of the week with medals and a line per player.
+// Numbers from the history (table character_history): per character the last day before Monday against the newest day. A character that
+// is new this week only counts from its first day (Week Dinky does the same). Below it: the market, the guild bank and this week's events.
+const WEEK_STATS = [
+  { key: 'xp', icon: '✨', label: 'XP', plus: false },
+  { key: 'levels', icon: '⬆️', label: 'Levels', plus: true },
+  { key: 'quests', icon: '📜', label: 'Quests', plus: false },
+  { key: 'kills', icon: '⚔️', label: 'Kills', plus: false },
+  { key: 'boss', icon: '🏰', label: 'Boss kills', plus: false },
+  { key: 'camps', icon: '🔥', label: 'Campfires', plus: false },
+  { key: 'skill', icon: '🔨', label: 'Profession skill', plus: true },
+  { key: 'deaths', icon: '💀', label: 'Deaths', plus: false },
+];
+const MEDALS = ['🥇', '🥈', '🥉'];
 async function drawWeek() {
   if (!supabase) return;
   const dutchDay = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' }); // YYYY-MM-DD
@@ -264,7 +277,10 @@ async function drawWeek() {
   const sinceIso = new Date(Date.parse(`${monday}T00:00:00Z`) - 2 * 3600e3).toISOString(); // a little before Monday 00:00 Dutch time; filtered per Dutch day below
   const inWeek = (ts) => ts && dutchDay(ts) >= monday;
   const nice = (d, o = { weekday: 'short', day: 'numeric', month: 'short' }) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', ...o });
-  document.getElementById('week-range').textContent = `${nice(monday)} – today`;
+  // ISO week number, as in Week Dinky's title
+  const th = new Date(Date.parse(`${monday}T12:00:00Z`) + 3 * 86400000);
+  const week = Math.ceil((Math.floor((th - Date.UTC(th.getUTCFullYear(), 0, 1)) / 86400000) + 1) / 7); // ISO week = the week of its Thursday
+  document.getElementById('week-range').textContent = `Week ${week} · ${nice(monday)} – today`;
 
   const [history, listingsRes, resRes, donRes, eventsRes] = await Promise.all([
     loadHistory(),
@@ -274,68 +290,66 @@ async function drawWeek() {
     supabase.from('events').select('id,title,starts_at').gte('starts_at', sinceIso).lt('starts_at', new Date(Date.parse(`${monday}T12:00:00Z`) + 7 * 86400000).toISOString()).order('starts_at'),
   ]);
 
-  // Levels and skills: per character the last day before Monday (or its first day this week) against its newest day
+  // Per character: what changed this week; added up per player
   const byKey = new Map();
   for (const h of history) { if (!byKey.has(h.key)) byKey.set(h.key, []); byKey.get(h.key).push(h); }
-  const ups = []; const skillUps = [];
+  const up = (now, was) => (now == null || was == null ? 0 : Math.max(0, now - was));
+  const players = new Map();
   for (const rows of byKey.values()) {
     const before = rows.filter((r) => r.day < monday);
     const base = before[before.length - 1] ?? rows.find((r) => r.day >= monday);
     const now = rows[rows.length - 1];
     if (!base || !now || base === now) continue;
-    if (now.level > base.level) ups.push({ name: now.name ?? now.key, player: now.player, from: base.level, to: now.level });
-    for (const [p, v] of Object.entries(now.professions ?? {})) {
-      const was = base.professions?.[p];
-      if (was != null && v > was) skillUps.push({ name: now.name ?? now.key, prof: p, from: was, to: v });
-    }
+    const skill = Object.entries(now.professions ?? {}).reduce((n, [p, v]) => n + up(v, base.professions?.[p]), 0);
+    const d = { xp: up(now.xp_total, base.xp_total), levels: up(now.level, base.level), quests: up(now.quests, base.quests), kills: up(now.kills, base.kills),
+      boss: up(now.boss, base.boss), camps: up(now.camps, base.camps), skill, deaths: up(now.deaths, base.deaths) };
+    const name = now.player ?? now.name ?? now.key;
+    const p = players.get(name) ?? Object.fromEntries(WEEK_STATS.map((s) => [s.key, 0]));
+    for (const s of WEEK_STATS) p[s.key] += d[s.key];
+    players.set(name, p);
   }
-  ups.sort((a, b) => (b.to - b.from) - (a.to - a.from) || a.name.localeCompare(b.name));
-  skillUps.sort((a, b) => (b.to - b.from) - (a.to - a.from));
-  const levels = ups.reduce((n, u) => n + u.to - u.from, 0);
-  const skill = skillUps.reduce((n, u) => n + u.to - u.from, 0);
+  const busy = [...players].filter(([, p]) => WEEK_STATS.some((s) => p[s.key] > 0)).sort(([a], [b]) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  const total = Object.fromEntries(WEEK_STATS.map((s) => [s.key, busy.reduce((n, [, p]) => n + p[s.key], 0)]));
+  const fmt = (v) => Number(v).toLocaleString('en-GB');
+  const show = (s, v) => (s.plus ? `+${fmt(v)}` : fmt(v));
+  const who = (name) => `<a href="${playerUrl(name)}">${esc(name)}</a>`;
 
+  // Guild total: one tile per counter (dimmed when 0)
+  const totals = `<div class="wk-totals">${WEEK_STATS.map((s) => `<div class="wk-total${total[s.key] ? '' : ' is-zero'}"><span class="wk-icon" aria-hidden="true">${s.icon}</span><strong>${total[s.key] ? show(s, total[s.key]) : '0'}</strong><span class="muted">${s.label}</span></div>`).join('')}</div>`;
+
+  // Top 3 of the week: per counter the three best players; a tie shares the medal (as in Week Dinky)
+  const tops = WEEK_STATS.map((s) => {
+    const list = busy.filter(([, p]) => p[s.key] > 0).sort((x, y) => y[1][s.key] - x[1][s.key] || x[0].localeCompare(y[0]));
+    const ranked = list.map(([name, p]) => ({ name, v: p[s.key], rank: list.filter(([, q]) => q[s.key] > p[s.key]).length })).filter((x) => x.rank < 3);
+    if (!ranked.length) return '';
+    const more = ranked.length > 3 ? `<span class="muted">+${ranked.length - 3} more</span>` : '';
+    return `<li class="wk-top"><span class="wk-top-stat"><span aria-hidden="true">${s.icon}</span> ${s.label}</span><span class="wk-top-names">${ranked.slice(0, 3).map((x) => `<span class="wk-medal"><span aria-label="place ${x.rank + 1}">${MEDALS[x.rank]}</span> ${who(x.name)} <b>${show(s, x.v)}</b></span>`).join('')}${more}</span></li>`;
+  }).filter(Boolean);
+
+  // Everyone: one row per player that did something (alphabetical), a column per counter
+  const everyone = busy.length ? `<div class="table-wrap wk-table-wrap"><table class="wk-table"><thead><tr><th>Player</th>${WEEK_STATS.map((s) => `<th class="num" title="${s.label}"><span aria-hidden="true">${s.icon}</span><span class="wk-th">${s.label}</span></th>`).join('')}</tr></thead><tbody>${busy.map(([name, p]) =>
+    `<tr><td>${who(name)}</td>${WEEK_STATS.map((s) => `<td class="num">${p[s.key] ? show(s, p[s.key]) : '<span class="muted">–</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+
+  // The market, the guild bank and the events of this week, on one line
   const listings = listingsRes.data ?? [];
   const done = listings.filter((l) => l.status === 'done' && inWeek(l.done_at));
   const fresh = listings.filter((l) => inWeek(l.created_at));
   const reserved = (resRes.data ?? []).filter((r) => inWeek(r.created_at));
   const dons = (donRes.data ?? []).filter((d) => inWeek(d.created_at));
   const copper = dons.reduce((n, d) => n + Number(d.copper), 0);
-  const donors = [...new Set(dons.map((d) => d.player_name))];
   const events = (eventsRes.data ?? []).filter((e) => inWeek(e.starts_at));
-  const signups = events.length ? ((await supabase.from('signups').select('event_id,answer').in('event_id', events.map((e) => e.id))).data ?? []) : [];
-
-  // 1. A row of five tiles (the same look as Guild at a glance): label, the number (dimmed when 0) and one line under it. Each opens its page.
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-  const tile = (label, value, sub, href, zero) => `<a class="box stat week-tile${zero ? ' is-zero' : ''}" href="${href}"><span class="muted">${label}</span><strong>${value}</strong><span class="stat-sub">${sub}</span></a>`;
-  const tiles = [
-    tile('Levels gained', levels ? `+${levels}` : '0', ups.length ? plural(ups.length, 'character') : 'Nobody levelled yet', 'overview.html', !levels),
-    tile('Profession skill', skill ? `+${skill}` : '0', skillUps.length ? plural(new Set(skillUps.map((u) => u.name)).size, 'character') : 'No skill gained yet', 'professions.html', !skill),
-    tile('Trades done', String(done.length), `${plural(fresh.length, 'new listing')} · ${plural(reserved.length, 'reservation')}`, 'market.html', !done.length),
-    tile('Donated', copper ? goldHtml(copper, 18) : '0', donors.length ? `by ${donors.map(esc).join(', ')}` : 'No donations yet', 'bank.html', !copper),
-    tile('Events', String(events.length), events.length ? plural(signups.filter((s) => s.answer === 'yes').length, 'sign-up') : 'Nothing planned', 'events.html', !events.length),
-  ].join('');
+  const also = `<ul class="wk-also">
+    <li><span aria-hidden="true">🛒</span> <a href="market.html">Market</a> <span class="muted">${plural(done.length, 'trade')} done · ${plural(fresh.length, 'new listing')} · ${plural(reserved.length, 'reservation')}</span></li>
+    <li><span aria-hidden="true">💰</span> <a href="bank.html">Guild bank</a> <span class="muted">${copper ? `${goldHtml(copper, 14)} donated by ${[...new Set(dons.map((d) => d.player_name))].map(esc).join(', ')}` : 'no donations yet'}</span></li>
+    <li><span aria-hidden="true">📅</span> <a href="events.html">Events</a> <span class="muted">${events.length ? events.map((e) => `<a href="events.html#ev-${e.id}">${esc(e.title)}</a> (${esc(nice(dutchDay(e.starts_at)))})`).join(', ') : 'nothing planned this week'}</span></li></ul>`;
 
-  // 2. The details: the biggest level-ups and skill gains (name on the left; "from → to" and the gain on the right, lined up),
-  //    and a third list only when the market, the bank or the events had something this week. Top 5, the rest behind "Show all".
-  const row = (name, sub, from, to) => `<li class="week-row"><span class="week-who"><a href="${characterUrl(name)}">${esc(name)}</a>${sub ? `<span class="muted">${esc(sub)}</span>` : ''}</span>`
-    + `<span class="week-from">${from} → <b>${to}</b></span><span class="week-gain">+${to - from}</span></li>`;
-  const list = (title, rows, empty) => {
-    if (!rows.length) return `<div class="week-panel"><h3>${title}</h3><p class="muted week-empty">${empty}</p></div>`;
-    const extra = rows.length - 5;
-    return `<div class="week-panel"><h3>${title}</h3><ul class="week-rows">${rows.slice(0, 5).join('')}</ul>`
-      + (extra > 0 ? `<details class="week-more"><summary>Show all ${rows.length}</summary><ul class="week-rows">${rows.slice(5).join('')}</ul></details>` : '') + '</div>';
-  };
-  const other = [
-    ...done.map((l) => `<li class="week-line"><span>✓ ${esc(l.item)}</span><span class="muted">traded</span></li>`),
-    ...dons.map((d) => `<li class="week-line"><a href="${playerUrl(d.player_name)}">${esc(d.player_name)}</a><span>${goldHtml(Number(d.copper), 14)}</span></li>`),
-    ...events.map((e) => { const yes = signups.filter((s) => s.event_id === e.id && s.answer === 'yes').length; return `<li class="week-line"><a href="events.html#ev-${e.id}">${esc(e.title)}</a><span class="muted">${esc(nice(dutchDay(e.starts_at)))}${yes ? ` · ${yes} going` : ''}</span></li>`; }),
-  ];
-  const panels = [
-    list('Biggest level-ups', ups.map((u) => row(u.name, '', u.from, u.to)), 'No new levels yet this week.'),
-    list('Biggest skill gains', skillUps.map((u) => row(u.name, u.prof, u.from, u.to)), 'No skill gained yet this week.'),
-    other.length ? `<div class="week-panel"><h3>Market, bank &amp; events</h3><ul class="week-rows">${other.join('')}</ul></div>` : '',
-  ].join('');
-  document.getElementById('week').innerHTML = `<div class="week-tiles">${tiles}</div><div class="week-panels">${panels}</div>`;
+  document.getElementById('week').innerHTML = (busy.length
+    ? `<div class="wk-section"><h3><span aria-hidden="true">🧮</span> Guild total</h3>${totals}</div>`
+      + `<div class="wk-section"><h3><span aria-hidden="true">🏅</span> Top 3 of the week</h3><ul class="wk-tops">${tops.join('')}</ul></div>`
+      + `<div class="wk-section"><h3><span aria-hidden="true">👥</span> Everyone</h3>${everyone}</div>`
+    : '<p class="muted" style="margin:0">Nobody has played yet this week.</p>')
+    + `<div class="wk-section">${also}</div>`;
   document.getElementById('week-box').hidden = false;
 }
 drawWeek();

@@ -1351,3 +1351,80 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$History: This week and level graphs$q$, $q$Home$q$, 'check',
   $q$After running this SQL: select * from character_history order by day desc limit 20 (rows for today, 8 and 9 Nov). Home shows "This week" (levels, skills, market, donations, events). Character page: graph of level and skill per day. Overview: guild graph. Mark a listing done: done_at is set.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$History: This week and level graphs$q$);
+
+-- 2026-11-10: the history also keeps the counters of Week Dinky (Justin: "This week" on Home in line with Ding Dinky): total XP, quests, kills,
+-- deaths, campfires and boss kills per character per day. Total XP = the XP of all levels below + the XP inside the level (the same Classic
+-- table as XP_TO_NEXT in supabase/functions/ding-bot/index.ts), so the numbers match Week Dinky in Discord.
+alter table public.character_history add column if not exists xp_total bigint;
+alter table public.character_history add column if not exists quests int;
+alter table public.character_history add column if not exists kills int;
+alter table public.character_history add column if not exists deaths int;
+alter table public.character_history add column if not exists camps int;
+alter table public.character_history add column if not exists boss int;
+
+create or replace function public.total_xp(p_level int, p_xp bigint) returns bigint
+language sql immutable as $$
+  select case when p_level is null or p_xp is null then null else
+    coalesce((select sum(v) from unnest(array[400,900,1400,2100,2800,3600,4500,5400,6500,7600,8800,10100,11400,12900,14400,16000,17700,19400,21300,23200,25200,27300,29400,31700,34000,36400,38900,41400,44300,47400,50800,54500,58600,62800,67100,71600,76100,80800,85700,90700,95800,101000,106300,111800,117500,123200,129100,135100,141200,147500,153900,160400,167100,173900,180800,187900,195000,202300,209800]::bigint[]) with ordinality as x(v, i) where i < p_level), 0) + p_xp end
+$$;
+
+create or replace function public.snapshot_characters() returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  insert into public.character_history (day, key, name, player, level, professions, source, updated_at, xp_total, quests, kills, deaths, camps, boss)
+  select (now() at time zone 'Europe/Amsterdam')::date, lower(btrim(c.name)), btrim(c.name), c.player_name,
+    case when b.data->>'status' in ('ok', 'guild') and (b.data->>'level') ~ '^[0-9]+$' then (b.data->>'level')::int else c.level end,
+    coalesce((select jsonb_object_agg(p->>'name', round((p->>'skill')::numeric)::int)
+              from jsonb_array_elements(case when b.data->>'status' = 'ok' and jsonb_typeof(b.data->'professions') = 'array' and jsonb_array_length(b.data->'professions') > 0
+                                             then b.data->'professions' else coalesce(c.professions, '[]'::jsonb) end) p
+              where coalesce(p->>'name', '') <> '' and (p->>'skill') ~ '^[0-9]+(\.[0-9]+)?$'), '{}'::jsonb),
+    case b.data->>'status' when 'ok' then 'game' when 'guild' then 'roster' else 'table' end,
+    now(),
+    -- the counters only when the game knows the character (status ok); otherwise empty, as Week Dinky does
+    case when b.data->>'status' = 'ok' and (b.data->>'level') ~ '^[0-9]+$' and (b.data->>'xp') ~ '^[0-9]+$' then public.total_xp((b.data->>'level')::int, (b.data->>'xp')::bigint) end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,quests}') ~ '^[0-9]+$' then (b.data#>>'{stats,quests}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,kills}') ~ '^[0-9]+$' then (b.data#>>'{stats,kills}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,deaths}') ~ '^[0-9]+$' then (b.data#>>'{stats,deaths}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,camps}') ~ '^[0-9]+$' then (b.data#>>'{stats,camps}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,bossKills}') ~ '^[0-9]+$' then (b.data#>>'{stats,bossKills}')::int end
+  from public.characters c
+  left join public.blizzard_characters b on b.key = lower(btrim(c.name))
+  where c.status is distinct from 'Gestopt' and btrim(coalesce(c.name, '')) <> ''
+  on conflict (day, key) do update set
+    name = excluded.name, player = excluded.player,
+    level = greatest(public.character_history.level, excluded.level),
+    professions = excluded.professions, source = excluded.source, updated_at = excluded.updated_at,
+    xp_total = coalesce(excluded.xp_total, public.character_history.xp_total),
+    quests = coalesce(excluded.quests, public.character_history.quests),
+    kills = coalesce(excluded.kills, public.character_history.kills),
+    deaths = coalesce(excluded.deaths, public.character_history.deaths),
+    camps = coalesce(excluded.camps, public.character_history.camps),
+    boss = coalesce(excluded.boss, public.character_history.boss);
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.snapshot_characters() from public, anon, authenticated;
+select public.snapshot_characters();
+
+-- The counters for the days copied from Ding Dinky (8 and 9 Nov): its snapshots have them (xp = total XP already). Only fills what is empty.
+insert into public.character_history (day, key, name, player, level, professions, source, updated_at, xp_total, quests, kills, deaths, camps, boss)
+select ((d.updated_at at time zone 'Europe/Amsterdam') - interval '1 hour')::date, substr(d.key, 3), c.name, c.player_name,
+  (d.snap->>'level')::int, coalesce(d.snap->'skills', '{}'::jsonb), 'dinky', d.updated_at,
+  nullif(d.snap->>'xp', '')::bigint, nullif(d.snap->>'quests', '')::int, nullif(d.snap->>'kills', '')::int,
+  nullif(d.snap->>'deaths', '')::int, nullif(d.snap->>'camps', '')::int, nullif(d.snap->>'boss', '')::int
+from public.ding_period d
+left join public.characters c on lower(btrim(c.name)) = substr(d.key, 3)
+where d.key like 'c:%' and (d.snap->>'level') ~ '^[0-9]+$'
+on conflict (day, key) do update set
+  xp_total = coalesce(public.character_history.xp_total, excluded.xp_total),
+  quests = coalesce(public.character_history.quests, excluded.quests),
+  kills = coalesce(public.character_history.kills, excluded.kills),
+  deaths = coalesce(public.character_history.deaths, excluded.deaths),
+  camps = coalesce(public.character_history.camps, excluded.camps),
+  boss = coalesce(public.character_history.boss, excluded.boss);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Home This week like Week Dinky$q$, $q$Home$q$, 'check',
+  $q$After this SQL: character_history has xp_total, quests, kills, deaths, camps, boss (also on 8 and 9 Nov). Home > This week: Guild total, Top 3 of the week with medals, and a line per player, with the same numbers as Week Dinky in Discord.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Home This week like Week Dinky$q$);
