@@ -23,6 +23,7 @@ const DATA = [
   ['data/items.json', (d) => d.items?.length > 1000, 'item list'],
   ['data/tradeable-items.json', (d) => d.items?.length > 500, 'tradeable item list'],
   ['data/quests.json', (d) => d.quests?.length > 100, 'quest list'],
+  ['data/talents.json', (d) => Object.keys(d.classes ?? {}).length >= 9, 'talent trees'],
 ];
 const IGNORE_HOSTS = ['wow.zamimg.com', 'www.wowhead.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 const ignored = (url = '') => { try { return IGNORE_HOSTS.includes(new URL(url).host); } catch { return false; } };

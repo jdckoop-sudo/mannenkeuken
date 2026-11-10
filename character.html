@@ -32,6 +32,11 @@
     </section>
   </div>
   <section class="grid" id="stats" aria-label="Stats"></section>
+  <section class="box" id="talents-box" aria-label="Talents" hidden>
+    <h2>Talents</h2>
+    <div id="talents" style="display:grid;gap:14px"></div>
+    <p class="muted" style="font-size:13px;margin:0">From the game, updates after the player logs out. Hover a talent for its tooltip; the text under a tree is the game's own description of that rank.</p>
+  </section>
   <section class="box" id="game-stats-box" aria-label="Activity in the game" hidden>
     <h2>Activity in the game</h2>
     <div class="grid trio" id="game-stats"></div>
@@ -49,6 +54,7 @@ import { professionLabel } from './js/proficons.js?v=__V__';
 import { loadCharacters, loadBlizzard, playerUrl, statusLabel } from './js/players.js?v=__V__';
 import { characterDoll } from './js/charpicture.js?v=__V__';
 import { refreshTooltips } from './js/itemsearch.js?v=__V__';
+import { renderTalents } from './js/talents.js?v=__V__';
 
 await renderHeader();
 const name = new URLSearchParams(location.search).get('name') || '';
@@ -90,6 +96,8 @@ if (!c) {
     document.getElementById('equipment-box').hidden = false;
     refreshTooltips();
   }
+  // The talent trees of the class with the talents this character chose (js/talents.js), once the game knows them
+  if (apiOk) document.getElementById('talents-box').hidden = !(await renderTalents(document.getElementById('talents'), bz, c.class));
   // Activity in the game (Blizzard API): this character's counters, each ranked against the other guild characters that have numbers
   if (apiOk && bz.stats) {
     const stat = (x) => blizzard?.characters?.[x.name.toLowerCase()]?.stats;
