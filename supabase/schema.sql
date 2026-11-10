@@ -1214,3 +1214,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Character page: talent trees$q$, $q$Characters$q$, 'check',
   $q$After running "Update talents" once (Actions) and deploying update-characters: a character page from level 10 (e.g. Pala Pim) shows Talents under the gear: three trees, Wowhead icons in the tiles, gold = full, green = partly, grey = not chosen, arrows, "30 of 30 talent points spent". Hover a talent: the text under its tree changes. On a phone the tree with the most points is on top. A character under level 10 shows no Talents block. Item icons next to the gear stay small.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Character page: talent trees$q$);
+
+-- 2026-11-10: Home → My character: every card (also the alts) has a portrait, the class icon when the game has no picture (Justin)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Home: portraits for alts too$q$, $q$Home$q$, 'check',
+  $q$Home → My character (logged in, with alts): every card has a portrait on the left, so the names and chips line up. A character without a picture from the game (e.g. under level 10) shows its class icon. The main's portrait opens the player page, an alt's portrait and every name open the character page. On a phone the portrait sits above the details.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Home: portraits for alts too$q$);
