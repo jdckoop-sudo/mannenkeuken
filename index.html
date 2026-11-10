@@ -317,13 +317,19 @@ async function drawWeek() {
   // Guild total: one tile per counter (dimmed when 0)
   const totals = `<div class="wk-totals">${WEEK_STATS.map((s) => `<div class="wk-total${total[s.key] ? '' : ' is-zero'}"><span class="wk-icon" aria-hidden="true">${s.icon}</span><strong>${total[s.key] ? show(s, total[s.key]) : '0'}</strong><span class="muted">${s.label}</span></div>`).join('')}</div>`;
 
-  // Top 3 of the week: per counter the three best players; a tie shares the medal (as in Week Dinky)
-  const tops = WEEK_STATS.map((s) => {
+  // Top 3 of the week: a podium card per counter. The three best players (a tie shares the medal, as in Week Dinky), number 1 large in gold,
+  // 2 in silver, 3 in bronze, each with a bar that shows how close he is to the leader (the bars grow in when the page loads).
+  const PLACE = ['gold', 'silver', 'bronze'];
+  const tops = WEEK_STATS.map((s, si) => {
     const list = busy.filter(([, p]) => p[s.key] > 0).sort((x, y) => y[1][s.key] - x[1][s.key] || x[0].localeCompare(y[0]));
     const ranked = list.map(([name, p]) => ({ name, v: p[s.key], rank: list.filter(([, q]) => q[s.key] > p[s.key]).length })).filter((x) => x.rank < 3);
     if (!ranked.length) return '';
-    const more = ranked.length > 3 ? `<span class="muted">+${ranked.length - 3} more</span>` : '';
-    return `<li class="wk-top"><span class="wk-top-stat"><span aria-hidden="true">${s.icon}</span> ${s.label}</span><span class="wk-top-names">${ranked.slice(0, 3).map((x) => `<span class="wk-medal"><span aria-label="place ${x.rank + 1}">${MEDALS[x.rank]}</span> ${who(x.name)} <b>${show(s, x.v)}</b></span>`).join('')}${more}</span></li>`;
+    const best = ranked[0].v;
+    const more = ranked.length > 3 ? `<p class="pod-more muted">+${ranked.length - 3} more</p>` : '';
+    return `<li class="pod" style="--i:${si}"><div class="pod-head"><span class="pod-icon" aria-hidden="true">${s.icon}</span><span class="pod-label">${s.label}</span></div>
+      <ol class="pod-list">${ranked.slice(0, 3).map((x) => `<li class="pod-row is-${PLACE[x.rank]}"><span class="pod-medal" aria-label="place ${x.rank + 1}">${MEDALS[x.rank]}</span>`
+        + `<span class="pod-name">${who(x.name)}</span><span class="pod-value">${show(s, x.v)}</span>`
+        + `<span class="pod-bar" aria-hidden="true"><span style="--w:${Math.max(4, Math.round((x.v / best) * 100))}%"></span></span></li>`).join('')}</ol>${more}</li>`;
   }).filter(Boolean);
 
   // Everyone: one row per player that did something (alphabetical), a column per counter
@@ -346,7 +352,7 @@ async function drawWeek() {
 
   document.getElementById('week').innerHTML = (busy.length
     ? `<div class="wk-section"><h3><span aria-hidden="true">🧮</span> Guild total</h3>${totals}</div>`
-      + `<div class="wk-section"><h3><span aria-hidden="true">🏅</span> Top 3 of the week</h3><ul class="wk-tops">${tops.join('')}</ul></div>`
+      + `<div class="wk-section"><h3><span aria-hidden="true">🏅</span> Top 3 of the week</h3><ul class="pods">${tops.join('')}</ul></div>`
       + `<div class="wk-section"><h3><span aria-hidden="true">👥</span> Everyone</h3>${everyone}</div>`
     : '<p class="muted" style="margin:0">Nobody has played yet this week.</p>')
     + `<div class="wk-section">${also}</div>`;
