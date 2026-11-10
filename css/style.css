@@ -440,13 +440,38 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .wk-total .muted { font-size: 12px; }
 .wk-total.is-zero strong { color: var(--muted); }
 .wk-total.is-zero .wk-icon { opacity: .5; }
-.wk-tops { margin: 0; padding: 0; list-style: none; }
-.wk-top { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 4px 14px; align-items: baseline; padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 14px; }
-.wk-top-stat { color: var(--muted); font-weight: 600; white-space: nowrap; }
-.wk-top-names { display: flex; flex-wrap: wrap; gap: 4px 18px; }
-.wk-medal { white-space: nowrap; }
-.wk-medal b { color: var(--text); font-variant-numeric: tabular-nums; }
-@media (max-width: 560px) { .wk-top { grid-template-columns: minmax(0, 1fr); } }
+/* Top 3 of the week: a podium card per counter (gold / silver / bronze, a bar per player against the leader) */
+.pods { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .pods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .pods { grid-template-columns: minmax(0, 1fr); } }
+.pod { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 7%, var(--panel-2)), var(--panel-2) 55%); overflow: hidden; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.pod::before { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+.pod:hover, .pod:focus-within { transform: translateY(-2px); border-color: var(--gold-dim); box-shadow: 0 8px 22px rgba(0, 0, 0, .45), 0 0 0 1px color-mix(in srgb, var(--gold) 25%, transparent); }
+.pod-head { display: flex; align-items: center; gap: 8px; }
+.pod-icon { font-size: 20px; line-height: 1; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gold) 40%, transparent)); }
+.pod-label { font-family: var(--font-display); font-size: 14px; letter-spacing: .04em; color: var(--gold-bright); }
+.pod-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.pod-row { --c: var(--gold); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "medal name value" "medal bar bar"; column-gap: 10px; row-gap: 4px; align-items: center; }
+.pod-row.is-silver { --c: var(--silver); }
+.pod-row.is-bronze { --c: var(--copper); }
+.pod-medal { grid-area: medal; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: 17px; line-height: 1;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); }
+.pod-name { grid-area: name; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.pod-name a { text-decoration: none; }
+.pod-name a:hover, .pod-name a:focus-visible { text-decoration: underline; }
+.pod-value { grid-area: value; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--text); font-size: 14px; }
+.pod-bar { grid-area: bar; height: 4px; border-radius: 2px; background: var(--field); overflow: hidden; }
+.pod-bar > span { display: block; height: 100%; width: var(--w); border-radius: 2px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), var(--c));
+  transform-origin: left; animation: pod-grow .9s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 60ms); }
+/* number 1: larger, gold glow */
+.pod-row.is-gold .pod-medal { width: 38px; height: 38px; font-size: 22px; box-shadow: 0 0 14px color-mix(in srgb, var(--gold) 45%, transparent); }
+.pod-row.is-gold .pod-name { font-size: 16px; }
+.pod-row.is-gold .pod-value { font-family: var(--font-display); font-size: 18px; color: var(--gold-bright); text-shadow: 0 0 10px color-mix(in srgb, var(--gold) 45%, transparent); }
+.pod-row.is-gold .pod-bar { height: 5px; }
+.pod-more { margin: -2px 0 0; font-size: 12px; text-align: right; }
+@keyframes pod-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .pod, .pod-bar > span { transition: none; animation: none; } .pod:hover, .pod:focus-within { transform: none; } }
 .wk-table-wrap { overflow-x: auto; }
 .wk-table { width: 100%; font-size: 14px; }
 .wk-table th, .wk-table td { padding: 6px 8px; white-space: nowrap; }
