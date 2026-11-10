@@ -400,6 +400,21 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .player-char-text { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 @media (max-width: 900px) { .player-char { grid-template-columns: minmax(0, 1fr); } }
 
+/* ---- Who can make this? (js/recipes.js): a crafter (character + player + skill) on Professions and the Market; the known recipes on the character page ---- */
+.crafter { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.crafter > a:first-child { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; }
+.crafter > a:first-child:hover, .crafter > a:first-child:focus-visible { text-decoration: underline; }
+.crafter .crafter-player { font-size: .9em; }
+.market-crafters { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; margin-top: 2px; }
+.recipe-list { margin-top: 6px; font-size: 13px; }
+.recipe-list summary { cursor: pointer; color: var(--gold); width: fit-content; }
+.recipe-list summary:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+.recipe-list ul { margin: 6px 0 0; padding-left: 18px; columns: 2 280px; column-gap: 28px; }
+.recipe-list li { break-inside: avoid; margin-bottom: 3px; }
+/* A Wowhead link without Wowhead's icon, also on pages that iconize links (the icon is a background or a span it adds) */
+a.no-wh-icon { background-image: none !important; padding-left: 0 !important; }
+a.no-wh-icon > span[class^="icon"] { display: none !important; }
+
 /* ---- Talents on the character page (js/talents.js): the class's three trees side by side, 7 rows of 4 tiles each.
    The picture in a tile is Wowhead's own spell icon (live, see CLAUDE.md); frame, rank badge, arrows and text are ours. ---- */
 .tal-sum { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; margin: 0; }

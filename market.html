@@ -70,7 +70,8 @@ import { supabase, displayName, isGuildMember, mine } from './js/supabase.js?v=_
 import { esc } from './js/sheet.js?v=__V__';
 import { attachItemSearch, loadItems, qualityColor, qualityName, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { myCharacters, reservationsHtml, reserveFormHtml, reservedCount } from './js/reserve.js?v=__V__';
-import { loadCharacters, playerForUser, playerUrl } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, playerForUser, playerUrl } from './js/players.js?v=__V__';
+import { loadRecipes, recipeIndex, craftersOfItem, crafterHtml } from './js/recipes.js?v=__V__';
 
 const PROFESSIONS = ['Alchemy', 'Blacksmithing', 'Enchanting', 'Engineering', 'Herbalism', 'Leatherworking', 'Mining', 'Skinning', 'Tailoring', 'Cooking', 'First Aid', 'Fishing'];
 
@@ -83,6 +84,8 @@ let reservations = [];
 let myChars = [];
 let me = null;          // my player name (sheet)
 let myCrafts = [];      // [{ character, name, skill }] professions of my characters
+let recipes = null;     // data/recipes.json (js/recipes.js)
+let recipeIdx = null;   // who in the guild knows which recipe
 let playerNames = [];
 let pickedItem = null;
 let editingId = null;
@@ -100,7 +103,12 @@ const search = attachItemSearch(document.getElementById('item-input'), (it) => {
   pickedItem = it;
   limitQuantity(it);
   if (it) {
-    hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`;
+    // Can someone in the guild make it? Then say who, and fill in the profession when it is still empty.
+    const recipeId = recipeIdx?.byItem.get(it.id)?.[0];
+    const who = recipeIdx ? craftersOfItem(recipeIdx, it.id) : [];
+    if (recipeId && !form.profession.value && PROFESSIONS.includes(recipes[recipeId].p)) form.profession.value = recipes[recipeId].p;
+    hint.innerHTML = `${qualityName(it.quality)}${it.ilvl ? ` · item level ${it.ilvl}` : ''} · <a href="${wowheadUrl(it.id)}" target="_blank" rel="noopener">${esc(it.name)}</a> <span style="font-size:12px">(hover for stats)</span>`
+      + (recipeId ? `<br>${who.length ? `Can be made by ${who.map(crafterHtml).join(' ')}` : `Made with ${esc(recipes[recipeId].p)}; nobody in the guild knows the recipe yet.`}` : '');
     refreshTooltips();
   } else hint.textContent = '';
 }, { load: () => loadItems({ tradeable: true }), link: (it) => wowheadUrl(it.id) }); // only items from the official tradeable list, no free text
@@ -143,7 +151,9 @@ function draw() {
     const free = l.quantity - reservedCount(res);
     const reserveUi = l.kind === 'offer' && !isDone ? reservationsHtml(res, user) + (user && !isMine ? reserveFormHtml(l.id, myChars, free) : '') : '';
     const crafters = canCraft(l);
-    const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${crafters.length ? ` <span style="font-size:13px;color:var(--good)">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
+    const guild = l.kind === 'request' ? guildCrafters(l) : null; // null = the game has no recipe for this item
+    const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${!guild && crafters.length ? ` <span style="font-size:13px;color:var(--good)">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
+      + (guild ? `<br><span class="market-crafters">${guild.length ? `<span style="color:var(--good)">Can make this:</span> ${guild.map(crafterHtml).join(' ')}` : '<span class="muted">Nobody in the guild knows the recipe yet</span>'}</span>` : '')
       + (isDone ? '<br><span class="badge">Finished</span>' : '')
       + ((l.pinged ?? []).length ? `<br><span class="muted" style="font-size:13px">Tagged: ${l.pinged.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</span>` : '');
     return `<tr class="${isMine ? 'mine' : ''}">
@@ -157,9 +167,18 @@ function draw() {
 
 ['filter', 'f-q', 'f-prof', 'f-tagged', 'f-craft', 'f-mine', 'f-done', 'f-res'].forEach((id) => document.getElementById(id).addEventListener('input', draw));
 
-// Which of my characters can craft this listing (profession + enough skill)?
+// Everyone in the guild who knows a recipe for the requested item (from the game), or null when the game has no recipe for it.
+function guildCrafters(l) {
+  if (!recipeIdx || !l.item_id || !recipeIdx.byItem.has(l.item_id)) return null;
+  return craftersOfItem(recipeIdx, l.item_id);
+}
+// Which of my characters can craft this request: the ones that know the recipe; for an item without a recipe in the game data,
+// the old rule (the listing's profession with enough skill).
 function canCraft(l) {
-  if (!l.profession || l.kind !== 'request') return [];
+  if (l.kind !== 'request') return [];
+  const guild = guildCrafters(l);
+  if (guild) return guild.filter((c) => me && c.player === me).map((c) => ({ character: c.name, name: c.profession, skill: c.skill }));
+  if (!l.profession) return [];
   return myCrafts.filter((c) => c.name === l.profession && (c.skill ?? 0) >= (l.min_skill ?? 0));
 }
 const profOptions = PROFESSIONS.map((p) => `<option>${esc(p)}</option>`).join('');
@@ -259,6 +278,14 @@ form.addEventListener('submit', async (e) => {
   if (!error) { stopEdit(); form.hidden = true; load(); }
 });
 myCharacters(user).then((c) => { myChars = c; draw(); });
+Promise.all([loadRecipes(), loadCharacters(), loadBlizzard()]).then(([list, { characters }, blizzard]) => {
+  if (!list) return;
+  const idx = recipeIndex(list, characters, blizzard);
+  if (!idx.known) return; // nobody's recipes fetched yet: keep the old profession rule instead of "nobody knows it"
+  recipes = list;
+  recipeIdx = idx;
+  draw();
+});
 loadCharacters().then(({ characters, players }) => {
   playerNames = players.map((p) => p.player_name).sort();
   me = playerForUser(user);

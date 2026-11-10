@@ -1,0 +1,34 @@
+# Daily: rebuild the WoW: Forever recipe list (Blizzard game data: every recipe with the item it makes and its reagents) and commit
+# data/recipes.json if it changed. Needs the repository secrets BLIZZARD_CLIENT_ID and BLIZZARD_CLIENT_SECRET. Which recipes a character
+# knows is not in here: that comes every 5 minutes from the Edge Function update-characters.
+name: Update recipes
+on:
+  schedule:
+    - cron: '57 5 * * *'   # daily 05:57 UTC (only commits when the list changed)
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build recipe list
+        run: node tools/update-recipes.mjs
+        env:
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+      - name: Commit if changed
+        run: |
+          node -e "const a=require('./data/recipes.json');delete a.updated;require('fs').writeFileSync('/tmp/new.json',JSON.stringify(a))"
+          git show HEAD:data/recipes.json > /tmp/old-full.json 2>/dev/null || echo '{}' > /tmp/old-full.json
+          node -e "const a=require('/tmp/old-full.json');delete a.updated;require('fs').writeFileSync('/tmp/old.json',JSON.stringify(a))"
+          if cmp -s /tmp/new.json /tmp/old.json; then echo "No changes"; git checkout -- data/recipes.json 2>/dev/null || true; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/recipes.json
+          git commit -m "Update WoW: Forever recipe list"
+          git push
