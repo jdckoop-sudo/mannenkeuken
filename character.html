@@ -113,8 +113,10 @@ if (!c) {
     }).join('');
     document.getElementById('game-stats-box').hidden = false;
   }
-  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Faction', apiOk ? bz.faction : null], ['Guild', apiOk ? bz.guild : null], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes],
-    ['Last login', apiOk ? whenTime(bz.lastLogin) : null], ['Last updated', apiOk ? whenTime(blizzard?.updated ?? bz.fetched) : c.updated]]
+  // Under level 10 the guild roster still gives faction and guild (status "guild"), but no last login.
+  const apiBasics = apiOk || bz?.status === 'guild';
+  document.getElementById('details').innerHTML = [['Race', c.race], ['Class', c.class], ['Role', c.role], ['Faction', apiBasics ? bz.faction : null], ['Guild', apiBasics ? bz.guild : null], ['Status', statusLabel(c.status)], ['Key recipes', c.recipes], ['Notes', c.notes],
+    ['Last login', apiOk ? whenTime(bz.lastLogin) : null], ['Last updated', apiBasics ? whenTime(blizzard?.updated ?? bz.fetched) : c.updated]]
     .filter(([, v]) => v).map(([k, v]) => `<div><span>${k}</span><strong>${esc(v)}</strong></div>`).join('');
 }
 </script>

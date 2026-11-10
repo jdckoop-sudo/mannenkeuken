@@ -56,7 +56,7 @@ export function initCharacters(host) {
   host.innerHTML = `
     <section class="box char-head">
       <div class="page-head"><h2>Characters</h2><button class="btn btn-primary" type="button" data-add>+ Add character</button></div>
-      <p class="muted char-text">All characters of the guild, as the site shows them. Characters show up in the game data from level 10: from then on the level, race, class and professions come from the game.</p>
+      <p class="muted char-text">All characters of the guild, as the site shows them. Characters show up in the game data once they are in the guild (level, race and class from the guild roster) or from level 10 (also professions): from then on these come from the game.</p>
       <div class="char-filters">
         <label>Search<input type="search" data-q placeholder="Player, character or profession"></label>
         <button class="btn" type="button" data-reload>Reload</button>
