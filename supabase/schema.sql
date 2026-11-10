@@ -1208,3 +1208,9 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Characters under level 10 from the guild roster$q$, $q$Characters$q$, 'check',
   $q$After deploying update-characters and one update: Je Keek (Jelle's alt, level 2, in the guild) shows level, race and class from the game on Roster, Overview, his player page and the character page (Faction and Guild in Details). My profile shows him as known (only the role can change). Mayo Menaise (not in the guild) still shows the table values. Developer mode > Checks: the Blizzard line counts "from the guild roster". The function result lists notInTable (e.g. Maerwyn Spasmebal).$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Characters under level 10 from the guild roster$q$);
+
+-- 2026-11-10: talent trees on the character page (Justin): update-characters stores the chosen talents (field talents), data/talents.json the trees
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character page: talent trees$q$, $q$Characters$q$, 'check',
+  $q$After running "Update talents" once (Actions) and deploying update-characters: a character page from level 10 (e.g. Pala Pim) shows Talents under the gear: three trees, Wowhead icons in the tiles, gold = full, green = partly, grey = not chosen, arrows, "30 of 30 talent points spent". Hover a talent: the text under its tree changes. On a phone the tree with the most points is on top. A character under level 10 shows no Talents block. Item icons next to the gear stay small.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character page: talent trees$q$);

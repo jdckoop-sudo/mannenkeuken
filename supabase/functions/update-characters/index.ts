@@ -69,6 +69,16 @@ function pictures(body) {
   return list.length ? Object.fromEntries(list.map((a) => [a.key, a.value])) : null;
 }
 
+// The chosen talents (/specializations, the active group): { trees: [{ name, points }], picks: { <talent id>: rank } }. The shape of the trees
+// (where each talent sits) is in data/talents.json (tools/update-talents.mjs); js/talents.js puts the two together on the character page.
+function talentList(body) {
+  const group = (body.specialization_groups ?? []).find((g) => g.is_active) ?? body.specialization_groups?.[0];
+  if (!group) return null;
+  const picks = {};
+  for (const s of group.specializations ?? []) for (const t of s.talents ?? []) if (t.talent?.id) picks[t.talent.id] = t.talent_rank ?? 1;
+  return { trees: (group.specializations ?? []).map((s) => ({ name: s.specialization_name ?? s.specialization?.name ?? '?', points: s.spent_points ?? 0 })), picks };
+}
+
 function professionList(body) {
   const one = (p, kind) => {
     const tiers = (p.tiers ?? []).map((t) => ({ name: t.tier?.name ?? null, skill: t.skill_points ?? 0, max: t.max_skill_points ?? 0 }));
@@ -175,6 +185,7 @@ async function run(dryRun) {
       const media = await call(`${base}/character-media`);
       const gear = await call(`${base}/equipment`);
       const ach = await call(`${base}/achievements`); // only the totals are kept (the list itself is long)
+      const spec = await call(`${base}/specializations`); // the chosen talents
       // The roster is sometimes refreshed before the profile; a level never goes down, so the higher of the two counts.
       const level = Math.max(b.level ?? 0, roster?.members.get(key)?.level ?? 0) || null;
       entry = {
@@ -191,6 +202,7 @@ async function run(dryRun) {
         stats: stats.status === 200 ? gameStats(stats.body) : (old?.stats ?? null),
         media: media.status === 200 ? pictures(media.body) : (old?.media ?? null),
         equipment: gear.status === 200 ? equipmentList(gear.body) : (old?.equipment ?? []),
+        talents: spec.status === 200 ? talentList(spec.body) : (old?.talents ?? null),
         fetched: now,
       };
       counts.ok += 1;
