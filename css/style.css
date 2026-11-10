@@ -364,8 +364,9 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 #new-version button { background: var(--crimson); color: var(--text); border: 1px solid var(--gold); border-radius: 4px; padding: 4px 14px; cursor: pointer; font: inherit; }
 
 /* The picture of a character from the game with the items around it (js/charpicture.js): left, right and below, as on the Armory */
-.char-doll { display: grid; grid-template-columns: minmax(0, 1fr) 190px minmax(0, 1fr); grid-template-areas: "left frame right" "below below below"; gap: 14px 16px; }
-.char-doll > .char-frame { grid-area: frame; align-self: center; }
+.char-doll { display: grid; grid-template-columns: minmax(0, 1fr) 280px minmax(0, 1fr); grid-template-areas: "left frame right" "below below below"; gap: 14px 16px; }
+/* 280 wide, as tall as the picture needs (same shape as before, 10 Nov 2026: bigger so the character is easier to see) */
+.char-doll > .char-frame { grid-area: frame; align-self: center; height: auto; aspect-ratio: 140 / 193; }
 .char-slots { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
 .char-slots-left { grid-area: left; }
 .char-slots-right { grid-area: right; text-align: right; }
@@ -397,7 +398,7 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .char-frame-empty { align-items: center; opacity: .75; }
 @media (max-width: 640px) {
   .char-doll { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "frame frame" "left right" "below below"; }
-  .char-doll > .char-frame { max-width: 260px; width: 100%; justify-self: center; }
+  .char-doll > .char-frame { max-width: 280px; width: 100%; justify-self: center; }
   .char-slots-below { gap: 12px; }
 }
 /* The characters on the player page: as wide as the other blocks, name and level on the left, the picture with the items on the right */
@@ -727,7 +728,7 @@ a.no-wh-icon > span[class^="icon"] { display: none !important; }
 .ach-portrait-link { display: flex; align-items: center; gap: 22px; padding: 6px 14px; color: var(--text); text-decoration: none; border-radius: 10px; transition: background .2s ease, transform .2s ease; }
 .ach-portrait-link:hover, .ach-portrait-link:focus-visible { background: color-mix(in srgb, var(--gold) 8%, transparent); outline: none; }
 .ach-portrait-link:hover .char-frame, .ach-portrait-link:focus-visible .char-frame { box-shadow: inset 0 0 36px 8px rgba(0, 0, 0, .75), 0 0 24px 6px color-mix(in srgb, var(--gold) 55%, transparent), 0 6px 18px rgba(0, 0, 0, .5); }
-.ach-portrait .char-frame { width: 130px; height: 170px; flex: none; padding: 8px; }
+.ach-portrait .char-frame { width: 170px; height: 232px; flex: none; padding: 8px; }
 .ach-portrait-text { display: flex; flex-direction: column; gap: 4px; }
 .ach-portrait-text strong { font-family: 'Cinzel', serif; font-size: 22px; color: var(--gold-bright); }
 .ach-portrait-go { color: var(--gold); font-size: 14px; margin-top: 6px; }
@@ -742,7 +743,7 @@ a.no-wh-icon > span[class^="icon"] { display: none !important; }
 .me-portrait { flex: none; display: block; border-radius: 10px; transition: transform .2s ease; }
 .me-portrait:hover, .me-portrait:focus-visible { transform: translateY(-2px); outline: none; }
 .me-portrait:hover .char-frame, .me-portrait:focus-visible .char-frame { box-shadow: inset 0 0 36px 8px rgba(0, 0, 0, .75), 0 0 24px 6px color-mix(in srgb, var(--gold) 55%, transparent); }
-.me-portrait .char-frame { width: 110px; height: 150px; padding: 8px; }
+.me-portrait .char-frame { width: 150px; height: 205px; padding: 8px; }
 @media (max-width: 520px) { .me-card { flex-direction: column; align-items: stretch; } .me-portrait { align-self: center; } }
 
 /* Player page: the medals a player has unlocked */
