@@ -831,7 +831,7 @@ begin
      or new.notes is distinct from old.notes or new.recipes is distinct from old.recipes then
     raise exception 'Only the name, race, class and role of a character can be changed here';
   end if;
-  known := exists (select 1 from public.blizzard_characters b where b.key = lower(btrim(old.name)) and b.data->>'status' = 'ok');
+  known := exists (select 1 from public.blizzard_characters b where b.key = lower(btrim(old.name)) and b.data->>'status' = 'ok');  -- since 10 Nov 2026 also 'guild': see the new version at the bottom
   if known and (new.name is distinct from old.name or new.race is distinct from old.race or new.class is distinct from old.class) then
     raise exception 'The game knows this character: only the role can be changed';
   end if;
@@ -1173,3 +1173,38 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Character pictures: Pala Pim and Pietrein show their picture$q$, $q$Roster$q$, 'check',
   $q$Pala Pim and Pietrein Defeinkleijn (the Undead paladins of Pim and Ian): Home, My profile, character page and player page now show their picture from the game (an Undead, not a gnome, not the class icon). If a picture is wrong again, put the name back in WRONG_PICTURE_CHARACTERS in js/charpicture.js.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Character pictures: Pala Pim and Pietrein show their picture$q$);
+
+-- 2026-11-10: guild roster as fallback (Justin). A character without a public profile (under level 10) that is in the guild gets status 'guild' in
+-- blizzard_characters, with level, race and class from the roster (update-characters). Then the game leads for race and class too: same guard, 'ok' or 'guild'.
+create or replace function public.characters_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare known boolean;
+begin
+  if auth.uid() is null then return new; end if;  -- SQL Editor (import, which keeps the sheet's date) and the service key
+  new.updated_at := now();
+  new.updated_by := public.current_player();
+  if public.is_dev() then return new; end if;
+  if tg_op = 'INSERT' then
+    -- A player only gives name, race, class and role. The first character of a player is the main.
+    new.level := null; new.professions := '[]'::jsonb; new.notes := null; new.recipes := null;
+    new.status := case when exists (select 1 from public.characters c where c.player_name = new.player_name and c.status = 'Main') then 'Alt' else 'Main' end;
+    return new;
+  end if;
+  if new.player_name is distinct from old.player_name or new.level is distinct from old.level or new.professions is distinct from old.professions
+     or (new.status is distinct from old.status and current_setting('app.switching_main', true) is distinct from 'on')
+     or new.notes is distinct from old.notes or new.recipes is distinct from old.recipes then
+    raise exception 'Only the name, race, class and role of a character can be changed here';
+  end if;
+  known := exists (select 1 from public.blizzard_characters b where b.key = lower(btrim(old.name)) and b.data->>'status' in ('ok', 'guild'));
+  if known and (new.name is distinct from old.name or new.race is distinct from old.race or new.class is distinct from old.class) then
+    raise exception 'The game knows this character: only the role can be changed';
+  end if;
+  return new;
+end $$;
+drop trigger if exists characters_guard on public.characters;
+create trigger characters_guard before insert or update on public.characters for each row execute function public.characters_guard();
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Characters under level 10 from the guild roster$q$, $q$Characters$q$, 'check',
+  $q$After deploying update-characters and one update: Je Keek (Jelle's alt, level 2, in the guild) shows level, race and class from the game on Roster, Overview, his player page and the character page (Faction and Guild in Details). My profile shows him as known (only the role can change). Mayo Menaise (not in the guild) still shows the table values. Developer mode > Checks: the Blizzard line counts "from the guild roster". The function result lists notInTable (e.g. Maerwyn Spasmebal).$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Characters under level 10 from the guild roster$q$);

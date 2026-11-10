@@ -1,8 +1,9 @@
 // My profile: a player's own characters, from the table characters.
-// While the game does not know a character (under level 10) the player can change its name, race, class and role; after that only the role.
+// While the game does not know a character the player can change its name, race, class and role; after that only the role. The game knows a character
+// from level 10 (its profile), or earlier once it is in the guild (the guild roster gives level, race and class).
 // Level and professions come from the game. The database enforces the same rules (trigger characters_guard in supabase/schema.sql).
 import { supabase, getMyCharacters } from './supabase.js?v=__V__';
-import { esc, loadBlizzard } from './sheet.js?v=__V__';
+import { esc, loadBlizzard, hasApiBasics } from './sheet.js?v=__V__';
 import { baseRace, playerUrl, characterUrl } from './players.js?v=__V__';
 import { wireCharacterFields } from './charform.js?v=__V__';
 import { rolesForClass } from './wowdata.js?v=__V__';
@@ -12,10 +13,11 @@ import { characterDoll } from './charpicture.js?v=__V__';
 // The list says "Skyborne", the form needs the faction ("Skyborne (Horde)": we are a Horde guild).
 export const formRace = (race) => (race === 'Skyborne' ? 'Skyborne (Horde)' : race ?? '');
 // The game says "Windshaper Skyborne"; the role list needs the plain class only.
-export const isKnown = (entry) => entry?.status === 'ok';
+// Known = the game has a profile ("ok") or the character is in the guild roster ("guild": level, race and class, under level 10).
+export const isKnown = (entry) => hasApiBasics(entry);
 // Alts: highest level first (the game's level when it knows the character), then by name.
 export function sortAlts(alts, entryOf) {
-  const level = (c) => Number(entryOf(c)?.status === 'ok' ? entryOf(c).level : c.level) || 0;
+  const level = (c) => Number(hasApiBasics(entryOf(c)) ? entryOf(c).level : c.level) || 0;
   return [...alts].sort((a, b) => level(b) - level(a) || String(a.name).localeCompare(String(b.name)));
 }
 const friendly = (error) => (error.code === '23505' ? 'A character with this name already exists.' : error.message);
@@ -93,7 +95,9 @@ export function initMyCharacters(host, user) {
     const list = !c.role || roles.includes(c.role) ? roles : [c.role, ...roles];
     form.innerHTML = `
       <h2>${esc(title)}</h2>
-      <p class="muted" style="margin:0;font-size:14px">The game knows this character, so everything except the role comes from there.</p>
+      <p class="muted" style="margin:0;font-size:14px">${entry.status === 'guild'
+        ? 'The game knows this character from the guild roster, so everything except the role comes from there. Picture, gear and professions follow from level 10.'
+        : 'The game knows this character, so everything except the role comes from there.'}</p>
       <p style="margin:0">${entry.level ? `Level ${esc(entry.level)} · ` : ''}<a href="${characterUrl(c.name)}">View character page</a></p>
       <label>Character name<input value="${esc(c.name)}" disabled></label>
       <label>Race<input value="${esc(entry.race || c.race || '')}" disabled></label>
@@ -113,7 +117,7 @@ export function initMyCharacters(host, user) {
     form.className = 'box';
     form.innerHTML = `
       <h2>${esc(title)}</h2>
-      <p class="muted" style="margin:0;font-size:14px">Level and professions appear by themselves from level 10. After that, only the role can be changed here.</p>
+      <p class="muted" style="margin:0;font-size:14px">Level, race and class appear by themselves once the character is in the guild (professions from level 10). After that, only the role can be changed here.</p>
       <label>Character name<input name="character_name" required maxlength="60" placeholder="First name and surname, as in the game"></label>
       <label>Race<select name="race"></select></label>
       <label>Class<select name="class"></select></label>

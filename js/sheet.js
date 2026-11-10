@@ -25,14 +25,17 @@ export function loadBlizzard() {
 //  - the API knows the character (status "ok"): level, race, class and the professions (with skill) come from the API.
 //    The professions are replaced: other professions in the table are overwritten on the site; Cooking / First Aid / Fishing that the API does not
 //    report are emptied. If the API gave no professions at all (call failed, or none learned yet) the table's professions stay.
-//  - the API does not know the character (not found: e.g. under level 10, or an error): everything stays as in the table.
+//  - no public profile yet (under level 10) but in the guild (status "guild", from the guild roster, 10 Nov 2026): level, race and class
+//    come from the API; there are no professions, so the table's professions stay.
+//  - the API does not know the character at all (not found and not in the guild, or an error): everything stays as in the table.
 // Player, Role, Status, Notes and the key recipes always come from the table (the API has no such data).
+export const hasApiBasics = (e) => e?.status === 'ok' || e?.status === 'guild';
 export function applyApi(rows, blizzard) {
   const entries = blizzard?.characters;
   if (!entries) return rows;
   for (const r of rows) {
     const e = entries[String(r.character ?? '').trim().toLowerCase()];
-    if (!e || e.status !== 'ok') continue;
+    if (!hasApiBasics(e)) continue;
     r.fromApi = true;
     if (e.level != null) r.level = e.level;
     if (e.race) r.race = e.race;

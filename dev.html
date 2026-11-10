@@ -887,7 +887,8 @@ function blizzardRow(bz, row, old) {
   if (!bz) return row('check', 'Blizzard characters', 'No data yet: the update has not run (see docs/instructies.md)');
   const when = bz.updated ? new Date(bz.updated).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '?';
   const stale = !bz.updated || old(bz.updated, 1 / 48);
-  return row(stale || bz.message ? 'check' : 'ok', 'Blizzard characters (database)', `Updated ${when} · ${bz.ok ?? '?'} found · ${bz.notFound ?? '?'} not found (under level 10?) · ${bz.errors ?? '?'} errors${bz.message ? ` · ${bz.message}` : ''}`);
+  const fromRoster = Object.values(bz.characters ?? {}).filter((e) => e?.status === 'guild').length; // under level 10, level/race/class from the guild roster
+  return row(stale || bz.message ? 'check' : 'ok', 'Blizzard characters (database)', `Updated ${when} · ${bz.ok ?? '?'} found · ${fromRoster} from the guild roster (under level 10) · ${bz.notFound ?? '?'} not found (not in the guild?) · ${bz.errors ?? '?'} errors${bz.message ? ` · ${bz.message}` : ''}`);
 }
 async function loadSources() {
   const el = document.getElementById('sources');
