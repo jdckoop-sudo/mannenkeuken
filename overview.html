@@ -140,7 +140,7 @@ import { loadHistory, lineChart, dayLabel } from './js/historychart.js?v=__V__';
   document.getElementById('guild-history-box').hidden = false;
   // The axis starts a little under the lowest total (not at 0), so the growth from day to day shows; a line over time needs no zero.
   const lowest = Math.min(...byDay.values());
-  lineChart(document.getElementById('guild-history'), [{ name: 'Total level', color: 'var(--gold)', points: days.map((d) => ({ day: d, value: byDay.get(d) })) }], { min: Math.floor(lowest * 0.8), label: 'Total level of the guild per day', height: 180 });
+  lineChart(document.getElementById('guild-history'), [{ name: 'Total level', color: 'var(--gold)', points: days.map((d) => ({ day: d, value: byDay.get(d) })) }], { min: Math.floor(lowest * 0.8), minDays: 7, label: 'Total level of the guild per day', height: 180 });
 })();
 
 await renderHeader();
