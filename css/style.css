@@ -26,6 +26,12 @@
   --good: #5fd06a;
   --warn: #f0a23b;
   --bad: #ef6b6b;
+  /* Chart lines (js/historychart.js): five categorical colours, validated on --panel with the dataviz checker (CVD, contrast) on 10 Nov 2026 */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
   /* One colour per player (same colours as column A of the guild sheet, see docs/instructies.md) */
   --player-jelle: #6fb7ff;
   --player-justin: #ff8f5e;
@@ -399,6 +405,42 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .player-char { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 620px); gap: 24px; align-items: start; }
 .player-char-text { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 @media (max-width: 900px) { .player-char { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- History charts (js/historychart.js): level and skill over time on the character page, guild level on Overview ---- */
+.hc-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 6px; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+.hc-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.hc-key { width: 14px; height: 2px; border-radius: 1px; }
+.hc-plot { position: relative; outline: none; touch-action: pan-y; }
+.hc-plot:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 4px; }
+.hc-plot svg { display: block; max-width: 100%; overflow: visible; }
+.hc-grid { stroke: var(--border); stroke-width: 1; }
+.hc-axis { fill: var(--muted); font: 11px var(--font-body); font-variant-numeric: tabular-nums; }
+.hc-cross { stroke: var(--border-strong); stroke-width: 1; }
+.hc-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.hc-dot { stroke: var(--panel); stroke-width: 2; }
+.hc-tip { position: absolute; top: 4px; z-index: 2; min-width: 140px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--panel-2); font-size: 13px; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.hc-tip-day { margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+.hc-tip-row { display: flex; align-items: center; gap: 8px; }
+.hc-tip-row strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.hc-tip-key { width: 12px; height: 2px; border-radius: 1px; flex: none; }
+.hc-table { margin-top: 6px; font-size: 13px; }
+.hc-table summary { cursor: pointer; color: var(--muted); width: fit-content; }
+.hc-table summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.hc-table td.num, .hc-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Home → This week: five small cards (levels, profession skill, market, guild bank, events) */
+.week-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 12px; }
+.week-card { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); min-width: 0; }
+.week-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.week-card-head h3 { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); font-family: var(--font-body); text-transform: uppercase; letter-spacing: .06em; }
+.week-card-head a { font-size: 13px; }
+.week-value { font-family: var(--font-display); font-size: 26px; color: var(--gold-bright); line-height: 1.2; }
+.week-unit { font-family: var(--font-body); font-size: 14px; color: var(--muted); font-weight: 400; }
+.week-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.week-list b { color: var(--text); }
+.week-empty { margin: 0; font-size: 13px; }
+.progress-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px 28px; }
+.progress-charts > div { min-width: 0; }
+.progress-title { margin: 0 0 6px; font-size: 14px; font-weight: 700; color: var(--text); font-family: var(--font-body); }
 
 /* ---- Who can make this? (js/recipes.js): recipe cards on Professions, crafters on the Market, the known recipes on the character page ---- */
 /* A crafter: one block with the character (class colour), the player (player colour) and the skill */

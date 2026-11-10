@@ -77,6 +77,11 @@
       </section>
     </div>
 
+    <section class="box" aria-labelledby="week-h" id="week-box" hidden>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;justify-content:space-between"><h2 id="week-h">This week</h2><span class="muted" id="week-range" style="font-size:14px"></span></div>
+      <div class="week-grid" id="week"></div>
+    </section>
+
     <section class="box" aria-label="Guild at a glance">
       <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between"><h2>Guild at a glance</h2><a href="overview.html">Guild overview</a></div>
       <div class="grid glance">
@@ -104,6 +109,7 @@ import { supabase, getMyCharacters, mine } from './js/supabase.js?v=__V__';
 import { upcomingReleases, releaseWhen, LAUNCH } from './js/releases.js?v=__V__';
 import { goldBar, goldHtml } from './js/gold.js?v=__V__';
 import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, playerForUser, playerUrl, characterUrl } from './js/players.js?v=__V__';
+import { loadHistory } from './js/historychart.js?v=__V__';
 import { loadItems, qualityColor, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { questUrl } from './js/quests.js?v=__V__';
 import { findDungeon, dungeonUrl } from './js/dungeons.js?v=__V__';
@@ -246,6 +252,80 @@ async function drawForMe() {
     <span style="font-size:13px;${ok ? 'color:var(--good)' : 'color:var(--warn)'}">${ok ? 'You can make this' : 'Not yet'}: ${esc(c.character)} – ${esc(l.profession)} ${esc(c.skill)}${l.min_skill ? ` / ${esc(l.min_skill)} needed` : ''}</span></p>`).join('') || '<p class="muted">Nothing right now.</p>';
 }
 drawForMe();
+
+// This week (Monday 00:00 Dutch time until now): levels and profession skill from the history (table character_history: the last day before
+// Monday against the newest day), finished market trades, new listings and reservations, donations to the guild bank and this week's events.
+async function drawWeek() {
+  if (!supabase) return;
+  const dutchDay = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' }); // YYYY-MM-DD
+  const today = dutchDay(Date.now());
+  const weekday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7; // Monday = 0
+  const monday = dutchDay(Date.parse(`${today}T12:00:00Z`) - weekday * 86400000);
+  const sinceIso = new Date(Date.parse(`${monday}T00:00:00Z`) - 2 * 3600e3).toISOString(); // a little before Monday 00:00 Dutch time; filtered per Dutch day below
+  const inWeek = (ts) => ts && dutchDay(ts) >= monday;
+  const nice = (d, o = { weekday: 'short', day: 'numeric', month: 'short' }) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', ...o });
+  document.getElementById('week-range').textContent = `${nice(monday)} – today`;
+
+  const [history, listingsRes, resRes, donRes, eventsRes] = await Promise.all([
+    loadHistory(),
+    supabase.from('listings').select('id,item,kind,status,created_at,done_at').or(`created_at.gte.${sinceIso},done_at.gte.${sinceIso}`),
+    supabase.from('listing_reservations').select('listing_id,created_at').gte('created_at', sinceIso),
+    supabase.from('gold_donations').select('player_name,copper,created_at').gte('created_at', sinceIso),
+    supabase.from('events').select('id,title,starts_at').gte('starts_at', sinceIso).lt('starts_at', new Date(Date.parse(`${monday}T12:00:00Z`) + 7 * 86400000).toISOString()).order('starts_at'),
+  ]);
+
+  // Levels and skills: per character the last day before Monday (or its first day this week) against its newest day
+  const byKey = new Map();
+  for (const h of history) { if (!byKey.has(h.key)) byKey.set(h.key, []); byKey.get(h.key).push(h); }
+  const ups = []; const skillUps = [];
+  for (const rows of byKey.values()) {
+    const before = rows.filter((r) => r.day < monday);
+    const base = before[before.length - 1] ?? rows.find((r) => r.day >= monday);
+    const now = rows[rows.length - 1];
+    if (!base || !now || base === now) continue;
+    if (now.level > base.level) ups.push({ name: now.name ?? now.key, player: now.player, from: base.level, to: now.level });
+    for (const [p, v] of Object.entries(now.professions ?? {})) {
+      const was = base.professions?.[p];
+      if (was != null && v > was) skillUps.push({ name: now.name ?? now.key, prof: p, from: was, to: v });
+    }
+  }
+  ups.sort((a, b) => (b.to - b.from) - (a.to - a.from) || a.name.localeCompare(b.name));
+  skillUps.sort((a, b) => (b.to - b.from) - (a.to - a.from));
+  const levels = ups.reduce((n, u) => n + u.to - u.from, 0);
+  const skill = skillUps.reduce((n, u) => n + u.to - u.from, 0);
+  const charLink = (u) => `<a href="${characterUrl(u.name)}">${esc(u.name)}</a>`;
+  const more = (list, n) => (list.length > n ? `<li class="muted">+${list.length - n} more</li>` : '');
+
+  const listings = listingsRes.data ?? [];
+  const done = listings.filter((l) => l.status === 'done' && inWeek(l.done_at));
+  const fresh = listings.filter((l) => inWeek(l.created_at));
+  const reserved = (resRes.data ?? []).filter((r) => inWeek(r.created_at));
+  const dons = (donRes.data ?? []).filter((d) => inWeek(d.created_at));
+  const copper = dons.reduce((n, d) => n + Number(d.copper), 0);
+  const donors = [...new Set(dons.map((d) => d.player_name))];
+  const events = (eventsRes.data ?? []).filter((e) => inWeek(e.starts_at));
+  const signups = events.length ? ((await supabase.from('signups').select('event_id,answer').in('event_id', events.map((e) => e.id))).data ?? []) : [];
+
+  const card = (title, value, body, href) => `<div class="week-card"><div class="week-card-head"><h3>${title}</h3>${href ? `<a href="${href}">Open</a>` : ''}</div><strong class="week-value">${value}</strong>${body}</div>`;
+  document.getElementById('week').innerHTML = [
+    card('Levels', levels ? `+${levels}` : '0', ups.length
+      ? `<ul class="week-list">${ups.slice(0, 5).map((u) => `<li>${charLink(u)} <span class="muted">${u.from} → <b>${u.to}</b></span></li>`).join('')}${more(ups, 5)}</ul>`
+      : '<p class="muted week-empty">No new levels yet this week.</p>', 'overview.html'),
+    card('Profession skill', skill ? `+${skill}` : '0', skillUps.length
+      ? `<ul class="week-list">${skillUps.slice(0, 5).map((u) => `<li>${charLink(u)} <span class="muted">${esc(u.prof)} ${u.from} → <b>${u.to}</b></span></li>`).join('')}${more(skillUps, 5)}</ul>`
+      : '<p class="muted week-empty">No skill gained yet this week.</p>', 'professions.html'),
+    card('Market', `${done.length} <span class="week-unit">trade${done.length === 1 ? '' : 's'} done</span>`,
+      `<ul class="week-list"><li><b>${fresh.length}</b> <span class="muted">new listing${fresh.length === 1 ? '' : 's'}</span></li><li><b>${reserved.length}</b> <span class="muted">reservation${reserved.length === 1 ? '' : 's'}</span></li>${done.slice(0, 3).map((l) => `<li class="muted">✓ ${esc(l.item)}</li>`).join('')}</ul>`, 'market.html'),
+    card('Guild bank', copper ? goldHtml(copper, 16) : '0', donors.length
+      ? `<p class="muted week-empty">From ${donors.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</p>`
+      : '<p class="muted week-empty">No donations yet this week.</p>', 'bank.html'),
+    card('Events', `${events.length} <span class="week-unit">this week</span>`, events.length
+      ? `<ul class="week-list">${events.slice(0, 4).map((e) => { const yes = signups.filter((s) => s.event_id === e.id && s.answer === 'yes').length; return `<li><a href="events.html#ev-${e.id}">${esc(e.title)}</a> <span class="muted">${esc(nice(dutchDay(e.starts_at)))}${yes ? ` · ${yes} going` : ''}</span></li>`; }).join('')}${more(events, 4)}</ul>`
+      : '<p class="muted week-empty">No events this week.</p>', 'events.html'),
+  ].join('');
+  document.getElementById('week-box').hidden = false;
+}
+drawWeek();
 
 // Supabase: gold, events, market
 if (supabase) {

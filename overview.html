@@ -19,6 +19,11 @@
     <p class="muted" id="intro">Everything we keep track of, in one place: pick a category on the left, then a stat. Most numbers come straight from the game (Blizzard) and update every few minutes. Characters with the status Quit don't count.</p>
   </div></section>
   <div class="ov-tiles" id="rec-totals" aria-label="Guild totals"></div>
+  <section class="box" id="guild-history-box" aria-labelledby="guild-history-h" hidden>
+    <h2 id="guild-history-h">Guild level over time</h2>
+    <p class="muted" style="margin:0;font-size:14px" id="guild-history-sub">The levels of all characters added up, at the end of each day.</p>
+    <div id="guild-history"></div>
+  </section>
   <div class="box explorer-box" id="explorer">
     <nav class="cat-list" id="cat-list" aria-label="Categories and stats"></nav>
     <div class="fun-panel" id="stats-panel" aria-live="polite"></div>
@@ -121,6 +126,22 @@ import { professionIcon } from './js/proficons.js?v=__V__';
 import { classIcon, classColor } from './js/classicons.js?v=__V__';
 import { LAUNCH } from './js/releases.js?v=__V__';
 import { loadCharacters, loadBlizzard, gameTotals, bossKills, apiOf, statsFor, playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
+import { loadHistory, lineChart, dayLabel } from './js/historychart.js?v=__V__';
+
+// Guild level over time (table character_history): per day the levels of every character added up. Characters that quit are left out.
+(async () => {
+  const [rows, { characters }] = await Promise.all([loadHistory(), loadCharacters().catch(() => ({ characters: [] }))]);
+  const quit = new Set(characters.filter((c) => c.status === 'Gestopt').map((c) => c.name.toLowerCase()));
+  const byDay = new Map();
+  for (const r of rows) if (!quit.has(r.key) && r.level > 0) byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.level);
+  if (!byDay.size) return;
+  const days = [...byDay.keys()].sort();
+  document.getElementById('guild-history-sub').textContent = `The levels of all characters added up, at the end of each day (since ${dayLabel(days[0], { day: 'numeric', month: 'long' })}; today: the latest update).`;
+  document.getElementById('guild-history-box').hidden = false;
+  // The axis starts a little under the lowest total (not at 0), so the growth from day to day shows; a line over time needs no zero.
+  const lowest = Math.min(...byDay.values());
+  lineChart(document.getElementById('guild-history'), [{ name: 'Total level', color: 'var(--gold)', points: days.map((d) => ({ day: d, value: byDay.get(d) })) }], { min: Math.floor(lowest * 0.8), label: 'Total level of the guild per day', height: 180 });
+})();
 
 await renderHeader();
 const [{ characters }, blizzard] = await Promise.all([loadCharacters().catch(() => ({ characters: [] })), loadBlizzard()]);

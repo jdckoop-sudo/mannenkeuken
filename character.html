@@ -42,6 +42,14 @@
     <div class="grid trio" id="game-stats"></div>
     <p class="muted" style="font-size:13px;margin:0">Counted by the game and ranked against the other characters of the guild. Updates after the player logs out.</p>
   </section>
+  <section class="box" id="progress-box" aria-labelledby="progress-h" hidden>
+    <h2 id="progress-h">Progress</h2>
+    <div class="progress-charts">
+      <div><h3 class="progress-title">Level</h3><div id="chart-level"></div></div>
+      <div id="chart-skill-wrap"><h3 class="progress-title">Profession skill</h3><div id="chart-skill"></div></div>
+    </div>
+    <p class="muted" style="font-size:13px;margin:0" id="progress-note">One point per day: the level and skill at the end of that day (today: the latest update).</p>
+  </section>
   <section class="box">
     <h2>Professions</h2>
     <div id="profs" style="display:flex;flex-direction:column;gap:10px"><p class="muted">Loading…</p></div>
@@ -56,6 +64,7 @@ import { characterDoll } from './js/charpicture.js?v=__V__';
 import { refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { renderTalents } from './js/talents.js?v=__V__';
 import { loadRecipes, knownRecipesHtml } from './js/recipes.js?v=__V__';
+import { loadHistory, lineChart, professionColors, dayLabel } from './js/historychart.js?v=__V__';
 
 await renderHeader();
 const name = new URLSearchParams(location.search).get('name') || '';
@@ -133,6 +142,20 @@ if (!c) {
       return tile(label, show(mine), sub);
     }).join('');
     document.getElementById('game-stats-box').hidden = false;
+  }
+  // Progress: the level and the profession skill per day (table character_history, js/historychart.js). Two charts, one axis each.
+  const history = await loadHistory(c.name);
+  if (history.length) {
+    const levelPts = history.map((h) => ({ day: h.day, value: h.level }));
+    const profNames = [...new Set(history.flatMap((h) => Object.keys(h.professions ?? {})))];
+    const colors = professionColors(profNames);
+    lineChart(document.getElementById('chart-level'), [{ name: 'Level', color: 'var(--gold)', points: levelPts }], { min: 0, max: 10, label: `Level of ${c.name} per day` });
+    if (profNames.length) {
+      lineChart(document.getElementById('chart-skill'), profNames.sort((a, b) => colors[a].localeCompare(colors[b])).map((n) => ({ name: n, color: colors[n], points: history.map((h) => ({ day: h.day, value: h.professions?.[n] ?? null })) })),
+        { min: 0, max: 75, label: `Profession skill of ${c.name} per day` });
+    } else document.getElementById('chart-skill-wrap').hidden = true;
+    document.getElementById('progress-note').textContent = `One point per day since ${dayLabel(history[0].day, { day: 'numeric', month: 'long' })}: the level and skill at the end of that day (today: the latest update).`;
+    document.getElementById('progress-box').hidden = false;
   }
   // Under level 10 the guild roster still gives faction and guild (status "guild"), but no last login.
   const apiBasics = apiOk || bz?.status === 'guild';
