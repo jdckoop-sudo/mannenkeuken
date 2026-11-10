@@ -187,6 +187,14 @@
   .ticket .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 2px; }
   .ticket .actions .btn { padding: 4px 12px; font-size: 13px; }
   .ticket-form { display: grid; gap: 10px; grid-template-columns: 2fr 1fr 1fr; }
+  .ticket-msg.is-error { color: var(--bad); font-weight: 600; }
+  #board-toast { position: fixed; z-index: 50; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(560px, calc(100% - 32px));
+    display: flex; align-items: flex-start; gap: 12px; padding: 12px 12px 12px 16px; border: 1px solid var(--bad); border-left-width: 4px; border-radius: 8px;
+    background: var(--panel); color: var(--text); font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
+  #board-toast[hidden] { display: none; }
+  .board-toast-text { flex: 1; }
+  .board-toast-close { flex: none; border: 0; background: none; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
+  .board-toast-close:hover, .board-toast-close:focus-visible { color: var(--text); }
   .urg { font-size: 12px; font-weight: 700; padding: 1px 9px; border-radius: 999px; border: 1px solid currentColor; background: none; font-family: inherit; cursor: pointer; white-space: nowrap; }
   .urg-4 { color: var(--bad); background: rgba(255, 255, 255, .04); }
   .urg-3 { color: var(--warn); }
@@ -675,6 +683,39 @@ function openForm(kind, t) {
   form.scrollIntoView({ behavior: 'smooth', block: 'center' });
   form.elements.title.focus({ preventScroll: true });
 }
+// Errors on the boards: the line on top of the board turns red, and a message shows at the bottom of the screen (wherever you scrolled to),
+// for 10 seconds or until closed. Known database errors get a plain explanation (10 Nov 2026, Justin: a failed move to Won't do went unnoticed).
+function explainError(error) {
+  const m = String(error?.message ?? error ?? '');
+  if (/dev_tickets_status_check/.test(m)) return 'The database does not know this column yet: run the newest part of supabase/schema.sql in the Supabase SQL Editor.';
+  if (/row-level security|permission denied/i.test(m)) return 'The database did not allow this. Are you logged in as a developer?';
+  if (/Failed to fetch|NetworkError/i.test(m)) return 'No connection to the database. Check your internet and try again.';
+  return m;
+}
+let toastTimer = null;
+function showToast(text) {
+  let el = document.getElementById('board-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'board-toast';
+    el.setAttribute('role', 'alert');
+    el.innerHTML = '<span class="board-toast-text"></span><button type="button" class="board-toast-close" aria-label="Close">×</button>';
+    el.querySelector('button').addEventListener('click', () => { el.hidden = true; });
+    document.body.append(el);
+  }
+  el.querySelector('.board-toast-text').textContent = text;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 10000);
+}
+// msg = the line on top of a board; prefix = what failed ("Could not save"); error = the Supabase error, or nothing when it worked
+function boardError(msg, prefix, error) {
+  msg.classList.toggle('is-error', !!error);
+  if (!error) { msg.textContent = ''; return; }
+  const text = `${prefix}: ${explainError(error)}`;
+  msg.textContent = text;
+  showToast(text);
+}
 for (const [kind, host] of Object.entries(hosts)) {
   const form = host.querySelector('.ticket-form');
   const msg = host.querySelector('.ticket-msg');
@@ -710,13 +751,13 @@ for (const [kind, host] of Object.entries(hosts)) {
     if (b.dataset.act === 'del-comment') {
       if (!confirm('Are you sure you want to remove your comment?')) return;
       const { error } = await supabase.from('dev_ticket_comments').delete().eq('id', b.dataset.cid);
-      msg.textContent = error ? `Could not remove: ${error.message}` : '';
+      boardError(msg, 'Could not remove', error);
       loadTickets();
       return;
     }
     if (b.dataset.act === 'react') {
       const { error } = await supabase.rpc('toggle_ticket_reaction', { p_ticket: t.id, p_emoji: b.dataset.emoji });
-      msg.textContent = error ? `Could not save: ${error.message}` : '';
+      boardError(msg, 'Could not save', error);
       loadTickets();
       return;
     }
@@ -746,7 +787,7 @@ for (const [kind, host] of Object.entries(hosts)) {
     }
     const res = change ? await supabase.from('dev_tickets').update({ ...change, ...stamp }).eq('id', t.id)
       : await supabase.from('dev_tickets').delete().eq('id', t.id);
-    msg.textContent = res.error ? `Could not save: ${res.error.message}` : '';
+    boardError(msg, 'Could not save', res.error);
     loadTickets();
   });
   // Clicking a card that is new takes its "New" label away (runs after the handler above, which may have opened the card)
@@ -801,7 +842,7 @@ for (const [kind, host] of Object.entries(hosts)) {
       change = { status: 'done', claimed_by: t.claimed_by ?? user.player, done_at: now };
     }
     const res = await supabase.from('dev_tickets').update({ ...change, updated_by: user.player, updated_at: now }).eq('id', t.id);
-    msg.textContent = res.error ? `Could not save: ${res.error.message}` : '';
+    boardError(msg, 'Could not save', res.error);
     loadTickets();
   });
   // Filters (per board)
@@ -823,7 +864,7 @@ for (const [kind, host] of Object.entries(hosts)) {
     const text = new FormData(e.target).get('text').trim();
     if (!text) return;
     const { error } = await supabase.from('dev_ticket_comments').insert({ ticket_id: e.target.dataset.ticket, text });
-    msg.textContent = error ? `Could not post: ${error.message}` : '';
+    boardError(msg, 'Could not post', error);
     if (!error) { openComments.add(e.target.dataset.ticket); loadTickets(); }
   });
   form.addEventListener('submit', async (e) => {
@@ -832,7 +873,8 @@ for (const [kind, host] of Object.entries(hosts)) {
     const row = { title: d.get('title').trim(), area: d.get('area').trim() || null, body: d.get('body').trim() || null, urgency: Number(d.get('urgency')) || 2, updated_by: user.player, updated_at: new Date().toISOString() };
     const res = d.get('id') ? await supabase.from('dev_tickets').update(row).eq('id', d.get('id'))
       : await supabase.from('dev_tickets').insert({ ...row, kind, created_by: user.player });
-    msg.textContent = res.error ? `Could not save: ${res.error.message}` : d.get('id') ? 'Saved.' : `Added to ${KINDS[kind].name}.`;
+    if (res.error) boardError(msg, 'Could not save', res.error);
+    else { msg.classList.remove('is-error'); msg.textContent = d.get('id') ? 'Saved.' : `Added to ${KINDS[kind].name}.`; }
     if (!res.error) { form.hidden = true; form.reset(); if (d.get('id')) expanded.add(d.get('id')); loadTickets(); }
   });
 }
