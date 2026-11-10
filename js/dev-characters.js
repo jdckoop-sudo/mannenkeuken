@@ -51,7 +51,7 @@ export function initCharacters(host) {
   let rows = [];
   let players = [];
   let q = '';
-  let sort = { key: 'player', dir: 1 };
+  let sort = { key: 'level', dir: -1 }; // as on the Members page (roster.html): highest level on top
 
   host.innerHTML = `
     <section class="box char-head">
@@ -88,6 +88,12 @@ export function initCharacters(host) {
     ['updated', 'Last updated', (r) => `<span title="${esc(r.updatedBy ? `By ${r.updatedBy}` : '')}">${esc(r.updated)}</span>`],
   ];
   const NUMERIC = ['level', 'cooking', 'firstAid', 'fishing'];
+  // The value a column sorts on, the same as on the Members page (roster.html): professions by their skill, numbers as numbers,
+  // Last updated by date (dd-mm-yyyy turned around). Same rows in the same base order (created_at), so both lists come out the same.
+  const num = (v) => (blank(v) || isNaN(Number(v)) ? null : Number(v));
+  const SORT_VALUE = { prof1: (r) => num(r.skill1), prof2: (r) => num(r.skill2), updated: (r) => r.updated?.split('-').reverse().join('') };
+  const sortValue = (r, key) => (SORT_VALUE[key] ? SORT_VALUE[key](r) : NUMERIC.includes(key) ? num(r[key]) : r[key]);
+  const isNumericSort = (key) => NUMERIC.includes(key) || key === 'prof1' || key === 'prof2';
 
   function cell(r, [key, , fn, skill]) {
     let html = fn ? fn(r) : esc(r[key] ?? '');
@@ -102,8 +108,10 @@ export function initCharacters(host) {
       return words.every((w) => hay.includes(w));
     });
     list = [...list].sort((a, b) => {
-      const x = a[sort.key]; const y = b[sort.key];
-      return (NUMERIC.includes(sort.key) ? (Number(x) || 0) - (Number(y) || 0) : String(x ?? '').localeCompare(String(y ?? ''))) * sort.dir;
+      const x = sortValue(a, sort.key); const y = sortValue(b, sort.key);
+      const ex = x == null || x === ''; const ey = y == null || y === '';
+      if (ex || ey) return ex - ey; // empty values always last
+      return (isNumericSort(sort.key) ? x - y : String(x).localeCompare(String(y))) * sort.dir;
     });
     $('[data-count]').textContent = `${rows.length} characters`;
     $('[data-head]').innerHTML = `<tr><th></th>${COLS.map(([k, label]) => `<th class="${NUMERIC.includes(k) ? 'num' : ''}"><button type="button" class="link-btn char-sort" data-sort="${k}">${label}${sort.key === k ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>`;
