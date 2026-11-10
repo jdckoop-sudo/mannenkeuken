@@ -1226,3 +1226,51 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Who can make this? (recipes)$q$, $q$Professions$q$, 'check',
   $q$After running "Update recipes" once (Actions) and deploying update-characters: Professions has "Who can make this?" on top; type "linen bandage": Heavy Linen Bandage with Linen Cloth and the characters that know it, highest skill first. Market: a request for a craftable item shows "Can make this:" with the crafters; "I can craft" uses the real recipes. New listing: picking a craftable item names who can make it and fills in the profession. Character page: under each profession "N recipes known" folds open; reagents have no Wowhead icons.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Who can make this? (recipes)$q$);
+
+-- 2026-11-10: a fourth column on the Ideas and Fixes boards (Justin): Won't do = tickets we don't want or can't do now, but maybe later.
+-- Status 'wontdo' (done_at = when it was moved there, for the order of the column); Reopen brings it back to Open. The change log says so.
+alter table public.dev_tickets drop constraint if exists dev_tickets_status_check;
+alter table public.dev_tickets add constraint dev_tickets_status_check check (status in ('open', 'doing', 'done', 'wontdo'));
+create or replace function public.log_ticket_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare me text; urgs text[] := array['Low', 'Normal', 'High', 'Urgent'];
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if tg_op = 'INSERT' then
+    insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+    values (new.id, coalesce(new.created_by, me), case when new.source = 'player' then 'Reported it' else 'Added it' end, new.created_at);
+    return new;
+  end if;
+  me := coalesce(me, new.updated_by);
+  if new.status is distinct from old.status or new.claimed_by is distinct from old.claimed_by then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, case
+      when new.status = 'done' then 'Marked it done' || coalesce(' (on ' || new.claimed_by || '''s name)', '')
+      when new.status = 'wontdo' then 'Moved it to Won''t do'
+      when old.status = 'wontdo' then 'Brought it back from Won''t do'
+      when new.status = 'doing' and old.status = 'doing' and old.claimed_by is not null then 'Took it over from ' || old.claimed_by
+      when new.status = 'doing' then 'Took it ("I''ll take this")'
+      when new.status = 'open' and old.status = 'done' then 'Reopened it'
+      when new.status = 'open' and old.status = 'doing' then 'Let go of it' || coalesce(' (was on ' || old.claimed_by || '''s name)', '')
+      else 'Status: ' || old.status || ' → ' || new.status end);
+  end if;
+  if new.urgency is distinct from old.urgency then
+    insert into public.dev_ticket_log (ticket_id, actor, text)
+    values (new.id, me, 'Urgency: ' || urgs[old.urgency] || ' → ' || urgs[new.urgency]);
+  end if;
+  if new.title is distinct from old.title then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Changed the title (was "' || old.title || '")');
+  end if;
+  if new.area is distinct from old.area then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Area: ' || coalesce(old.area, '–') || ' → ' || coalesce(new.area, '–'));
+  end if;
+  if new.body is distinct from old.body then
+    insert into public.dev_ticket_log (ticket_id, actor, text, detail)
+    values (new.id, me, 'Edited the details', 'Was: ' || coalesce(left(old.body, 400), '(empty)') || E'\nNow: ' || coalesce(left(new.body, 400), '(empty)'));
+  end if;
+  return new;
+end $$;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ideas and Fixes: Won't do column$q$, $q$Developer mode$q$, 'check',
+  $q$Developer mode > Ideas and Fixes: a fourth column "Won't do". Move an open card there with its "Won't do" button (asks first) or by dragging it; it shows dimmed with "Won't do · <time>", no urgency button, and is not counted in the number of open tickets. "Reopen" brings it back to Open. The card's History says "Moved it to Won't do" / "Brought it back from Won't do". More than 5: "Show all".$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ideas and Fixes: Won't do column$q$);
