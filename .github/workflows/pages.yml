@@ -5,8 +5,8 @@ name: Deploy site
 on:
   push:
     branches: [main]
-  workflow_run:   # a commit made by a workflow does not trigger push, so deploy after the data workflows (items, quests, talents)
-    workflows: ["Update items", "Update quests", "Update talents"]
+  workflow_run:   # a commit made by a workflow does not trigger push, so deploy after the data workflows (items, quests, talents, recipes)
+    workflows: ["Update items", "Update quests", "Update talents", "Update recipes"]
     types: [completed]
   workflow_dispatch:
 permissions:
