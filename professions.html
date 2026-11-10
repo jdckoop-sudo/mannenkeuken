@@ -20,6 +20,16 @@
     <h1>Professions</h1>
     <p class="muted">Who can craft what – guild-found, so we make everything ourselves (Mains and Alts)</p>
   </div>
+  <section class="box who-make" aria-labelledby="who-h" style="border-top:2px solid var(--gold)" hidden>
+    <h2 id="who-h">Who can make this?</h2>
+    <p class="muted" style="margin:0;font-size:14px">Search an item or recipe: see who in the guild knows it, and what it takes. Straight from the game, updates after a player logs out.</p>
+    <div class="who-make-bar">
+      <label style="flex:1 1 260px">Item or recipe<input id="who-q" type="search" placeholder="e.g. linen bandage, minor healing potion, bracer" autocomplete="off"></label>
+      <label class="check"><input type="checkbox" id="who-known" checked> Only what someone can make</label>
+    </div>
+    <p class="muted" id="who-count" style="margin:0;font-size:13px"></p>
+    <div id="who-results" class="who-results"></div>
+  </section>
   <div class="grid" id="cards" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr))"><p class="muted">Loading…</p></div>
   <section aria-labelledby="sec-h" id="sec-wrap" hidden>
     <h2 id="sec-h" style="margin-bottom:2px">Secondary professions</h2>
@@ -50,6 +60,15 @@
     .rose .prof-table td.num { white-space: normal; }
     .rose .prof-table .prof-label { flex-wrap: wrap; gap: 4px; }
   }
+  .who-make-bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; }
+  .who-results { display: flex; flex-direction: column; }
+  .who-row { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .who-row:first-child { border-top: 0; }
+  .who-recipe { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-weight: 600; }
+  .who-prof { font-weight: 400; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+  .who-reagents { font-size: 13px; }
+  .who-crafters { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; }
+  .who-row.nobody .who-recipe a { color: var(--muted); }
   .rose > svg { width: 100%; max-width: 400px; height: auto; }
   .rose .wedge { cursor: pointer; transition: fill-opacity .15s; }
   .rose tr[data-p] { cursor: default; }
@@ -60,9 +79,32 @@ import { renderHeader } from './js/layout.js?v=__V__';
 import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { professionLabel, professionIcon } from './js/proficons.js?v=__V__';
 import { classIcon, classColor } from './js/classicons.js?v=__V__';
-import { playerUrl, characterUrl, SECONDARY } from './js/players.js?v=__V__';
+import { playerUrl, characterUrl, SECONDARY, loadCharacters, loadBlizzard } from './js/players.js?v=__V__';
 import { refreshTooltips } from './js/itemsearch.js?v=__V__';
+import { loadRecipes, recipeIndex, searchRecipes, recipeRowHtml } from './js/recipes.js?v=__V__';
 renderHeader();
+
+// Who can make this? (js/recipes.js): search the recipes of the game, with the characters of the guild that know them.
+(async () => {
+  const [recipes, { characters }, blizzard] = await Promise.all([loadRecipes(), loadCharacters().catch(() => ({ characters: [] })), loadBlizzard()]);
+  const box = document.querySelector('.who-make');
+  const index = recipes ? recipeIndex(recipes, characters, blizzard) : null;
+  box.hidden = !index?.known; // no recipe list yet, or nobody's recipes fetched yet: nothing to answer
+  if (box.hidden) return;
+  const q = document.getElementById('who-q');
+  const onlyKnown = document.getElementById('who-known');
+  const draw = () => {
+    const hits = searchRecipes(recipes, index, q.value, { onlyKnown: onlyKnown.checked });
+    document.getElementById('who-count').textContent = !q.value.trim()
+      ? `The guild knows ${index.known} recipe${index.known === 1 ? '' : 's'}. Type to search.`
+      : hits.length ? `${hits.length === 40 ? 'First 40' : hits.length} result${hits.length === 1 ? '' : 's'}` : (onlyKnown.checked ? 'Nobody in the guild knows a recipe like this yet. Untick the box to see every recipe in the game.' : 'No recipe found.');
+    document.getElementById('who-results').innerHTML = hits.map((r) => recipeRowHtml(r, professionLabel)).join('');
+    refreshTooltips();
+  };
+  q.addEventListener('input', draw);
+  onlyKnown.addEventListener('change', draw);
+  draw();
+})();
 
 const MAX = 300;
 loadMembers().then((members) => {

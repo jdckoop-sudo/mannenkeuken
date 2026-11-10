@@ -24,6 +24,7 @@ const DATA = [
   ['data/tradeable-items.json', (d) => d.items?.length > 500, 'tradeable item list'],
   ['data/quests.json', (d) => d.quests?.length > 100, 'quest list'],
   ['data/talents.json', (d) => Object.keys(d.classes ?? {}).length >= 9, 'talent trees'],
+  ['data/recipes.json', (d) => Object.keys(d.recipes ?? {}).length > 1000, 'recipe list'],
 ];
 const IGNORE_HOSTS = ['wow.zamimg.com', 'www.wowhead.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 const ignored = (url = '') => { try { return IGNORE_HOSTS.includes(new URL(url).host); } catch { return false; } };

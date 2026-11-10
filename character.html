@@ -55,6 +55,7 @@ import { loadCharacters, loadBlizzard, playerUrl, statusLabel } from './js/playe
 import { characterDoll } from './js/charpicture.js?v=__V__';
 import { refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { renderTalents } from './js/talents.js?v=__V__';
+import { loadRecipes, recipeLink, reagentsHtml } from './js/recipes.js?v=__V__';
 
 await renderHeader();
 const name = new URLSearchParams(location.search).get('name') || '';
@@ -80,7 +81,7 @@ if (!c) {
   document.getElementById('profs').innerHTML = c.profs.map((p) => {
     // best in the guild for this profession?
     const best = Math.max(...characters.flatMap((x) => x.profs.filter((q) => q.name === p.name && q.skill !== null).map((q) => q.skill)), 0);
-    return `<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>${professionLabel(p.name, { size: 20 })}${p.skill && p.skill === best ? ' <span class="badge">Guild best</span>' : ''}</span><span class="muted">${esc(p.skill ?? '–')} / 300</span></div>
+    return `<div data-prof="${esc(p.name)}"><div style="display:flex;justify-content:space-between;font-size:14px"><span>${professionLabel(p.name, { size: 20 })}${p.skill && p.skill === best ? ' <span class="badge">Guild best</span>' : ''}</span><span class="muted">${esc(p.skill ?? '–')} / 300</span></div>
       <div class="bar" aria-hidden="true"><div style="width:${Math.min(100, ((p.skill ?? 0) / 300) * 100)}%"></div></div></div>`;
   }).join('') || '<p class="muted">No professions yet: they appear from level 10.</p>';
 
@@ -98,6 +99,18 @@ if (!c) {
   }
   // The talent trees of the class with the talents this character chose (js/talents.js), once the game knows them
   if (apiOk) document.getElementById('talents-box').hidden = !(await renderTalents(document.getElementById('talents'), bz, c.class));
+  // The recipes this character knows, per profession (js/recipes.js): a list that folds open under the skill bar
+  const recipes = apiOk ? await loadRecipes() : null;
+  if (recipes) {
+    for (const el of document.querySelectorAll('#profs [data-prof]')) {
+      const known = (bz.professions ?? []).find((x) => x.name === el.dataset.prof)?.recipes ?? [];
+      const list = known.map((id) => recipes[id]).filter(Boolean).sort((a, b) => a.c.localeCompare(b.c) || a.n.localeCompare(b.n));
+      if (!list.length) continue;
+      el.insertAdjacentHTML('beforeend', `<details class="recipe-list"><summary>${list.length} recipe${list.length === 1 ? '' : 's'} known</summary><ul>${list.map((r) =>
+        `<li>${recipeLink(r)}${r.r?.length ? `<span class="muted"> · ${reagentsHtml(r)}</span>` : ''}</li>`).join('')}</ul></details>`);
+    }
+    refreshTooltips();
+  }
   // Activity in the game (Blizzard API): this character's counters, each ranked against the other guild characters that have numbers
   if (apiOk && bz.stats) {
     const stat = (x) => blizzard?.characters?.[x.name.toLowerCase()]?.stats;

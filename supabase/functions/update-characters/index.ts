@@ -79,11 +79,14 @@ function talentList(body) {
   return { trees: (group.specializations ?? []).map((s) => ({ name: s.specialization_name ?? s.specialization?.name ?? '?', points: s.spent_points ?? 0 })), picks };
 }
 
+// recipes = the ids of the recipes this character knows (known_recipes of every tier, 10 Nov 2026). With data/recipes.json (tools/update-recipes.mjs)
+// the site answers "Who can make this?" (js/recipes.js).
 function professionList(body) {
   const one = (p, kind) => {
     const tiers = (p.tiers ?? []).map((t) => ({ name: t.tier?.name ?? null, skill: t.skill_points ?? 0, max: t.max_skill_points ?? 0 }));
     const best = [...tiers].sort((a, b) => b.max - a.max || b.skill - a.skill)[0];
-    return { name: p.profession?.name ?? '?', kind, skill: best?.skill ?? null, max: best?.max ?? null, tiers };
+    const recipes = [...new Set((p.tiers ?? []).flatMap((t) => (t.known_recipes ?? []).map((r) => r.id)).filter(Boolean))];
+    return { name: p.profession?.name ?? '?', kind, skill: best?.skill ?? null, max: best?.max ?? null, tiers, recipes };
   };
   return [...(body.primaries ?? []).map((p) => one(p, 'primary')), ...(body.secondaries ?? []).map((p) => one(p, 'secondary'))];
 }
