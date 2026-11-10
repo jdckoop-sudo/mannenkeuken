@@ -45,12 +45,21 @@ function ticks(min, max) {
 }
 
 // Draws a line chart into `host`. series = [{ name, color, points: [{ day: 'YYYY-MM-DD', value }] }], all on one y-axis.
-// opts: { min (default 0), max (optional), unit ('level', 'skill' …) for the tooltip and table, label (accessible name), height }.
+// opts: { min (default 0), max (optional), unit ('level', 'skill' …) for the tooltip and table, label (accessible name), height,
+//         minDays: the x-axis spans at least this many days up to today (e.g. 7 = a week), even while there is less history }.
 // Redraws itself when the host changes width.
+const todayDutch = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' });
+const addDays = (day, n) => new Date(toMs(day) + n * DAY).toISOString().slice(0, 10);
 export function lineChart(host, series, opts = {}) {
   const shown = series.filter((s) => s.points.some((p) => p.value != null));
   if (!shown.length) { host.innerHTML = '<p class="muted" style="margin:0;font-size:14px">No history yet.</p>'; return; }
-  const days = [...new Set(shown.flatMap((s) => s.points.map((p) => p.day)))].sort();
+  const days = [...new Set(shown.flatMap((s) => s.points.map((p) => p.day)))].sort(); // the days with data (tooltip, table)
+  // the days on the x-axis: every day from the first to the last, at least opts.minDays up to today
+  const today = todayDutch();
+  const first = opts.minDays && addDays(today, 1 - opts.minDays) < days[0] ? addDays(today, 1 - opts.minDays) : days[0];
+  const last = opts.minDays && today > days[days.length - 1] ? today : days[days.length - 1];
+  const axisDays = [];
+  for (let d = first; d <= last && axisDays.length < 400; d = addDays(d, 1)) axisDays.push(d);
   const values = shown.flatMap((s) => s.points.map((p) => p.value)).filter((v) => v != null);
   const yTicks = ticks(opts.min ?? 0, Math.max(opts.max ?? 0, ...values));
   const [y0, y1] = [yTicks[0], yTicks[yTicks.length - 1]];
@@ -69,13 +78,14 @@ export function lineChart(host, series, opts = {}) {
   const draw = () => {
     const width = Math.max(260, plot.clientWidth);
     const pad = { l: 40, r: 16, t: 12, b: 26 };
-    const t0 = toMs(days[0]);
-    const t1 = days.length > 1 ? toMs(days[days.length - 1]) : t0 + DAY;
-    const x = (day) => (days.length > 1 ? pad.l + ((toMs(day) - t0) / (t1 - t0)) * (width - pad.l - pad.r) : pad.l + (width - pad.l - pad.r) / 2);
+    const t0 = toMs(axisDays[0]);
+    const t1 = toMs(axisDays[axisDays.length - 1]);
+    const x = (day) => (t1 > t0 ? pad.l + ((toMs(day) - t0) / (t1 - t0)) * (width - pad.l - pad.r) : pad.l + (width - pad.l - pad.r) / 2);
     const y = (v) => pad.t + (1 - (v - y0) / (y1 - y0 || 1)) * (height - pad.t - pad.b);
-    // at most ~6 day labels, always the first and the last
-    const every = Math.max(1, Math.ceil(days.length / 6));
-    const xLabels = days.filter((d, i) => i % every === 0 || i === days.length - 1);
+    // a label per day while they fit (about 60px each), otherwise every n-th; always the first and the last
+    const fit = Math.max(2, Math.floor((width - pad.l - pad.r) / 60));
+    const every = Math.max(1, Math.ceil(axisDays.length / fit));
+    const xLabels = axisDays.filter((d, i) => i % every === 0 || i === axisDays.length - 1).filter((d, i, a) => i === a.length - 1 || axisDays.indexOf(a[a.length - 1]) - axisDays.indexOf(d) >= every);
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.setAttribute('width', width);
     svg.setAttribute('height', height);

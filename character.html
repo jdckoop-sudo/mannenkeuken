@@ -149,10 +149,10 @@ if (!c) {
     const levelPts = history.map((h) => ({ day: h.day, value: h.level }));
     const profNames = [...new Set(history.flatMap((h) => Object.keys(h.professions ?? {})))];
     const colors = professionColors(profNames);
-    lineChart(document.getElementById('chart-level'), [{ name: 'Level', color: 'var(--gold)', points: levelPts }], { min: 0, max: 10, label: `Level of ${c.name} per day` });
+    lineChart(document.getElementById('chart-level'), [{ name: 'Level', color: 'var(--gold)', points: levelPts }], { min: 0, max: 10, minDays: 7, label: `Level of ${c.name} per day` });
     if (profNames.length) {
       lineChart(document.getElementById('chart-skill'), profNames.sort((a, b) => colors[a].localeCompare(colors[b])).map((n) => ({ name: n, color: colors[n], points: history.map((h) => ({ day: h.day, value: h.professions?.[n] ?? null })) })),
-        { min: 0, max: 75, label: `Profession skill of ${c.name} per day` });
+        { min: 0, max: 75, minDays: 7, label: `Profession skill of ${c.name} per day` });
     } else document.getElementById('chart-skill-wrap').hidden = true;
     document.getElementById('progress-note').textContent = `One point per day since ${dayLabel(history[0].day, { day: 'numeric', month: 'long' })}: the level and skill at the end of that day (today: the latest update).`;
     document.getElementById('progress-box').hidden = false;
