@@ -153,7 +153,7 @@ function draw() {
     const crafters = canCraft(l);
     const guild = l.kind === 'request' ? guildCrafters(l) : null; // null = the game has no recipe for this item
     const extra = (l.profession ? `<br><span class="badge">${esc(l.profession)}${l.min_skill ? ` ${esc(l.min_skill)}+` : ''}</span>${!guild && crafters.length ? ` <span style="font-size:13px;color:var(--good)">${crafters.map((c) => `${esc(c.character)} can make this (${esc(c.skill)})`).join(', ')}</span>` : ''}` : '')
-      + (guild ? `<br><span class="market-crafters">${guild.length ? `<span style="color:var(--good)">Can make this:</span> ${guild.map(crafterHtml).join(' ')}` : '<span class="muted">Nobody in the guild knows the recipe yet</span>'}</span>` : '')
+      + (guild ? `<span class="market-crafters">${guild.length ? `<span class="market-crafters-label">Can make this</span>${guild.map(crafterHtml).join('')}` : '<span class="muted">Nobody in the guild knows the recipe yet</span>'}</span>` : '')
       + (isDone ? '<br><span class="badge">Finished</span>' : '')
       + ((l.pinged ?? []).length ? `<br><span class="muted" style="font-size:13px">Tagged: ${l.pinged.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</span>` : '');
     return `<tr class="${isMine ? 'mine' : ''}">

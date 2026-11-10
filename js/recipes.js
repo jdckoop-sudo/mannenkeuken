@@ -64,17 +64,32 @@ export const recipeLink = (r) => (r.i
   ? `<a href="${wowheadUrl(r.i)}" target="_blank" rel="noopener">${esc(r.n)}</a>`
   : `<a href="https://www.wowhead.com/forever/search?q=${encodeURIComponent(r.n)}" target="_blank" rel="noopener">${esc(r.n)}</a>`);
 
-// "2× Linen Cloth · 1× Coarse Thread", each a Wowhead link (hover tooltip). No Wowhead icons here (class no-wh-icon, css/style.css): on pages
-// that show item icons a list of reagents would get one per word. (data-wh-icon-size="0" does not help for items: Wowhead reads it as "tiny".)
-export const reagentsHtml = (r) => (r.r ?? []).map(([id, qty, name]) => `${esc(qty)}× ${id ? `<a class="no-wh-icon" href="${wowheadUrl(id)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name)}`).join(' · ');
+// The reagents as a row of small blocks: "2 × Linen Cloth" (the number in gold, the name a Wowhead link with tooltip). No Wowhead icons
+// here (class no-wh-icon, css/style.css): on pages that show item icons every reagent would get one (data-wh-icon-size="0" does not help
+// for items: Wowhead reads it as "tiny").
+export const reagentsHtml = (r) => (r.r?.length
+  ? `<ul class="rcp-reagents">${r.r.map(([id, qty, name]) => `<li><span class="rcp-n">${esc(qty)}</span><span class="rcp-x" aria-hidden="true">×</span>${id
+    ? `<a class="no-wh-icon" href="${wowheadUrl(id)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name)}</li>`).join('')}</ul>`
+  : '<span class="muted">No reagents</span>');
 
-// One search result on Professions: the recipe (Wowhead link), its profession and category, the reagents and who in the guild knows it.
-// professionLabel comes from the page (js/proficons.js), so this module needs no profession icons itself.
-export const recipeRowHtml = (r, professionLabel) => `<div class="who-row${r.who.length ? '' : ' nobody'}">
-  <div class="who-recipe">${recipeLink(r)}${r.q > 1 ? ` <span class="muted">×${esc(r.q)}</span>` : ''}<span class="who-prof">${professionLabel(r.p, { size: 16 })} <span class="muted">· ${esc(r.c)}</span></span></div>
-  ${r.r?.length ? `<div class="who-reagents muted">Needs ${reagentsHtml(r)}</div>` : ''}
-  <div class="who-crafters">${r.who.length ? r.who.map(crafterHtml).join('') : '<span class="muted">Nobody in the guild yet</span>'}</div></div>`;
+// One crafter as a small block: the character (class colour, link to its page), the player (player colour) and the skill.
+export const crafterHtml = (c) => `<span class="crafter"><a class="crafter-char" href="${characterUrl(c.name)}" style="color:${classColor(c.cls) || 'inherit'}">${classIcon(c.cls, 16)}${esc(c.name)}</a>`
+  + `${c.player ? `<a class="crafter-player" href="${playerUrl(c.player)}">${esc(c.player)}</a>` : ''}${c.skill != null ? `<span class="crafter-skill" title="Skill">${esc(c.skill)}</span>` : ''}</span>`;
 
-// One crafter: the character (class colour, link to its page), the player (player colour) and the skill.
-export const crafterHtml = (c) => `<span class="crafter"><a href="${characterUrl(c.name)}" style="color:${classColor(c.cls) || 'inherit'}">${classIcon(c.cls, 16)}${esc(c.name)}</a>`
-  + `${c.player ? ` <a class="crafter-player" href="${playerUrl(c.player)}">${esc(c.player)}</a>` : ''}${c.skill != null ? ` <span class="muted">${esc(c.skill)}</span>` : ''}</span>`;
+// One search result on Professions, as a card: the recipe name on top (with how many it makes), its profession and category on the
+// right; below two labelled rows: Reagents and Made by. professionLabel comes from the page (js/proficons.js).
+export const recipeRowHtml = (r, professionLabel) => `<article class="rcp${r.who.length ? '' : ' nobody'}">
+  <header class="rcp-head"><span class="rcp-name">${recipeLink(r)}${r.q > 1 ? ` <span class="rcp-qty">makes ${esc(r.q)}</span>` : ''}</span>
+    <span class="rcp-prof">${professionLabel(r.p, { size: 16 })}<span class="muted">· ${esc(r.c)}</span></span></header>
+  <dl class="rcp-parts">
+    <dt>Reagents</dt><dd>${reagentsHtml(r)}</dd>
+    <dt>Made by</dt><dd>${r.who.length ? `<div class="rcp-crafters">${r.who.map(crafterHtml).join('')}</div>` : '<span class="muted">Nobody in the guild yet</span>'}</dd>
+  </dl></article>`;
+
+// The recipes a character knows (character page): grouped by category, each line the recipe on the left and its reagents on the right.
+export function knownRecipesHtml(list) {
+  const groups = new Map();
+  for (const r of [...list].sort((a, b) => a.c.localeCompare(b.c) || a.n.localeCompare(b.n))) groups.set(r.c, [...(groups.get(r.c) ?? []), r]);
+  return [...groups].map(([cat, rs]) => `<div class="rcp-group"><h4>${esc(cat)} <span class="muted">${rs.length}</span></h4>
+    ${rs.map((r) => `<div class="rcp-line"><span class="rcp-name">${recipeLink(r)}${r.q > 1 ? ` <span class="rcp-qty">×${esc(r.q)}</span>` : ''}</span>${reagentsHtml(r)}</div>`).join('')}</div>`).join('');
+}
