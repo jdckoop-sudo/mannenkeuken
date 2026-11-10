@@ -604,7 +604,7 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 .ach-portrait-go { color: var(--gold); font-size: 14px; margin-top: 6px; }
 .ach-portrait-link:hover .ach-portrait-go { text-decoration: underline; }
 @media (max-width: 520px) { .ach-portrait-link { flex-direction: column; text-align: center; gap: 10px; } }
-/* Home: the card of the main character with the portrait on the left */
+/* Home: the cards of your characters (main and alts) with the portrait on the left, so they line up */
 .me-card { border: 1px solid var(--border); background: var(--panel); border-radius: 6px; padding: 14px; display: flex; align-items: center; gap: 18px; }
 .me-card-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
 /* Home → My character: the name opens the character page (in the class colour, set inline) */

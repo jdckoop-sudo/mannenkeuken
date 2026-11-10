@@ -185,8 +185,10 @@ async function drawMe() {
   const card = (c, label) => {
     const row = find(c.character_name);
     const profs = row ? [[row.prof1, row.skill1], [row.prof2, row.skill2], ['Cooking', row.cooking], ['First Aid', row.firstAid], ['Fishing', row.fishing]].filter(([p, s]) => p && (s || s === 0) && s !== '') : [];
-    const portrait = label === 'Main'
-      ? `<a class="me-portrait" data-char="${esc(c.character_name)}" href="${profile.player_name ? playerUrl(profile.player_name) : `character.html?name=${encodeURIComponent(c.character_name)}`}" aria-label="Open ${esc(profile.player_name ? 'your player page' : c.character_name)}"></a>` : '';
+    // Every card has a portrait, so the cards line up: the picture from the game, or the class icon while there is none.
+    // The main's opens the player page (as before), an alt's opens its character page.
+    const toPlayer = label === 'Main' && profile.player_name;
+    const portrait = `<a class="me-portrait" data-char="${esc(c.character_name)}" data-cls="${esc(c.class ?? '')}" href="${toPlayer ? playerUrl(profile.player_name) : characterUrl(c.character_name)}" aria-label="Open ${esc(toPlayer ? 'your player page' : c.character_name)}"></a>`;
     return `<div class="me-card">${portrait}<div class="me-card-body">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="badge" style="align-self:center">${label}</span>${classIcon(c.class, 24)}<a class="me-name" href="${characterUrl(c.character_name)}" title="Open the character page" style="color:${classColor(c.class) || 'inherit'}">${esc(c.character_name)}</a>
         <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · '))}</span></div>
@@ -202,8 +204,8 @@ async function drawMe() {
   };
   box.innerHTML = card(profile, 'Main') + alts.map((a) => card(a, 'Alt')).join('')
     + `<span style="font-size:14px"><a href="profile.html">Edit my profile</a>${profile.player_name ? ` · <a href="${playerUrl(profile.player_name)}">My player page & stats</a>` : ''}</span>`;
-  // The picture of the main character, as on the Achievements page (the class icon as long as the game has no picture)
-  box.querySelectorAll('[data-char]').forEach((el) => el.append(characterFrame(blizzard?.characters?.[el.dataset.char.toLowerCase()], el.dataset.char, profile.class)));
+  // The picture of each character, as on the Achievements page (the class icon as long as the game has no picture)
+  box.querySelectorAll('[data-char]').forEach((el) => el.append(characterFrame(blizzard?.characters?.[el.dataset.char.toLowerCase()], el.dataset.char, el.dataset.cls)));
   refreshTooltips();
 }
 drawMe();
