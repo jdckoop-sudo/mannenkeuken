@@ -1274,3 +1274,80 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ideas and Fixes: Won't do column$q$, $q$Developer mode$q$, 'check',
   $q$Developer mode > Ideas and Fixes: a fourth column "Won't do". Move an open card there with its "Won't do" button (asks first) or by dragging it; it shows dimmed with "Won't do · <time>", no urgency button, and is not counted in the number of open tickets. "Reopen" brings it back to Open. The card's History says "Moved it to Won't do" / "Brought it back from Won't do". More than 5: "Show all".$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ideas and Fixes: Won't do column$q$);
+
+-- 2026-11-10: history of the character data (Justin, idea "Weekly overview + level graph"): one row per character per day (Dutch date) with
+-- the level and the profession skills. snapshot_characters() runs every hour and keeps today's row up to date (a level never goes down),
+-- so at the end of a day the row holds that day's final numbers. Source: the Blizzard data (status ok, or guild = from the roster) and the
+-- table characters where the game does not know the character. Read by Home (This week), the character page and Guild → Overview (graphs).
+create table if not exists public.character_history (
+  day date not null,
+  key text not null,                                  -- lower-case character name, as in blizzard_characters
+  name text,
+  player text,
+  level int,
+  professions jsonb not null default '{}'::jsonb,     -- { "Mining": 75, "First Aid": 120, ... }
+  source text check (source in ('game', 'roster', 'table', 'dinky')),
+  updated_at timestamptz not null default now(),
+  primary key (day, key)
+);
+alter table public.character_history enable row level security;
+drop policy if exists "read all" on public.character_history;
+create policy "read all" on public.character_history for select using (true);  -- no write policies: only snapshot_characters() writes
+grant select on public.character_history to anon, authenticated;
+
+create or replace function public.snapshot_characters() returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  insert into public.character_history (day, key, name, player, level, professions, source, updated_at)
+  select (now() at time zone 'Europe/Amsterdam')::date, lower(btrim(c.name)), btrim(c.name), c.player_name,
+    case when b.data->>'status' in ('ok', 'guild') and (b.data->>'level') ~ '^[0-9]+$' then (b.data->>'level')::int else c.level end,
+    coalesce((select jsonb_object_agg(p->>'name', round((p->>'skill')::numeric)::int)
+              from jsonb_array_elements(case when b.data->>'status' = 'ok' and jsonb_typeof(b.data->'professions') = 'array' and jsonb_array_length(b.data->'professions') > 0
+                                             then b.data->'professions' else coalesce(c.professions, '[]'::jsonb) end) p
+              where coalesce(p->>'name', '') <> '' and (p->>'skill') ~ '^[0-9]+(\.[0-9]+)?$'), '{}'::jsonb),
+    case b.data->>'status' when 'ok' then 'game' when 'guild' then 'roster' else 'table' end,
+    now()
+  from public.characters c
+  left join public.blizzard_characters b on b.key = lower(btrim(c.name))
+  where c.status is distinct from 'Gestopt' and btrim(coalesce(c.name, '')) <> ''
+  on conflict (day, key) do update set
+    name = excluded.name, player = excluded.player,
+    level = greatest(public.character_history.level, excluded.level),
+    professions = excluded.professions, source = excluded.source, updated_at = excluded.updated_at;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.snapshot_characters() from public, anon, authenticated;
+
+-- Every hour at :09 (after update-characters at :05), and once now.
+select cron.schedule('character-history', '9 * * * *', $job$ select public.snapshot_characters(); $job$);
+select public.snapshot_characters();
+
+-- The history before this table existed: Ding Dinky remembers level and skills per character at the start of the current day and week
+-- (ding_period, written at 00:07 Dutch time = the numbers at the end of the day before). Copied once as source 'dinky'; never overwrites.
+insert into public.character_history (day, key, name, player, level, professions, source, updated_at)
+select ((d.updated_at at time zone 'Europe/Amsterdam') - interval '1 hour')::date, substr(d.key, 3), c.name, c.player_name,
+  (d.snap->>'level')::int, coalesce(d.snap->'skills', '{}'::jsonb), 'dinky', d.updated_at
+from public.ding_period d
+left join public.characters c on lower(btrim(c.name)) = substr(d.key, 3)
+where d.key like 'c:%' and (d.snap->>'level') ~ '^[0-9]+$'
+on conflict (day, key) do nothing;
+
+-- When a market listing was finished (for "This week" on Home): set when the status becomes done, cleared when it is reopened.
+alter table public.listings add column if not exists done_at timestamptz;
+create or replace function public.listing_done_at() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.status = 'done' and old.status is distinct from 'done' then new.done_at := now();
+  elsif new.status <> 'done' then new.done_at := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists listing_done_at on public.listings;
+create trigger listing_done_at before update on public.listings for each row execute function public.listing_done_at();
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$History: This week and level graphs$q$, $q$Home$q$, 'check',
+  $q$After running this SQL: select * from character_history order by day desc limit 20 (rows for today, 8 and 9 Nov). Home shows "This week" (levels, skills, market, donations, events). Character page: graph of level and skill per day. Overview: guild graph. Mark a listing done: done_at is set.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$History: This week and level graphs$q$);
