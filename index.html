@@ -103,7 +103,7 @@ import { loadMembers, esc } from './js/sheet.js?v=__V__';
 import { supabase, getMyCharacters, mine } from './js/supabase.js?v=__V__';
 import { upcomingReleases, releaseWhen, LAUNCH } from './js/releases.js?v=__V__';
 import { goldBar, goldHtml } from './js/gold.js?v=__V__';
-import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, playerForUser, playerUrl } from './js/players.js?v=__V__';
+import { loadCharacters, loadBlizzard, gameTotals, gameStatTiles, playerForUser, playerUrl, characterUrl } from './js/players.js?v=__V__';
 import { loadItems, qualityColor, wowheadUrl, refreshTooltips } from './js/itemsearch.js?v=__V__';
 import { questUrl } from './js/quests.js?v=__V__';
 import { findDungeon, dungeonUrl } from './js/dungeons.js?v=__V__';
@@ -188,7 +188,7 @@ async function drawMe() {
     const portrait = label === 'Main'
       ? `<a class="me-portrait" data-char="${esc(c.character_name)}" href="${profile.player_name ? playerUrl(profile.player_name) : `character.html?name=${encodeURIComponent(c.character_name)}`}" aria-label="Open ${esc(profile.player_name ? 'your player page' : c.character_name)}"></a>` : '';
     return `<div class="me-card">${portrait}<div class="me-card-body">
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="badge" style="align-self:center">${label}</span>${classIcon(c.class, 24)}<strong style="font-size:18px;color:${classColor(c.class) || 'inherit'}">${esc(c.character_name)}</strong>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="badge" style="align-self:center">${label}</span>${classIcon(c.class, 24)}<a class="me-name" href="${characterUrl(c.character_name)}" title="Open the character page" style="color:${classColor(c.class) || 'inherit'}">${esc(c.character_name)}</a>
         <span class="muted">${esc([c.race, c.class, c.role].filter(Boolean).join(' · '))}</span></div>
       ${row ? `<div class="chips">
           <span class="chip">Level <strong>${esc(row.level || '–')}</strong></span>

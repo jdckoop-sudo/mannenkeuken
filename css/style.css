@@ -607,6 +607,9 @@ a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 /* Home: the card of the main character with the portrait on the left */
 .me-card { border: 1px solid var(--border); background: var(--panel); border-radius: 6px; padding: 14px; display: flex; align-items: center; gap: 18px; }
 .me-card-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
+/* Home → My character: the name opens the character page (in the class colour, set inline) */
+.me-name { font-size: 18px; font-weight: 700; text-decoration: none; }
+.me-name:hover, .me-name:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 .me-portrait { flex: none; display: block; border-radius: 10px; transition: transform .2s ease; }
 .me-portrait:hover, .me-portrait:focus-visible { transform: translateY(-2px); outline: none; }
 .me-portrait:hover .char-frame, .me-portrait:focus-visible .char-frame { box-shadow: inset 0 0 36px 8px rgba(0, 0, 0, .75), 0 0 24px 6px color-mix(in srgb, var(--gold) 55%, transparent); }
