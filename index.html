@@ -79,7 +79,7 @@
 
     <section class="box" aria-labelledby="week-h" id="week-box" hidden>
       <div style="display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;justify-content:space-between"><h2 id="week-h">This week</h2><span class="muted" id="week-range" style="font-size:14px"></span></div>
-      <div class="week-grid" id="week"></div>
+      <div class="week" id="week"></div>
     </section>
 
     <section class="box" aria-label="Guild at a glance">
@@ -293,8 +293,6 @@ async function drawWeek() {
   skillUps.sort((a, b) => (b.to - b.from) - (a.to - a.from));
   const levels = ups.reduce((n, u) => n + u.to - u.from, 0);
   const skill = skillUps.reduce((n, u) => n + u.to - u.from, 0);
-  const charLink = (u) => `<a href="${characterUrl(u.name)}">${esc(u.name)}</a>`;
-  const more = (list, n) => (list.length > n ? `<li class="muted">+${list.length - n} more</li>` : '');
 
   const listings = listingsRes.data ?? [];
   const done = listings.filter((l) => l.status === 'done' && inWeek(l.done_at));
@@ -306,23 +304,38 @@ async function drawWeek() {
   const events = (eventsRes.data ?? []).filter((e) => inWeek(e.starts_at));
   const signups = events.length ? ((await supabase.from('signups').select('event_id,answer').in('event_id', events.map((e) => e.id))).data ?? []) : [];
 
-  const card = (title, value, body, href) => `<div class="week-card"><div class="week-card-head"><h3>${title}</h3>${href ? `<a href="${href}">Open</a>` : ''}</div><strong class="week-value">${value}</strong>${body}</div>`;
-  document.getElementById('week').innerHTML = [
-    card('Levels', levels ? `+${levels}` : '0', ups.length
-      ? `<ul class="week-list">${ups.slice(0, 5).map((u) => `<li>${charLink(u)} <span class="muted">${u.from} → <b>${u.to}</b></span></li>`).join('')}${more(ups, 5)}</ul>`
-      : '<p class="muted week-empty">No new levels yet this week.</p>', 'overview.html'),
-    card('Profession skill', skill ? `+${skill}` : '0', skillUps.length
-      ? `<ul class="week-list">${skillUps.slice(0, 5).map((u) => `<li>${charLink(u)} <span class="muted">${esc(u.prof)} ${u.from} → <b>${u.to}</b></span></li>`).join('')}${more(skillUps, 5)}</ul>`
-      : '<p class="muted week-empty">No skill gained yet this week.</p>', 'professions.html'),
-    card('Market', `${done.length} <span class="week-unit">trade${done.length === 1 ? '' : 's'} done</span>`,
-      `<ul class="week-list"><li><b>${fresh.length}</b> <span class="muted">new listing${fresh.length === 1 ? '' : 's'}</span></li><li><b>${reserved.length}</b> <span class="muted">reservation${reserved.length === 1 ? '' : 's'}</span></li>${done.slice(0, 3).map((l) => `<li class="muted">✓ ${esc(l.item)}</li>`).join('')}</ul>`, 'market.html'),
-    card('Guild bank', copper ? goldHtml(copper, 16) : '0', donors.length
-      ? `<p class="muted week-empty">From ${donors.map((p) => `<a href="${playerUrl(p)}">${esc(p)}</a>`).join(', ')}</p>`
-      : '<p class="muted week-empty">No donations yet this week.</p>', 'bank.html'),
-    card('Events', `${events.length} <span class="week-unit">this week</span>`, events.length
-      ? `<ul class="week-list">${events.slice(0, 4).map((e) => { const yes = signups.filter((s) => s.event_id === e.id && s.answer === 'yes').length; return `<li><a href="events.html#ev-${e.id}">${esc(e.title)}</a> <span class="muted">${esc(nice(dutchDay(e.starts_at)))}${yes ? ` · ${yes} going` : ''}</span></li>`; }).join('')}${more(events, 4)}</ul>`
-      : '<p class="muted week-empty">No events this week.</p>', 'events.html'),
+  // 1. A row of five tiles (the same look as Guild at a glance): label, the number (dimmed when 0) and one line under it. Each opens its page.
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const tile = (label, value, sub, href, zero) => `<a class="box stat week-tile${zero ? ' is-zero' : ''}" href="${href}"><span class="muted">${label}</span><strong>${value}</strong><span class="stat-sub">${sub}</span></a>`;
+  const tiles = [
+    tile('Levels gained', levels ? `+${levels}` : '0', ups.length ? plural(ups.length, 'character') : 'Nobody levelled yet', 'overview.html', !levels),
+    tile('Profession skill', skill ? `+${skill}` : '0', skillUps.length ? plural(new Set(skillUps.map((u) => u.name)).size, 'character') : 'No skill gained yet', 'professions.html', !skill),
+    tile('Trades done', String(done.length), `${plural(fresh.length, 'new listing')} · ${plural(reserved.length, 'reservation')}`, 'market.html', !done.length),
+    tile('Donated', copper ? goldHtml(copper, 18) : '0', donors.length ? `by ${donors.map(esc).join(', ')}` : 'No donations yet', 'bank.html', !copper),
+    tile('Events', String(events.length), events.length ? plural(signups.filter((s) => s.answer === 'yes').length, 'sign-up') : 'Nothing planned', 'events.html', !events.length),
   ].join('');
+
+  // 2. The details: the biggest level-ups and skill gains (name on the left; "from → to" and the gain on the right, lined up),
+  //    and a third list only when the market, the bank or the events had something this week. Top 5, the rest behind "Show all".
+  const row = (name, sub, from, to) => `<li class="week-row"><span class="week-who"><a href="${characterUrl(name)}">${esc(name)}</a>${sub ? `<span class="muted">${esc(sub)}</span>` : ''}</span>`
+    + `<span class="week-from">${from} → <b>${to}</b></span><span class="week-gain">+${to - from}</span></li>`;
+  const list = (title, rows, empty) => {
+    if (!rows.length) return `<div class="week-panel"><h3>${title}</h3><p class="muted week-empty">${empty}</p></div>`;
+    const extra = rows.length - 5;
+    return `<div class="week-panel"><h3>${title}</h3><ul class="week-rows">${rows.slice(0, 5).join('')}</ul>`
+      + (extra > 0 ? `<details class="week-more"><summary>Show all ${rows.length}</summary><ul class="week-rows">${rows.slice(5).join('')}</ul></details>` : '') + '</div>';
+  };
+  const other = [
+    ...done.map((l) => `<li class="week-line"><span>✓ ${esc(l.item)}</span><span class="muted">traded</span></li>`),
+    ...dons.map((d) => `<li class="week-line"><a href="${playerUrl(d.player_name)}">${esc(d.player_name)}</a><span>${goldHtml(Number(d.copper), 14)}</span></li>`),
+    ...events.map((e) => { const yes = signups.filter((s) => s.event_id === e.id && s.answer === 'yes').length; return `<li class="week-line"><a href="events.html#ev-${e.id}">${esc(e.title)}</a><span class="muted">${esc(nice(dutchDay(e.starts_at)))}${yes ? ` · ${yes} going` : ''}</span></li>`; }),
+  ];
+  const panels = [
+    list('Biggest level-ups', ups.map((u) => row(u.name, '', u.from, u.to)), 'No new levels yet this week.'),
+    list('Biggest skill gains', skillUps.map((u) => row(u.name, u.prof, u.from, u.to)), 'No skill gained yet this week.'),
+    other.length ? `<div class="week-panel"><h3>Market, bank &amp; events</h3><ul class="week-rows">${other.join('')}</ul></div>` : '',
+  ].join('');
+  document.getElementById('week').innerHTML = `<div class="week-tiles">${tiles}</div><div class="week-panels">${panels}</div>`;
   document.getElementById('week-box').hidden = false;
 }
 drawWeek();
