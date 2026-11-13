@@ -158,6 +158,8 @@ De Google Sheet is sinds 6 nov 2026 niet meer in gebruik; de tabel `characters` 
 | Mees | mjezzo |
 | Ian | Troy |
 | Pim | pim3431 |
+| Tom | tom |
+| Stijn | Cage (Stijn) |
 
 Deze lijst staat ook in Supabase in **`players`** (keuzelijst bij inloggen, taggen, koppeling). Verandert er iets, pas dan **beide** aan: `insert into public.players (player_name, discord_name) values ('Naam', 'Discordnaam') on conflict (player_name) do update set discord_name = excluded.discord_name;`
 **Nieuwe speler (stap 11)**: voeg in developer mode → *Characters* een character toe en typ de nieuwe spelernaam; de site vraagt of de speler erbij moet (komt in `players`, en daarmee bij "Choose your player"). Zonder character kan ook: `insert into public.players (player_name, discord_name) values ('Naam', 'Discordnaam');`. Daarna kan de speler zelf inloggen en characters toevoegen op My profile. Zet de Discord-naam erbij (SQL hierboven), neem de speler op in deze lijst en geef hem een kleur (zie *Spelerkleuren*).
