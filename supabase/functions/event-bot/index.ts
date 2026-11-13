@@ -157,7 +157,7 @@ async function sendDiscord(webhook, method, path, body) {
   }
   throw new Error('Discord: still rate limited after 3 tries');
 }
-const payload = (msg, ping) => ({ username: 'Ding Dinky', content: msg.content, embeds: [msg.embed], allowed_mentions: ping ? { parse: ['everyone'], users: msg.mentions ?? [] } : { parse: [] } });
+const payload = (msg, ping) => ({ username: 'Opie Groep', content: msg.content, embeds: [msg.embed], allowed_mentions: ping ? { parse: ['everyone'], users: msg.mentions ?? [] } : { parse: [] } });
 
 export async function run(dryRun) {
   const since = new Date(Date.now() - FOLLOW_MS - 3600e3).toISOString();
@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
   // {"test": true}: posts one hello message in the agenda channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
-      await sendDiscord(env('EVENTS_WEBHOOK_URL'), 'POST', '', { username: 'Ding Dinky', content: 'Agenda test 📅', embeds: [{ color: COLOR_OPEN, title: 'Test', description: 'If you can see this, the webhook works. New events from the dashboard agenda will show up here, with what is still needed.' }], allowed_mentions: { parse: [] } });
+      await sendDiscord(env('EVENTS_WEBHOOK_URL'), 'POST', '', { username: 'Opie Groep', content: 'Agenda test 📅', embeds: [{ color: COLOR_OPEN, title: 'Test', description: 'If you can see this, the webhook works. New events from the dashboard agenda will show up here, with what is still needed.' }], allowed_mentions: { parse: [] } });
       return json({ test: 'posted' });
     } catch (e) { return json({ test: 'failed', error: String(e.message ?? e) }, 500); }
   }
