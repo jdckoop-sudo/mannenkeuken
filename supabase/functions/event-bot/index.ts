@@ -13,6 +13,8 @@
 //    without a Discord id the name is shown in bold). Only that first message pings: an edit never pings again.
 //  - Needed people come from the event itself: 1 tank, 1 healer and 3 DPS by default (what the form fills in), or a number of players.
 //    Only "Sign up" counts; "Maybe" is listed but does not fill a slot.
+//  - Proposals for another time (event_time_proposals, voted on at the dashboard) are listed in the message with their votes. When more than half of the players agree,
+//    the database changes the time of the event (supabase/schema.sql, event_time_apply) and this function edits the message to the new time.
 //  - The message is edited only when what it shows has changed (a fingerprint of the message is kept in event_posts).
 //  - An event is followed until 6 hours after its start, the same time the dashboard keeps it in the list.
 //  - A deleted event (Cancel event on the dashboard) leaves no row, so event_posts keeps its title and time: its message is edited to "Cancelled".
@@ -80,7 +82,7 @@ export function needOf(e, signups) {
 }
 
 // The Discord message of one event: { content, embed, hash }. `link` is where people sign up.
-export function renderEvent(e, signups, discord = new Map()) {
+export function renderEvent(e, signups, discord = new Map(), time = { proposals: [], votes: [] }) {
   const [emoji, kindName] = KIND[e.kind] ?? KIND.other;
   const link = `${SITE}/events.html#ev-${e.id}`;
   const mine = signups.filter((s) => s.event_id === e.id);
@@ -99,7 +101,11 @@ export function renderEvent(e, signups, discord = new Map()) {
     { name: `Signed up (${need.yes}/${need.total})`, value: yesList.length ? yesList.map((s) => `${s.author_name} (${s.role})`).join('\n').slice(0, 1000) : '*Nobody yet*', inline: true },
   ];
   if (maybeList.length) fields.push({ name: 'Maybe', value: maybeList.map((s) => `${s.author_name} (${s.role})`).join('\n').slice(0, 1000), inline: true });
-  fields.push({ name: '​', value: `[Sign up on the dashboard](${link})`, inline: false });
+  const props = (time.proposals ?? []).filter((p) => p.event_id === e.id)
+    .map((p) => ({ ...p, voters: (time.votes ?? []).filter((v) => v.proposal_id === p.id).map((v) => v.voter).sort() }))
+    .sort((a, b) => b.voters.length - a.voters.length || String(a.created_at).localeCompare(String(b.created_at)));
+  if (props.length) fields.push({ name: '🗳️ Another time proposed', value: props.map((p) => `⏰ **${whenText(p.starts_at)}** · ${p.voters.length}/${p.votes_needed} votes (${p.voters.join(', ') || 'nobody yet'})`).join('\n').slice(0, 1000), inline: false });
+  fields.push({ name: '​', value: `[${props.length ? 'Sign up or vote' : 'Sign up'} on the dashboard](${link})`, inline: false });
   const tagged = (e.pinged ?? []).map((p) => ({ name: p, id: discord.get(p) ?? null }));
   const tagText = tagged.map((t) => (t.id ? `<@${t.id}>` : `**${t.name}**`)).join(' ');
   const body = {
@@ -122,7 +128,7 @@ export function renderCancelled(post) {
 
 // What has to be done now. events = rows of events, signups = rows of signups, posts = rows of event_posts, now = Date.
 // Answers { post: [{ event, msg }], edit: [{ event, post, msg }], cancel: [{ post, msg }] }.
-export function plan({ events, signups, posts, discord = new Map(), now = new Date() }) {
+export function plan({ events, signups, posts, discord = new Map(), time = { proposals: [], votes: [] }, now = new Date() }) {
   const byId = new Map(posts.map((p) => [p.event_id, p]));
   const out = { post: [], edit: [], cancel: [] };
   const ids = new Set(events.map((e) => e.id));
@@ -130,11 +136,11 @@ export function plan({ events, signups, posts, discord = new Map(), now = new Da
     const startsMs = new Date(e.starts_at).getTime();
     const post = byId.get(e.id);
     if (!post) {
-      if (startsMs > now.getTime()) out.post.push({ event: e, msg: renderEvent(e, signups, discord) }); // an event that has already started is not announced any more
+      if (startsMs > now.getTime()) out.post.push({ event: e, msg: renderEvent(e, signups, discord, time) }); // an event that has already started is not announced any more
       continue;
     }
     if (post.cancelled || now.getTime() > startsMs + FOLLOW_MS) continue;
-    const msg = renderEvent(e, signups, discord);
+    const msg = renderEvent(e, signups, discord, time);
     if (msg.hash !== post.hash) out.edit.push({ event: e, post, msg });
   }
   for (const p of posts) {
@@ -161,14 +167,18 @@ const payload = (msg, ping) => ({ username: 'Opie Groep', content: msg.content, 
 
 export async function run(dryRun) {
   const since = new Date(Date.now() - FOLLOW_MS - 3600e3).toISOString();
-  const [events, signups, posts, playerRows] = await Promise.all([
+  // proposals for another time: when these tables do not exist yet the agenda still works
+  const optional = (path) => db(path).catch((err) => { console.warn(String(err.message ?? err)); return []; });
+  const [events, signups, posts, playerRows, proposals, votes] = await Promise.all([
     db(`events?select=*&starts_at=gte.${since}&order=starts_at`),
     db('signups?select=event_id,author_name,role,answer'),
     db('event_posts?select=*'),
     db('players?select=player_name,discord_id'),
+    optional('event_time_proposals?select=*'),
+    optional('event_time_votes?select=*'),
   ]);
   const discord = new Map(playerRows.filter((p) => p.discord_id).map((p) => [p.player_name, String(p.discord_id)]));
-  const todo = plan({ events, signups, posts, discord });
+  const todo = plan({ events, signups, posts, discord, time: { proposals, votes } });
   const out = { post: todo.post.map((x) => x.event.title), edit: todo.edit.map((x) => x.event.title), cancel: todo.cancel.map((x) => x.post.title), posted: 0, error: null };
   if (dryRun) return { ...out, preview: [...todo.post, ...todo.edit].map((x) => ({ title: x.event.title, embed: x.msg.embed })) };
 

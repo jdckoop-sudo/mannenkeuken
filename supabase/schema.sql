@@ -1475,3 +1475,134 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Agenda in Discord: event, sign-up, tag, cancel$q$, $q$Discord$q$, 'check',
   $q$After the SQL, event-bot and EVENTS_WEBHOOK_URL: (1) create an event and tag a player: within a minute one message in the LFG channel with @everyone, the @tag, Dutch time, what is still needed and a link. (2) Sign up: the same message changes, no new ping; with 1 tank, 1 healer and 3 DPS it says Group is full. (3) Cancel the event: the message says cancelled. Check: select * from event_bot_status;$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Agenda in Discord: event, sign-up, tag, cancel$q$);
+
+-- 2026-11-13: propose another time for an event; the players vote; the time changes by itself when more than half of the players of the event agree.
+-- Who may propose and vote: the players who signed up (Sign up or Maybe) and the organiser. One proposal and one vote per PLAYER per event (not per browser).
+-- A proposal wins when its votes are more than half of those players; the event then gets the new time (so the agenda and the Discord message follow) and the
+-- proposals of that event are cleared. Everything is changed through the functions below; the tables can only be read (RLS) and only written by the functions.
+create table if not exists public.event_time_proposals (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events(id) on delete cascade,
+  proposer text not null,
+  starts_at timestamptz not null,
+  votes_needed int not null default 1,
+  created_at timestamptz not null default now(),
+  unique (event_id, proposer)
+);
+create table if not exists public.event_time_votes (
+  event_id uuid not null references public.events(id) on delete cascade,
+  voter text not null,
+  proposal_id uuid not null references public.event_time_proposals(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (event_id, voter)
+);
+do $$ declare t text; begin
+  foreach t in array array['event_time_proposals', 'event_time_votes'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "read all" on public.%I', t);
+    execute format('create policy "read all" on public.%I for select using (true)', t);
+    execute format('revoke insert, update, delete on public.%I from anon, authenticated', t);
+    execute format('grant select on public.%I to anon, authenticated', t);
+  end loop;
+end $$;
+
+-- the players of an event who may propose and vote: the organiser and everybody who signed up (yes or maybe)
+create or replace function public.event_time_voters(p_event uuid) returns setof text
+language sql stable security definer set search_path = public as $$
+  select m.player_name from public.events e join public.members m on m.user_id = e.user_id where e.id = p_event
+  union
+  select m.player_name from public.signups s join public.members m on m.user_id = s.user_id where s.event_id = p_event and s.answer in ('yes', 'maybe') $$;
+
+-- keeps votes_needed up to date and applies a proposal that more than half of the players voted for
+create or replace function public.event_time_apply(p_event uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare total int; need int; win public.event_time_proposals%rowtype;
+begin
+  select count(*) into total from public.event_time_voters(p_event);
+  if total = 0 then return; end if;
+  need := total / 2 + 1;
+  update public.event_time_proposals set votes_needed = need where event_id = p_event and votes_needed is distinct from need;
+  select p.* into win from public.event_time_proposals p
+   where p.event_id = p_event and (select count(*) from public.event_time_votes v where v.proposal_id = p.id) >= need
+   order by (select count(*) from public.event_time_votes v where v.proposal_id = p.id) desc, p.created_at limit 1;
+  if found then
+    update public.events set starts_at = win.starts_at where id = p_event;
+    delete from public.event_time_proposals where event_id = p_event;  -- the votes go with them
+  end if;
+end $$;
+
+create or replace function public.propose_event_time(p_event uuid, p_starts timestamptz) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); cur timestamptz; pid uuid;
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  select starts_at into cur from public.events where id = p_event;
+  if cur is null then raise exception 'Event not found'; end if;
+  if not exists (select 1 from public.event_time_voters(p_event) v where v = me) then
+    raise exception 'Sign up (or choose Maybe) first: only the players of this event can propose or vote on a time'; end if;
+  if cur < now() then raise exception 'This event has already started'; end if;
+  if p_starts <= now() then raise exception 'Choose a time in the future'; end if;
+  if p_starts = cur then raise exception 'That is already the time of the event'; end if;
+  delete from public.event_time_proposals where event_id = p_event and proposer = me;  -- a new proposal replaces your old one (and its votes)
+  select id into pid from public.event_time_proposals where event_id = p_event and starts_at = p_starts;
+  if pid is null then
+    insert into public.event_time_proposals (event_id, proposer, starts_at) values (p_event, me, p_starts) returning id into pid;
+  end if;
+  insert into public.event_time_votes (event_id, voter, proposal_id) values (p_event, me, pid)
+    on conflict (event_id, voter) do update set proposal_id = excluded.proposal_id, created_at = now();
+  perform public.event_time_apply(p_event);
+end $$;
+
+create or replace function public.vote_event_time(p_proposal uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); ev uuid;
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  select event_id into ev from public.event_time_proposals where id = p_proposal;
+  if ev is null then raise exception 'This proposal does not exist any more'; end if;
+  if not exists (select 1 from public.event_time_voters(ev) v where v = me) then
+    raise exception 'Sign up (or choose Maybe) first: only the players of this event can propose or vote on a time'; end if;
+  insert into public.event_time_votes (event_id, voter, proposal_id) values (ev, me, p_proposal)
+    on conflict (event_id, voter) do update set proposal_id = excluded.proposal_id, created_at = now();
+  perform public.event_time_apply(ev);
+end $$;
+
+create or replace function public.unvote_event_time(p_event uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player();
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  delete from public.event_time_votes where event_id = p_event and voter = me;
+end $$;
+
+-- the proposer and the organiser may withdraw a proposal
+create or replace function public.withdraw_event_time(p_proposal uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); ev uuid; who text;
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  select event_id, proposer into ev, who from public.event_time_proposals where id = p_proposal;
+  if ev is null then return; end if;
+  if who is distinct from me and not exists (select 1 from public.events e where e.id = ev and public.same_player(e.user_id)) then
+    raise exception 'Only the proposer or the organiser can withdraw a proposal'; end if;
+  delete from public.event_time_proposals where id = p_proposal;
+end $$;
+
+-- when somebody signs up, changes or withdraws, the number of players (and so the votes needed) changes
+create or replace function public.event_time_after_signup() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.event_time_apply(coalesce(new.event_id, old.event_id));
+  return null;
+end $$;
+drop trigger if exists event_time_after_signup on public.signups;
+create trigger event_time_after_signup after insert or update or delete on public.signups for each row execute function public.event_time_after_signup();
+
+revoke all on function public.event_time_voters(uuid), public.event_time_apply(uuid), public.event_time_after_signup() from public, anon, authenticated;
+revoke all on function public.propose_event_time(uuid, timestamptz), public.vote_event_time(uuid), public.unvote_event_time(uuid), public.withdraw_event_time(uuid) from public, anon;
+grant execute on function public.propose_event_time(uuid, timestamptz), public.vote_event_time(uuid), public.unvote_event_time(uuid), public.withdraw_event_time(uuid) to authenticated;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Events: propose another time and vote$q$, $q$Events$q$, 'check',
+  $q$Open an event you signed up for (or organise): Propose another time (date + time), the proposal shows with votes. Another signed-up player votes; with more than half of the players (organiser included) the event time changes, the agenda too and the Discord message within a minute. Someone who did not sign up gets a hint instead of the buttons. Withdraw removes a proposal.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Events: propose another time and vote$q$);

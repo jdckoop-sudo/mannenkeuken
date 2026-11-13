@@ -124,4 +124,24 @@ test('renderCancelled does not break without a time', () => {
   assert.match(renderCancelled({ title: 'X' }).embed.description, /cancelled/);
 });
 
+test('proposed times are listed with their votes; a changed vote edits the message', () => {
+  const time = { proposals: [{ id: 'p1', event_id: 'e1', starts_at: '2026-11-14T19:30:00Z', votes_needed: 3, created_at: '2026-11-13T12:00:00Z' }], votes: [{ event_id: 'e1', voter: 'Pim', proposal_id: 'p1' }] };
+  const m = renderEvent(ev(), [], new Map(), time);
+  const f = m.embed.fields.find((x) => /Another time/.test(x.name));
+  assert.match(f.value, /20:30/); // 19:30 UTC = 20:30 Dutch time (UTC+1)
+  assert.match(f.value, /1\/3 votes \(Pim\)/);
+  assert.match(JSON.stringify(m.embed.fields), /Sign up or vote on the dashboard/);
+  assert.equal(renderEvent(ev(), []).embed.fields.some((x) => /Another time/.test(x.name)), false);
+  const posts = [{ event_id: 'e1', message_id: 'm1', hash: renderEvent(ev(), []).hash, title: 'x', starts_at: ev().starts_at, cancelled: false }];
+  assert.equal(run({ events: [ev()], posts, time }).edit.length, 1);
+});
+
+test('a new time of the event is shown in the same message (edit, no new post)', () => {
+  const posts = [{ event_id: 'e1', message_id: 'm1', hash: renderEvent(ev(), []).hash, title: 'x', starts_at: ev().starts_at, cancelled: false }];
+  const r = run({ events: [ev({ starts_at: '2026-11-14T19:30:00Z' })], posts });
+  assert.equal(r.post.length, 0);
+  assert.equal(r.edit.length, 1);
+  assert.match(r.edit[0].msg.embed.description, /20:30/);
+});
+
 console.log(`\n${passed} tests passed`);
