@@ -1429,7 +1429,7 @@ select $q$Home This week like Week Dinky$q$, $q$Home$q$, 'check',
   $q$After this SQL: character_history has xp_total, quests, kills, deaths, camps, boss (also on 8 and 9 Nov). Home > This week: Guild total, Top 3 of the week with medals, and a line per player, with the same numbers as Week Dinky in Discord.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Home This week like Week Dinky$q$);
 
--- 2026-11-13: agenda in Discord (Edge Function event-bot). Every event of the dashboard agenda gets ONE message in the Discord agenda channel, edited when
+-- 2026-11-13: agenda in Discord (Edge Function event-bot). Every event of the dashboard agenda gets ONE message in the Discord channel LFG, edited when
 -- people sign up, marked cancelled when the event is deleted. event_posts remembers the Discord message per event. No foreign key to events on purpose:
 -- a cancelled event (row deleted) must still be found, so its message can be edited to "Cancelled". Only the service key writes here (RLS: read for all).
 create table if not exists public.event_posts (
@@ -1473,5 +1473,5 @@ $job$);
 
 insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Agenda in Discord: event, sign-up, tag, cancel$q$, $q$Discord$q$, 'check',
-  $q$After the SQL, the function event-bot and the secret EVENTS_WEBHOOK_URL: (1) create an event on Raids & Events and tag a player: within a minute one message in the agenda channel with @everyone, the tag (@player), the time in Dutch time, "Still needed" and a link to the event. (2) Sign up with a role: the same message changes (no new ping) to what is still needed; with 1 tank, 1 healer and 3 DPS signed up it says "Group is full". (3) Cancel the event: the message becomes "cancelled". Check: select * from event_bot_status; and select * from event_posts;$q$, 'Claude'
+  $q$After the SQL, event-bot and EVENTS_WEBHOOK_URL: (1) create an event and tag a player: within a minute one message in the LFG channel with @everyone, the @tag, Dutch time, what is still needed and a link. (2) Sign up: the same message changes, no new ping; with 1 tank, 1 healer and 3 DPS it says Group is full. (3) Cancel the event: the message says cancelled. Check: select * from event_bot_status;$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Agenda in Discord: event, sign-up, tag, cancel$q$);
