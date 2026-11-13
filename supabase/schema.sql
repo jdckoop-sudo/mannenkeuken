@@ -1428,3 +1428,50 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Home This week like Week Dinky$q$, $q$Home$q$, 'check',
   $q$After this SQL: character_history has xp_total, quests, kills, deaths, camps, boss (also on 8 and 9 Nov). Home > This week: Guild total, Top 3 of the week with medals, and a line per player, with the same numbers as Week Dinky in Discord.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Home This week like Week Dinky$q$);
+
+-- 2026-11-13: agenda in Discord (Edge Function event-bot). Every event of the dashboard agenda gets ONE message in the Discord agenda channel, edited when
+-- people sign up, marked cancelled when the event is deleted. event_posts remembers the Discord message per event. No foreign key to events on purpose:
+-- a cancelled event (row deleted) must still be found, so its message can be edited to "Cancelled". Only the service key writes here (RLS: read for all).
+create table if not exists public.event_posts (
+  event_id uuid primary key,
+  message_id text not null,
+  hash text not null,
+  title text,
+  starts_at timestamptz,
+  cancelled boolean not null default false,
+  posted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.event_bot_status (
+  id int primary key default 1 check (id = 1),
+  last_run_at timestamptz,
+  posted int not null default 0,
+  message text
+);
+do $$ declare t text; begin
+  foreach t in array array['event_posts', 'event_bot_status'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "read all" on public.%I', t);
+    execute format('create policy "read all" on public.%I for select using (true)', t);
+  end loop;
+end $$;
+
+-- Every minute (so a sign-up shows in Discord within a minute). Same secret as ding-bot: the Vault secret update_characters_secret.
+-- Order: run this SQL first, then deploy the function and set EVENTS_WEBHOOK_URL (see docs/instructies.md, "Event-bot"); until then the calls only fail quietly.
+select cron.unschedule(jobid) from cron.job where jobname = 'event-bot';
+select cron.schedule('event-bot', '* * * * *', $job$
+  select net.http_post(
+    url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/event-bot',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-update-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'update_characters_secret')
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 50000
+  );
+$job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Agenda in Discord: event, sign-up, tag, cancel$q$, $q$Discord$q$, 'check',
+  $q$After the SQL, the function event-bot and the secret EVENTS_WEBHOOK_URL: (1) create an event on Raids & Events and tag a player: within a minute one message in the agenda channel with @everyone, the tag (@player), the time in Dutch time, "Still needed" and a link to the event. (2) Sign up with a role: the same message changes (no new ping) to what is still needed; with 1 tank, 1 healer and 3 DPS signed up it says "Group is full". (3) Cancel the event: the message becomes "cancelled". Check: select * from event_bot_status; and select * from event_posts;$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Agenda in Discord: event, sign-up, tag, cancel$q$);
