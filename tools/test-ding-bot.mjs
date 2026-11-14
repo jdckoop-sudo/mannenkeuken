@@ -312,4 +312,29 @@ assert.equal(isoWeek('2026-11-08'), 45);
 assert.equal(isoWeek('2026-11-09'), 46);
 assert.equal(isoWeek('2027-01-03'), 53);
 
+// Only after the log out (14 Nov 2026, Jelle): the guild roster shows a new level while the player is still online, the profile (XP, quests, kills) only after the log out.
+// The bot looks at the level of the profile (profileLevel), so there is no level-only message in the middle of a session and the recap after the log out has everything.
+{
+  const row = { name: 'Aa', player_name: 'Jelle', level: 10, professions: [], status: 'Main' };
+  const stale = { status: 'ok', level: 31, profileLevel: 30, xp: 500, stats: { quests: 100, kills: 900, deaths: 2, camps: 1 } }; // roster says 31, the profile is still the one of the last log out
+  const fresh = { status: 'ok', level: 31, profileLevel: 31, xp: 1200, stats: { quests: 112, kills: 985, deaths: 3, camps: 2 } }; // after the log out
+  assert.equal(characterFrom(row, stale).level, 30, 'the level of the profile counts, not the roster');
+  assert.equal(characterFrom(row, { status: 'ok', level: 31 }).level, 31, 'data without profileLevel (older update-characters): as before');
+  assert.equal(characterFrom(row, { status: 'guild', level: 4 }).level, 10, 'no profile yet: the table, as before');
+  const before = { quests: 100, kills: 900, deaths: 2, camps: 1, xp: totalXp(30, 500), skills: null, gear: null };
+  const p0 = () => ({ levels: new Map([['aa', 30]]), snaps: new Map([['aa', { ...before }]]), known: new Set(first.baseline.known.map((k) => `${k.player}|${k.id}`)), players: new Set(['Jelle', '']) });
+  const base = () => { const s = p0(); const q = run([characterFrom(row, { ...stale, profileLevel: 30, level: 30 })], [], { ...s, known: new Set(), players: new Set() }); return new Set(q.baseline.known.map((k) => `${k.player}|${k.id}`)); };
+  const known = base();
+  const online = run([characterFrom(row, stale)], [], { ...p0(), known });
+  assert.equal(online.messages.length, 0, 'still online (only the roster has the new level): nothing is posted');
+  assert.equal(online.quietSnaps.find((x) => x.key === 'aa').xp, totalXp(30, 500), 'and the remembered XP stays the one of the profile');
+  const out = run([characterFrom(row, fresh)], [], { ...p0(), known });
+  const mine = out.messages.filter((m) => m.kind === 'player' && m.player === 'Jelle');
+  assert.equal(mine.length, 1, 'after the log out: one recap');
+  const text = mine[0].embed.description;
+  assert.match(text, /\+1 level \(30 → \*\*31\*\*\)/);
+  assert.match(text, new RegExp(`\\+${(XP_TO_NEXT[29] - 500 + 1200).toLocaleString('en-GB')} XP`), 'the XP of the whole session, over the level up');
+  assert.match(text, /\+12 quests · ⚔️ \+85 kills/);
+}
+
 console.log('Ding Dinky tests: all passed');

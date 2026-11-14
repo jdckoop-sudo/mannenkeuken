@@ -199,7 +199,11 @@ async function run(dryRun) {
       // The roster is sometimes refreshed before the profile; a level never goes down, so the higher of the two counts.
       const level = Math.max(b.level ?? 0, roster?.members.get(key)?.level ?? 0) || null;
       entry = {
-        name: b.name ?? name, status: 'ok', level, race: b.race?.name ?? null, class: b.character_class?.name ?? null,
+        name: b.name ?? name, status: 'ok', level,
+        // The level of the profile itself. The profile (with XP, quests, kills, skills) is only refreshed when the character logs out; `level` above can be
+        // ahead of it while the player is still online, because the guild roster is newer. Ding Dinky uses this one, so a level up is announced with its recap after the log out.
+        profileLevel: typeof b.level === 'number' ? b.level : null,
+        race: b.race?.name ?? null, class: b.character_class?.name ?? null,
         faction: b.faction?.name ?? null, guild: b.guild?.name ?? null,
         gender: b.gender?.name ?? old?.gender ?? null,
         itemLevel: typeof b.average_item_level === 'number' ? b.average_item_level : (old?.itemLevel ?? null), // average item level (bags included)

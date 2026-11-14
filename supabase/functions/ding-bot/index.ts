@@ -1,6 +1,7 @@
 // Supabase Edge Function "ding-bot" (the bot in Discord is called Ding Dinky): posts a "Ding!" in the Discord channel #dings when a player's character has gone up a level or a player
 // (or the whole guild) has earned an achievement of the dashboard. Started every 5 minutes by pg_cron (see supabase/schema.sql), a few
-// minutes after update-characters, because the level only changes after the character has logged out.
+// minutes after update-characters. The game only refreshes a character's profile when it logs out, and the bot looks at the level of that profile (profileLevel,
+// see characterFrom): not at the level of the guild roster, which changes while the player is still online.
 //
 // Setup and how to check it: docs/instructies.md, "Ding-bot".
 // Function secrets (Edge Functions → Secrets), never in the repo:
@@ -57,7 +58,10 @@ export function characterFrom(row, api) {
   const primaries = source.filter((p) => p.kind === 'primary').slice(0, 2);
   const profs = [...primaries, ...SECONDARY.map((n) => source.find((p) => p.name === n)).filter(Boolean)]
     .map((p) => ({ name: p.name, skill: num(p.skill) })).filter((p) => !SECONDARY.includes(p.name) || p.skill !== null);
-  const level = known && api.level != null ? api.level : num(row.level);
+  // profileLevel = the level of the game's profile itself, which is only refreshed when the character logs out (like XP, quests, kills and skills).
+  // api.level can be ahead of it while the player is online (update-characters takes the higher of profile and guild roster, for the site); with that one a level up
+  // was posted in the middle of a session, on its own, and the XP of the recap after the log out did not add up. Without profileLevel (older data): as before.
+  const level = known && (api.profileLevel ?? api.level) != null ? (api.profileLevel ?? api.level) : num(row.level);
   const skills = known && apiProfs.length ? Object.fromEntries(apiProfs.map((p) => [p.name, num(p.skill)]).filter(([, v]) => v !== null)) : null;
   return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, stats: known ? (api.stats ?? null) : null, xp: known ? num(api.xp) : null, skills, gear: known && Array.isArray(api.equipment) && api.equipment.length ? api.equipment.filter((e) => e && e.id).map((e) => ({ id: e.id, name: e.name })) : null, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
 }
