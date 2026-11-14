@@ -1429,9 +1429,9 @@ select $q$Home This week like Week Dinky$q$, $q$Home$q$, 'check',
   $q$After this SQL: character_history has xp_total, quests, kills, deaths, camps, boss (also on 8 and 9 Nov). Home > This week: Guild total, Top 3 of the week with medals, and a line per player, with the same numbers as Week Dinky in Discord.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Home This week like Week Dinky$q$);
 
--- 2026-11-14: Ding Dinky only after the log out. No change to the database: update-characters keeps the level of the profile as profileLevel in
--- blizzard_characters.data and ding-bot uses that one (docs/instructies.md, "Alleen na uitloggen"). Only a line for the checklist.
+-- 2026-11-14: Ding Dinky only after a session (the log out), at the end of the day and at the end of the week. No change to the database: update-characters keeps
+-- the level of the profile as profileLevel in blizzard_characters.data and ding-bot uses that one (docs/instructies.md, "Alleen na een sessie"). Only a line for the checklist.
 insert into public.dev_checks (title, area, status, note, updated_by)
-select $q$Ding Dinky: level up only after the log out$q$, $q$Discord$q$, 'check',
-  $q$After deploying update-characters and ding-bot: select key, data->>'level', data->>'profileLevel' from blizzard_characters; has both. Level up while staying online: the site may show the new level, #dings stays quiet. After the log out: ONE recap with the level(s), XP, quests and kills together. No more messages for several players in the same minute with only +1 level.$q$, 'Claude'
-where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: level up only after the log out$q$);
+select $q$Ding Dinky: only after a session, end of day, end of week$q$, $q$Discord$q$, 'check',
+  $q$After deploying update-characters and ding-bot. Level up while staying online: the site may show it, #dings stays quiet. After EVERY log out in which something was done: ONE recap (levels, XP, quests, kills), also without a level up. Logging in and out without doing anything: nothing. A gold donation or a guild goal: no message. No more messages for several players in the same minute.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: only after a session, end of day, end of week$q$);

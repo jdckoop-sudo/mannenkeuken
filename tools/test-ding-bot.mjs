@@ -78,15 +78,16 @@ assert.match(tinus.embed.description, /⬆️ \+1 level \(30 → \*\*31\*\*\)/);
 r = run([ch('Aa', 'Jelle', 10), ch('Bb', 'Tinus', 31, 'Gestopt')], [], prev());
 assert.equal(r.messages.length, 0);
 
-// 7. guild goal: ONE message with @everyone, none per player
+// 7. donated gold and guild goals are not announced at all (14 Nov 2026, Jelle: only after a session, end of the day, end of the week); they are remembered
 const donations = [{ player_name: 'Jelle', copper: 120 * GOLD }, { player_name: 'Tinus', copper: 90 * GOLD }];
 r = run([ch('Aa', 'Jelle', 12), ch('Bb', 'Tinus', 30)], donations, prev());
-const g = r.messages.filter((x) => x.kind === 'guild');
-assert.equal(g.length, 1);
-assert.match(g[0].content, /^@everyone/);
-assert.deepEqual(g[0].allowed, { parse: ['everyone'] });
-assert.match(g[0].embed.description, /Full Vault/);
-assert.ok(!r.messages.some((x) => x.kind === 'player' && /Full Vault/.test(x.embed.description)), 'guild goals not per player');
+assert.equal(r.messages.length, 0, 'no guild message and no message for a donation');
+assert.ok(r.baseline.known.some((k) => k.player === '' && k.id === 'd7'), 'the guild goal is remembered');
+assert.ok(r.baseline.known.some((k) => k.player === 'Tinus' && core.BY_ID.get(k.id).meter === 'donated'), 'the donation achievement is remembered');
+// also together with a session: the recap does not mention them
+r = run([ch('Aa', 'Jelle', 13), ch('Bb', 'Tinus', 30)], donations, prev());
+assert.equal(r.messages.length, 1);
+assert.ok(!r.messages[0].embed.description.includes('Full Vault') && !/Achievements/.test(r.messages[0].embed.description));
 
 // 8. already announced: not again
 const announced = prev(); announced.known.add('|d7');
@@ -335,6 +336,37 @@ assert.equal(isoWeek('2027-01-03'), 53);
   assert.match(text, /\+1 level \(30 → \*\*31\*\*\)/);
   assert.match(text, new RegExp(`\\+${(XP_TO_NEXT[29] - 500 + 1200).toLocaleString('en-GB')} XP`), 'the XP of the whole session, over the level up');
   assert.match(text, /\+12 quests · ⚔️ \+85 kills/);
+}
+
+// A recap after EVERY session (14 Nov 2026, Jelle), also without a level up or an achievement; nothing done = no message
+{
+  const st = (name, player, level, stats, xp, status = 'Main') => ({ ...ch(name, player, level, status), stats, skills: {}, xp });
+  const before = () => ({ ...prev(), snaps: new Map([['aa', { quests: 100, kills: 800, deaths: 3, camps: 4, xp: totalXp(12, 5000), skills: {}, gear: null }], ['bb', { quests: 10, kills: 50, deaths: 0, camps: 0, xp: totalXp(30, 10), skills: {}, gear: null }]]) });
+  let q = run([st('Aa', 'Jelle', 12, { quests: 103, kills: 840, deaths: 3, camps: 4 }, 6500), st('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0, camps: 0 }, 10)], [], before(), new Map([['Jelle', '123456789012345678']]));
+  assert.equal(q.messages.length, 1, 'Jelle played, Tinus did not');
+  assert.equal(q.messages[0].player, 'Jelle');
+  assert.match(q.messages[0].embed.description, /### 📊 This session\n✨ \+1,500 XP · \*\*Total level 12\*\*\n\n\*\*Aa\*\*\n📜 \+3 quests · ⚔️ \+40 kills/);
+  assert.match(q.messages[0].embed.url, /character\.html\?name=Aa$/, 'without an achievement the link goes to the character');
+  assert.deepEqual(q.messages[0].commit.levels, []);
+  assert.equal(q.messages[0].commit.snaps.find((x) => x.key === 'aa').kills, 840);
+  assert.deepEqual(q.quietSnaps.map((x) => x.key), ['bb']);
+  // logged in and out without doing anything: nothing
+  q = run([st('Aa', 'Jelle', 12, { quests: 100, kills: 800, deaths: 3, camps: 4 }, 5000), st('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0, camps: 0 }, 10)], [], before());
+  assert.equal(q.messages.length, 0);
+
+  // an achievement a developer unlocked by hand waits for the next session of that player
+  const forced = (chars, prevState) => {
+    const data = { characters: chars, blizzard, donations: [], overrides: [{ achievement_id: 's5', player_name: 'Jelle', forced: 'unlocked' }], gameTotals: gameTotalsFrom(blizzard) };
+    const players = [...new Set(chars.map((x) => x.player))]; const guild = core.guildMeters(data, players);
+    return plan({ core, chars, states: new Map(players.map((p) => [p, core.evaluate(data, p, guild)])), prev: prevState, discord: new Map() });
+  };
+  q = forced([st('Aa', 'Jelle', 12, { quests: 100, kills: 800, deaths: 3, camps: 4 }, 5000)], before());
+  assert.equal(q.messages.length, 0, 'no session: the unlocked achievement waits');
+  assert.ok(!q.baseline.known.some((k) => k.id === 's5'), 'and is not marked as announced');
+  q = forced([st('Aa', 'Jelle', 12, { quests: 101, kills: 800, deaths: 3, camps: 4 }, 5200)], before());
+  assert.equal(q.messages.length, 1);
+  assert.match(q.messages[0].embed.description, /Relentless/);
+  assert.ok(q.messages[0].commit.known.some((k) => k.id === 's5'));
 }
 
 console.log('Ding Dinky tests: all passed');
