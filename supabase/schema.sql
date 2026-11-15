@@ -1428,3 +1428,48 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Home This week like Week Dinky$q$, $q$Home$q$, 'check',
   $q$After this SQL: character_history has xp_total, quests, kills, deaths, camps, boss (also on 8 and 9 Nov). Home > This week: Guild total, Top 3 of the week with medals, and a line per player, with the same numbers as Week Dinky in Discord.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Home This week like Week Dinky$q$);
+
+-- 2026-11-15: Odin (Jelle). Every day at 02:30 and at 14:30 Dutch time a webhook called Odin posts "NATVOERTIJD!" with an @mention of Laurens in the
+-- Discord channel kletsen. No Edge Function: pg_cron starts odin_call(), which posts to the Discord webhook with pg_net.
+-- The webhook URL is a secret: it lives only in the Vault, under the name odin_webhook_url (Supabase > Integrations > Vault > Secrets). Never in the repo.
+-- Without that secret nothing is posted. Test:  select public.odin_call(true);   See what it did:  select * from net._http_response order by created desc limit 5;
+-- pg_cron runs in UTC and the Netherlands has winter and summer time, so the job starts at the four UTC half hours that can be 02:30 or 14:30 here;
+-- odin_due() lets only the right one through.
+create or replace function public.odin_due(p_at timestamptz default now())
+returns boolean language sql stable set search_path = public, pg_temp as $$
+  select extract(hour from p_at at time zone 'Europe/Amsterdam') in (2, 14)
+     and extract(minute from p_at at time zone 'Europe/Amsterdam') between 30 and 39;
+$$;
+
+create or replace function public.odin_call(p_force boolean default false)
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_url text;
+  v_id text;
+begin
+  if not p_force and not public.odin_due() then return 'not now'; end if;
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'odin_webhook_url' limit 1;
+  if v_url is null or v_url !~ '^https://([a-z]+\.)?discord(app)?\.com/api/webhooks/' then return 'no webhook'; end if;
+  select discord_id into v_id from public.players where player_name = 'Laurens';
+  perform net.http_post(
+    url := v_url,
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    body := jsonb_build_object(
+      'username', 'Odin',
+      'content', case when v_id is null then '**Laurens** NATVOERTIJD!' else '<@' || v_id || '> NATVOERTIJD!' end,
+      -- only Laurens is pinged, whatever the text says
+      'allowed_mentions', case when v_id is null then jsonb_build_object('parse', '[]'::jsonb) else jsonb_build_object('users', jsonb_build_array(v_id)) end)
+  );
+  return 'posted';
+end $$;
+
+-- only the timer (and the SQL Editor) may start it: not the site, not a logged-in player
+revoke all on function public.odin_call(boolean) from public, anon, authenticated;
+
+select cron.unschedule(jobid) from cron.job where jobname = 'odin';
+select cron.schedule('odin', '30 0,1,12,13 * * *', $job$ select public.odin_call(); $job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Odin: NATVOERTIJD! in #kletsen at 02:30 and 14:30$q$, $q$Discord$q$, 'check',
+  $q$After the SQL and after the webhook URL of Odin is in the Vault as odin_webhook_url: at 02:30 and at 14:30 (Dutch time) Odin posts NATVOERTIJD! in #kletsen with an @mention of Laurens. Test right away: select public.odin_call(true); (gives posted, no webhook or not now). Not callable from the site (anon / logged-in players get permission denied).$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Odin: NATVOERTIJD! in #kletsen at 02:30 and 14:30$q$);
