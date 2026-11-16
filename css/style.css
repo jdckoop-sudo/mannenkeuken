@@ -45,6 +45,8 @@
   --player-yvo: #f7b2d9;
   --player-mees: #d2a679;
   --player-ian: #9ab8c8;
+  --player-tom: #f2e07a;
+  --player-stijn: #8fe0c0;
   --font-display: 'Cinzel', Georgia, 'Times New Roman', serif;
   --font-body: 'Segoe UI', system-ui, -apple-system, 'Open Sans', Arial, sans-serif;
 }
@@ -349,6 +351,8 @@ a[href="player.html?name=Murn"][href] { color: var(--player-murn); }
 a[href="player.html?name=Yvo"][href] { color: var(--player-yvo); }
 a[href="player.html?name=Mees"][href] { color: var(--player-mees); }
 a[href="player.html?name=Ian"][href] { color: var(--player-ian); }
+a[href="player.html?name=Tom"][href] { color: var(--player-tom); }
+a[href="player.html?name=Stijn"][href] { color: var(--player-stijn); }
 a[href^="player.html?name="][href]:hover { filter: brightness(1.25); }
 
 /* "Report a problem" / "Suggest a feature" form (js/report.js) */
