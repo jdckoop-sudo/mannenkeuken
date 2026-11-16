@@ -1428,3 +1428,73 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Home This week like Week Dinky$q$, $q$Home$q$, 'check',
   $q$After this SQL: character_history has xp_total, quests, kills, deaths, camps, boss (also on 8 and 9 Nov). Home > This week: Guild total, Top 3 of the week with medals, and a line per player, with the same numbers as Week Dinky in Discord.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Home This week like Week Dinky$q$);
+
+-- 2026-11-17: the guild bank is bought. Contents of tab 1 (Pims 100kgBallen) as Jelle pasted them from the game; item ids from data/items.json.
+-- Safe to run again: it replaces everything with location 'guild'. The gold amount is not touched (set it in the Bank manager).
+update public.bank set guild_bank_bought = true where id = 1;
+delete from public.bank_items where location = 'guild';
+insert into public.bank_items (item, item_id, quantity, location, status, note)
+select v.item, v.item_id, v.quantity, 'guild', 'in_stock', $q$Guild bank tab 1$q$
+from (values
+  ($q$Aquamarine$q$, 7909, 8),
+  ($q$Bauxite$q$, 249425, 4),
+  ($q$Black Pearl$q$, 7971, 2),
+  ($q$Blue Pearl$q$, 4611, 1),
+  ($q$Citrine$q$, 3864, 6),
+  ($q$Craftsman's Writ: Shadoweave Gloves$q$, 264105, 1),
+  ($q$Elemental Fire$q$, 7068, 2),
+  ($q$Elixir of Greater Intellect$q$, 9179, 33),
+  ($q$Filet of Redgill$q$, 13930, 60),
+  ($q$Firefin Snapper$q$, 6359, 20),
+  ($q$Fish Bowl$q$, 279967, 13),
+  ($q$Giant Egg$q$, 12207, 11),
+  ($q$Golden Pearl$q$, 13926, 1),
+  ($q$Greater Mana Potion$q$, 6149, 10),
+  ($q$Heart of the Wild$q$, 10286, 7),
+  ($q$Heavy Armor Kit$q$, 4265, 31),
+  ($q$Ichor of Undeath$q$, 7972, 2),
+  ($q$Iridescent Pearl$q$, 5500, 3),
+  ($q$Jade$q$, 1529, 8),
+  ($q$Lesser Moonstone$q$, 1705, 16),
+  ($q$Light Feather$q$, 17056, 5),
+  ($q$Living Essence$q$, 12803, 1),
+  ($q$Long Elegant Feather$q$, 4589, 1),
+  ($q$Magenta Dye$q$, 249430, 1),
+  ($q$Malachite$q$, 774, 21),
+  ($q$Mana Potion$q$, 3827, 3),
+  ($q$Mithril Head Trout$q$, 8364, 40),
+  ($q$Moss Agate$q$, 1206, 2),
+  ($q$Oily Blackmouth$q$, 6358, 5),
+  ($q$Pyrite$q$, 249391, 18),
+  ($q$Shadowgem$q$, 1210, 29),
+  ($q$Silver Bar$q$, 2842, 2),
+  ($q$Silver Contact$q$, 4404, 9),
+  ($q$Small Lustrous Pearl$q$, 5498, 9),
+  ($q$Stag Meat$q$, 5471, 5),
+  ($q$Star Ruby$q$, 7910, 3),
+  ($q$Stonescale Eel$q$, 13422, 5),
+  ($q$Superior Mana Potion$q$, 13443, 2),
+  ($q$Tigerseye$q$, 818, 18),
+  ($q$Tin Bar$q$, 3576, 19),
+  ($q$Tin Ore$q$, 2771, 72),
+  ($q$Un'Goro Soil$q$, 11018, 19),
+  ($q$Undamaged Hippogryph Feather$q$, 10450, 1),
+  ($q$Vibrant Plume$q$, 5117, 1),
+  ($q$Waylaid Crate: Apprentice Curiosities$q$, 248685, 1),
+  ($q$Waylaid Crate: Apprentice Ore$q$, 248683, 1),
+  ($q$Waylaid Crate: Apprentice Parts$q$, 248704, 2),
+  ($q$Waylaid Crate: Earthly Expert Herbs$q$, 248690, 5),
+  ($q$Waylaid Crate: Expert Curiosities$q$, 248694, 3),
+  ($q$Waylaid Crate: Expert Fabrics$q$, 248708, 3),
+  ($q$Waylaid Crate: Expert Parts$q$, 248710, 2),
+  ($q$Waylaid Crate: Expert Textiles$q$, 248693, 3),
+  ($q$Waylaid Crate: Flowering Expert Herbs$q$, 248691, 2),
+  ($q$Waylaid Crate: Journeyman Curiosities$q$, 248689, 4),
+  ($q$Waylaid Crate: Journeyman Ore$q$, 248687, 1),
+  ($q$Waylaid Crate: Journeyman Textiles$q$, 248688, 1)
+) as v(item, item_id, quantity);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Guild bank contents on the Bank page$q$, $q$Bank$q$, 'check',
+  $q$After this SQL: Bank > Guild bank shows 56 items (tab 1) with Wowhead hover and the notice about saving gold is gone. Search works, a member can reserve an item, and the gold card says Guild gold.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Guild bank contents on the Bank page$q$);
