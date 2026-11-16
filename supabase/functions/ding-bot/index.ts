@@ -1,6 +1,7 @@
 // Supabase Edge Function "ding-bot" (the bot in Discord is called Ding Dinky): posts a "Ding!" in the Discord channel #dings when a player's character has gone up a level or a player
 // (or the whole guild) has earned an achievement of the dashboard. Started every 5 minutes by pg_cron (see supabase/schema.sql), a few
-// minutes after update-characters, because the level only changes after the character has logged out.
+// minutes after update-characters. The game only refreshes a character's profile when it logs out, and the bot looks at the level of that profile (profileLevel,
+// see characterFrom): not at the level of the guild roster, which changes while the player is still online.
 //
 // Setup and how to check it: docs/instructies.md, "Ding-bot".
 // Function secrets (Edge Functions → Secrets), never in the repo:
@@ -11,10 +12,13 @@
 // The rules (all of them in plan() below, which has no network calls and is tested in tools/test-ding-bot.mjs):
 //  - The first run only looks: the current levels and achievements are the starting point and are NOT announced.
 //  - A character or a player that is new in the data is also only looked at the first time (a new person would otherwise get everything at once).
+//  - Ding Dinky only speaks after a session, at the end of the day and at the end of the week (14 Nov 2026, Jelle). A session = the game refreshed the profile of a character
+//    (it does that when the character logs out) and something was done: XP, quests, kills, deaths, campfires, profession skill or a level.
 //  - Everything that happened to one player in one run goes into ONE message, written as a session recap ("<player> achieved this session:"): level ups, quests, kills,
-//    deaths, campfires, XP and profession skill gains of his characters since the previous run, plus all new achievements. The recap is only posted when there is a level up or an achievement;
+//    deaths, campfires, XP and profession skill gains of his characters since the previous run, plus all new achievements. The recap is posted after EVERY session, also without a level up or an achievement;
 //    the quests, kills, deaths, campfires, XP and skills are remembered per character in ding_levels (columns quests, kills, deaths, camps, xp, skills, gear) and are only compared when the game knows the character.
-//  - A guild goal is announced once for the whole guild, with @everyone, not per player.
+//  - Not announced at all: achievements for donated gold and guild goals (they are remembered, so nothing piles up). An achievement that a developer unlocked by hand
+//    waits for the next session of that player.
 //  - Dag Dinky (every night from 00:07 Dutch time) and Week Dinky (Mondays, same run) summarise the stats of ALL players in one message with @everyone, see planPeriod().
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
@@ -57,7 +61,10 @@ export function characterFrom(row, api) {
   const primaries = source.filter((p) => p.kind === 'primary').slice(0, 2);
   const profs = [...primaries, ...SECONDARY.map((n) => source.find((p) => p.name === n)).filter(Boolean)]
     .map((p) => ({ name: p.name, skill: num(p.skill) })).filter((p) => !SECONDARY.includes(p.name) || p.skill !== null);
-  const level = known && api.level != null ? api.level : num(row.level);
+  // profileLevel = the level of the game's profile itself, which is only refreshed when the character logs out (like XP, quests, kills and skills).
+  // api.level can be ahead of it while the player is online (update-characters takes the higher of profile and guild roster, for the site); with that one a level up
+  // was posted in the middle of a session, on its own, and the XP of the recap after the log out did not add up. Without profileLevel (older data): as before.
+  const level = known && (api.profileLevel ?? api.level) != null ? (api.profileLevel ?? api.level) : num(row.level);
   const skills = known && apiProfs.length ? Object.fromEntries(apiProfs.map((p) => [p.name, num(p.skill)]).filter(([, v]) => v !== null)) : null;
   return { name: row.name, player: row.player_name, status: row.status || 'Main', level, profs, stats: known ? (api.stats ?? null) : null, xp: known ? num(api.xp) : null, skills, gear: known && Array.isArray(api.equipment) && api.equipment.length ? api.equipment.filter((e) => e && e.id).map((e) => ({ id: e.id, name: e.name })) : null, race: known && api.race ? api.race : row.race, class: known && api.class ? api.class : row.class };
 }
@@ -77,6 +84,8 @@ export function gameTotalsFrom(blizzard) {
 
 // ---- what to post. Pure: gets everything it needs, returns messages and what to remember when they are posted.
 // prev = { levels: Map(key -> level), snaps: Map(key -> { quests, kills, deaths, camps, xp (total XP), skills, gear: [item ids] }), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
+// Achievements that are not something of a game session (gold given to the guild bank): never announced
+const SILENT_METERS = new Set(['donated', 'guildDonated', 'donors']);
 export function plan({ core, chars, states, prev, discord }) {
   const { BY_ID, BRANCHES, METERS } = core;
   const branchName = (k) => BRANCHES.find((b) => b.key === k)?.name ?? 'Legend';
@@ -113,20 +122,28 @@ export function plan({ core, chars, states, prev, discord }) {
     const st = states.get(p); const done = [...st.values()].filter((s) => s.done && BY_ID.get(s.id).scope !== 'guild').map((s) => s.id);
     if (!prev.players.has(p)) { baseline.players.push(p); for (const id of done) baseline.known.push({ player: p, id }); continue; }
     const fresh = done.filter((id) => !prev.known.has(`${p}|${id}`));
-    if (fresh.length) earned.set(p, fresh.map((id) => ({ a: BY_ID.get(id), s: st.get(id) })));
+    // donated gold is not something of a session: never announced, remembered right away
+    const silent = fresh.filter((id) => SILENT_METERS.has(BY_ID.get(id).meter));
+    for (const id of silent) baseline.known.push({ player: p, id });
+    const tell = fresh.filter((id) => !silent.includes(id));
+    if (tell.length) earned.set(p, tell.map((id) => ({ a: BY_ID.get(id), s: st.get(id) })));
   }
 
-  // guild goals (the same for everybody: take them from the first player)
-  let guildGoals = [];
+  // guild goals (the same for everybody: take them from the first player) have no message of their own any more (14 Nov 2026, Jelle): they are only remembered
   if (players.length) {
     const st = states.get(players[0]); const done = [...st.values()].filter((s) => s.done && BY_ID.get(s.id).scope === 'guild').map((s) => s.id);
-    if (!prev.players.has('')) { baseline.players.push(''); for (const id of done) baseline.known.push({ player: '', id }); }
-    else guildGoals = done.filter((id) => !prev.known.has(`|${id}`)).map((id) => ({ a: BY_ID.get(id), s: st.get(id) }));
+    if (!prev.players.has('')) baseline.players.push('');
+    for (const id of done) if (!prev.known.has(`|${id}`)) baseline.known.push({ player: '', id });
   }
 
-  // one message per player
-  for (const p of new Set([...gains.keys(), ...earned.keys()])) {
+  // one message per player that had a session: a character went up a level or did something (the game only shows that after the log out). An achievement of the game
+  // (not one a developer unlocked by hand, not one that only follows from other achievements) also means the profile was refreshed. Without a session the achievements wait.
+  const did = (ses) => !!ses && !!(ses.xp || ses.quests || ses.kills || ses.deaths || ses.camps || ses.skills.length);
+  for (const p of players) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
+    const played = active.filter((x) => x.player === p && did(sessionOf(x)));
+    const fromGame = ach.some(({ a, s }) => s.forced !== 'unlocked' && a.meter !== 'requiredDone');
+    if (!lv.length && !played.length && !fromGame) continue;
     // the recap: a small block per character that did something (name, then progress / activity / skills on their own lines), then the totals, then the new achievements
     const blocks = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0;
     const row = (...bits) => bits.filter(Boolean).join(' · ');
@@ -152,7 +169,7 @@ export function plan({ core, chars, states, prev, discord }) {
     }).join('\n')}`);
     const lines = blocks; // separated by an empty line
     const ids = ach.map(({ a }) => a.id);
-    const link = ach.length ? `${SITE}/achievements.html?a=${ids.join(',')}&p=${encodeURIComponent(p)}` : `${SITE}/character.html?name=${encodeURIComponent(lv[0].name)}`;
+    const link = ach.length ? `${SITE}/achievements.html?a=${ids.join(',')}&p=${encodeURIComponent(p)}` : `${SITE}/character.html?name=${encodeURIComponent((lv[0] ?? played[0] ?? mine[0]).name)}`;
     const points = ach.reduce((n, { a }) => n + a.points, 0);
     messages.push({
       kind: 'player', player: p, discordId: id ?? null,
@@ -161,17 +178,6 @@ export function plan({ core, chars, states, prev, discord }) {
         fields: [{ name: '​', value: `[View it on the dashboard](${link})${points ? ` · +${points} points` : ''}` }] },
       allowed: id ? { users: [id] } : { parse: [] },
       commit: { levels: lv.map((g) => ({ key: g.key, level: g.to })), snaps: active.filter((x) => x.player === p && prev.levels.has(norm(x.name)) && snapOf(x)).map((x) => ({ key: norm(x.name), level: Math.max(prev.levels.get(norm(x.name)), x.level), ...snapOf(x) })), known: ach.map(({ a }) => ({ player: p, id: a.id })), summary: lines.join(' | ').replace(/\n/g, ' · ') },
-    });
-  }
-  if (guildGoals.length) {
-    const link = `${SITE}/achievements.html?a=${guildGoals.map(({ a }) => a.id).join(',')}`;
-    const lines = guildGoals.map(({ a, s }) => `🏆 **${a.title}** — ${a.desc}${a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd()}`);
-    messages.push({
-      kind: 'guild', player: '', discordId: null,
-      content: '@everyone The whole guild has reached something 🎉',
-      embed: { color: COLOR, title: 'Guild goal' + (guildGoals.length > 1 ? 's' : '') + ' reached', url: link, description: lines.join('\n'), fields: [{ name: '​', value: `[View it on the dashboard](${link})` }] },
-      allowed: { parse: ['everyone'] },
-      commit: { levels: [], known: guildGoals.map(({ a }) => ({ player: '', id: a.id })), summary: lines.join(' | ') },
     });
   }
   // the levels of everybody that has no news are kept up to date too (when a level goes down, the highest one stays)
