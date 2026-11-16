@@ -106,6 +106,8 @@ const toggle = document.getElementById('toggle-new');
 const ROLES = ['Tank', 'Healer', 'DPS'];
 let events = [];
 let signups = [];
+let timeProps = [];  // proposals for another time (event_time_proposals)
+let timeVotes = [];  // votes for them (event_time_votes): one per player per event
 let weekStart = startOfWeek(new Date());
 let me = null; // my player name (sheet)
 const anyPlayers = (e) => e.players_needed != null;
@@ -143,12 +145,16 @@ const fmtFull = (d) => `${d.toLocaleDateString('en-GB', { timeZone: 'Europe/Amst
 async function load() {
   if (!supabase) { document.getElementById('events').innerHTML = '<p class="muted">Not connected yet.</p>'; drawWeek(); return; }
   const since = new Date(Math.min(weekStart.getTime(), Date.now() - 6 * 3600e3)).toISOString();
-  const [{ data: ev }, { data: su }] = await Promise.all([
+  const [{ data: ev }, { data: su }, { data: tp }, { data: tv }] = await Promise.all([
     supabase.from('events').select('*').gte('starts_at', since).order('starts_at'),
     supabase.from('signups').select('*'),
+    supabase.from('event_time_proposals').select('*'),
+    supabase.from('event_time_votes').select('*'),
   ]);
   events = ev ?? [];
   signups = su ?? [];
+  timeProps = tp ?? [];
+  timeVotes = tv ?? [];
   drawWeek();
   drawEvents();
 }
@@ -211,6 +217,40 @@ weekEl.addEventListener('mousemove', (ev) => {
 });
 weekEl.addEventListener('mouseleave', () => { agendaTip.hidden = true; });
 
+// Another time: players of the event (signed up, maybe, or the organiser) propose a time and vote; more than half of them decide (the database applies it).
+const dutchDate = (d) => d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' }); // 2026-11-14
+const pad2 = (x) => String(x).padStart(2, '0');
+function timeBlock(e, s) {
+  const props = timeProps.filter((p) => p.event_id === e.id)
+    .map((p) => ({ ...p, voters: timeVotes.filter((v) => v.proposal_id === p.id).map((v) => v.voter).sort() }))
+    .sort((a, b) => b.voters.length - a.voters.length || new Date(a.created_at) - new Date(b.created_at));
+  const myVote = timeVotes.find((v) => v.event_id === e.id && v.voter === me);
+  const eligible = canPost && (mine(user, e.user_id) || s.some((x) => mine(user, x.user_id) && ['yes', 'maybe'].includes(x.answer)));
+  const started = new Date(e.starts_at).getTime() < Date.now();
+  const start = new Date(e.starts_at);
+  const [h, m] = fmtTime(start).split(':');
+  const list = props.map((p) => `<div style="display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+      <div style="display:flex;flex-direction:column;gap:2px"><strong>${esc(fmtFull(new Date(p.starts_at)))}</strong>
+        <span class="muted" style="font-size:14px">Proposed by ${esc(p.proposer)} · <strong>${p.voters.length} / ${esc(p.votes_needed)}</strong> votes${p.voters.length ? ` · ${p.voters.map(esc).join(', ')}` : ''}</span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        ${eligible && !started ? (myVote?.proposal_id === p.id ? `<button class="btn btn-primary" type="button" data-unvote="${e.id}">Your vote ✓</button>` : `<button class="btn" type="button" data-vote="${p.id}">Vote for this time</button>`) : ''}
+        ${eligible && (p.proposer === me || mine(user, e.user_id)) ? `<button class="link-btn" type="button" data-withdraw="${p.id}" data-time="${esc(fmtFull(new Date(p.starts_at)))}">Withdraw</button>` : ''}
+      </div></div>`).join('');
+  const form = eligible && !started ? `<form data-propose="${e.id}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+      <label>Date<input name="date" type="date" required value="${dutchDate(start)}"></label>
+      <fieldset style="flex-direction:column;gap:6px"><legend style="font-size:14px;margin-bottom:6px">Time (24h)</legend>
+        <div style="display:flex;gap:6px;align-items:center"><select name="hour" aria-label="Hour">${Array.from({ length: 24 }, (_, i) => `<option ${pad2(i) === h ? 'selected' : ''}>${pad2(i)}</option>`).join('')}</select><span aria-hidden="true">:</span><select name="minute" aria-label="Minutes">${['00', '15', '30', '45'].map((x) => `<option ${x === m ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+      </fieldset>
+      <button class="btn" type="submit">Propose this time</button></form>` : '';
+  const hint = started ? '' : !canPost ? '<p class="muted" style="margin:0">Choose your player (top right) to propose a time.</p>'
+    : !eligible ? '<p class="muted" style="margin:0">Sign up (or choose Maybe) to propose another time or vote.</p>' : '';
+  if (started && !props.length) return '';
+  return `<div style="display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border);padding-top:12px">
+      <strong>Another time?</strong>
+      <p class="muted" style="margin:0;font-size:14px">Players of this event propose a time and vote. When more than half of them agree, the event moves to that time (and the Discord message follows).</p>
+      ${list}${form}${hint}</div>`;
+}
+
 function drawEvents() {
   const upcoming = events.filter((e) => new Date(e.starts_at).getTime() > Date.now() - 6 * 3600e3);
   document.getElementById('events').innerHTML = upcoming.map((e) => {
@@ -264,6 +304,7 @@ function drawEvents() {
       </div>
       ${signupForm}
       <div class="grid">${cols}</div>
+      ${timeBlock(e, s)}
       ${no.length ? `<p class="muted">Can't come: ${no.map((x) => esc(x.author_name)).join(', ')}</p>` : ''}
     </section>`;
   }).join('') || '<div class="empty-state"><strong>No upcoming events</strong><p class="muted" style="font-size:14px">Plan a dungeon run, raid or guild night – the others can sign up with their role.</p><button class="btn" type="button" data-create style="margin-top:6px">+ Create event</button></div>';
@@ -274,7 +315,19 @@ document.getElementById('prev').addEventListener('click', () => { weekStart.setD
 document.getElementById('next').addEventListener('click', () => { weekStart.setDate(weekStart.getDate() + 7); load(); });
 document.getElementById('today').addEventListener('click', () => { weekStart = startOfWeek(new Date()); load(); });
 
+async function timeAction(fn, el) {
+  const { error } = await fn();
+  if (error) { (el.closest('section') ?? el).insertAdjacentHTML('beforeend', `<p class="notice">${esc(error.message)}</p>`); return; }
+  load();
+}
 document.getElementById('events').addEventListener('submit', async (ev) => {
+  const pf = ev.target.closest('form[data-propose]');
+  if (pf) {
+    ev.preventDefault();
+    const when = startsAt(new FormData(pf));
+    await timeAction(() => supabase.rpc('propose_event_time', { p_event: pf.dataset.propose, p_starts: when.toISOString() }), pf);
+    return;
+  }
   const f = ev.target.closest('form[data-signup]');
   if (!f) return;
   ev.preventDefault();
@@ -288,6 +341,16 @@ document.getElementById('events').addEventListener('submit', async (ev) => {
 });
 
 document.getElementById('events').addEventListener('click', async (ev) => {
+  const t = ev.target;
+  if (t.dataset?.vote) { await timeAction(() => supabase.rpc('vote_event_time', { p_proposal: t.dataset.vote }), t); return; }
+  if (t.dataset?.unvote) {
+    if (!confirm('Are you sure you want to remove your vote?')) return;
+    await timeAction(() => supabase.rpc('unvote_event_time', { p_event: t.dataset.unvote }), t); return;
+  }
+  if (t.dataset?.withdraw) {
+    if (!confirm(`Are you sure you want to withdraw the proposal for ${t.dataset.time}? The votes for it are removed.`)) return;
+    await timeAction(() => supabase.rpc('withdraw_event_time', { p_proposal: t.dataset.withdraw }), t); return;
+  }
   const id = ev.target.dataset?.del;
   if (!id) return;
   if (!confirm(`Are you sure you want to cancel "${ev.target.dataset.name}"? All sign-ups will be removed.`)) return;
