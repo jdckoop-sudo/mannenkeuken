@@ -1730,3 +1730,15 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Events: propose another time and vote$q$, $q$Events$q$, 'check',
   $q$Open an event you signed up for (or organise): Propose another time (date + time), the proposal shows with votes. Another signed-up player votes; with more than half of the players (organiser included) the event time changes, the agenda too and the Discord message within a minute. Someone who did not sign up gets a hint instead of the buttons. Withdraw removes a proposal.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Events: propose another time and vote$q$);
+
+-- 2026-11-17: need/greed rolls are hidden on Guild > Overview because Blizzard does not report them for every character. Ticket to look at it again.
+insert into public.dev_tickets (kind, title, area, body, status, created_by, urgency)
+select 'fix', $q$Need/greed rolls: Blizzard does not report them for every character$q$, $q$Overview$q$,
+  $q$Blizzard's statistics (ids 1044 Need rolls made on loot, 1043 Greed rolls made on loot, category Character > Gear) are missing for Bunte, Pala, Henk, Nazeebo and Murn, although they roll on loot. Checked 17 Nov with the Blizzard statistics workflow: Bunte has no roll line at all. Grootste (97 need / 132 greed) matches the dashboard exactly, and 25 other counters of Bunte match too. So the ranking is hidden (chips say "hidden for now"). Later: check again after a log out; if Blizzard gives the numbers for everyone, turn player(...) back on in overview.html (see docs).$q$,
+  'open', 'Claude', 2
+where not exists (select 1 from public.dev_tickets where title = $q$Need/greed rolls: Blizzard does not report them for every character$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Overview: need/greed rolls hidden$q$, $q$Overview$q$, 'check',
+  $q$Guild > Overview > Gear and loot: Need rollers and Greed rollers show "hidden for now" (greyed out, with the explanation under the chips). Mounts and item level still work.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Overview: need/greed rolls hidden$q$);

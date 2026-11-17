@@ -180,6 +180,7 @@ for (const d of donations) donated[d.player_name] = (donated[d.player_name] ?? 0
 const charGame = new Map(active.map((c) => [c, gameTotals([c], blizzard)])); // the game's numbers per character (for roles, classes, races ...)
 
 // one stat: key, glyph, title (big), name (legend), sub, list, plus: unit / plural (what is counted), total (how to show the guild total), cls
+const ROLLS_NOTE = 'Hidden for now: Blizzard only reports need and greed rolls for some characters, so this ranking would be wrong. It comes back once the numbers are reliable.';
 const stat = (key, glyph, title, name, sub, list, o = {}) => ({ key, glyph, title, name, sub, list, unit: 'player', ...o });
 const player = (key, glyph, title, name, sub, fn, o = {}) => stat(key, glyph, title, name, sub, byGame(fn), { total: n, ...o });
 
@@ -346,8 +347,10 @@ function buildCategories(whoFilter) {
         stat('item-level', '&#9670;', 'Best equipped', 'Average item level', 'Average item level, bags included', byChar((c) => api(c)?.itemLevel), { unit: 'character' }),
       ]],
       ['Loot and mounts', [
-        player('need', '&#9856;', 'Need rollers', 'Need rolls', 'Most need rolls made on loot', (g) => g.needRolls),
-        player('greed', '&#9858;', 'Greed rollers', 'Greed rolls', 'Most greed rolls made on loot', (g) => g.greedRolls),
+        // Hidden for now (17 Nov 2026): Blizzard gives the roll counters only for some characters (Bunte, Pala, Henk, Nazeebo and Murn get none although they roll),
+        // so a ranking would be wrong. g.needRolls / g.greedRolls are still collected; show them again with player(...) once Blizzard reports them for everyone.
+        stat('need', '&#9856;', 'Need rollers', 'Need rolls', 'Most need rolls made on loot', [], { unavailable: ROLLS_NOTE }),
+        stat('greed', '&#9858;', 'Greed rollers', 'Greed rolls', 'Most greed rolls made on loot', [], { unavailable: ROLLS_NOTE }),
         player('mounts', '&#9816;', 'Stable masters', 'Mounts owned', 'Most mounts owned', (g) => g.mounts),
       ]],
     ] },
@@ -381,6 +384,7 @@ const withData = (cat) => itemsOf(cat).filter((f) => f.list.length);
 const lead = (f) => f.list.reduce((a, r) => (r.value > a.value ? r : a), f.list[0]);
 const shown = (r) => r.text ?? n(r.value);
 const chipHtml = (f) => {
+  if (f.unavailable) return `<button type="button" class="fun-chip" disabled title="${esc(f.unavailable)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">hidden for now</span></span></button>`;
   if (!f.list.length) return `<button type="button" class="fun-chip" disabled title="Nobody has this yet"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">no data yet</span></span><span class="chip-val">–</span></button>`;
   const l = lead(f);
   return `<button type="button" class="fun-chip" data-key="${esc(f.key)}" aria-pressed="false" title="${esc(f.sub)}"><span class="rec-glyph" aria-hidden="true">${f.glyph}</span><span class="chip-name"><span>${f.name}</span><span class="chip-lead">${esc(l.name)}</span></span><span class="chip-val">${shown(l)}</span></button>`;
@@ -394,7 +398,7 @@ function drawList() {
     const head = c.section !== section ? `<div class="cat-section">${esc(c.section)}</div>` : '';
     section = c.section;
     return `${head}<div class="cat"><button type="button" class="cat-head" data-cat="${c.key}" aria-expanded="${open}"${has ? '' : ' disabled title="Nobody has this yet"'}><span class="c-glyph" aria-hidden="true">${c.glyph}</span><span>${esc(c.name)}</span><span class="c-count" title="Stats with data">${has}</span><svg class="chev" width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5 L7 9 L11 5" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
-      ${open ? `<div class="cat-body" id="cat-body">${c.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map(chipHtml).join('')}`).join('')}</div>` : ''}</div>`;
+      ${open ? `<div class="cat-body" id="cat-body">${c.groups.filter(([, items]) => items.length).map(([group, items]) => `<h3>${esc(group)}</h3>${items.map(chipHtml).join('')}${items.find((f) => f.unavailable) ? `<p class="muted" style="font-size:13px;margin:6px 0 0">${esc(items.find((f) => f.unavailable).unavailable)}</p>` : ''}`).join('')}</div>` : ''}</div>`;
   }).join('');
   const body = document.getElementById('cat-body');
   if (body) body.prepend(tools);
