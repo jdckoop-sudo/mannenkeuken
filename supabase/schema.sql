@@ -163,7 +163,7 @@ drop policy if exists "write logged in" on public.players;
 create policy "read all" on public.players for select using (true);
 create policy "write logged in" on public.players for all to authenticated using (true) with check (true);
 insert into public.players (player_name, discord_name) values
-  ('Jelle', 'Dirk-Christiaan'), ('Justin', 'Dokter Tinus'), ('Bas', 'bas'), ('Rawas', 'Daddy Draven'),
+  ('Jelle', 'Dirk-Christiaan'), ('Justin', 'Dokter Tinus'), ('Bas', 'bas'), ('Rawaz', 'Daddy Draven'),
   ('Jermo', 'Eterniity - Jermo'), ('Jacco', 'Jaccico'), ('Laurens', 'Le Noir'), ('Mike', 'VDwerg'),
   ('Murn', 'MURN'), ('Yvo', 'Skynal'), ('Mees', 'mjezzo'), ('Ian', 'Troy')
 on conflict (player_name) do update set discord_name = excluded.discord_name;
@@ -1742,3 +1742,36 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Overview: need/greed rolls hidden$q$, $q$Overview$q$, 'check',
   $q$Guild > Overview > Gear and loot: Need rollers and Greed rollers show "hidden for now" (greyed out, with the explanation under the chips). Mounts and item level still work.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Overview: need/greed rolls hidden$q$);
+
+-- 2026-11-18: player Rawas is spelled Rawaz. Renames the player (tables that point to players follow by themselves, on update cascade)
+-- and every other column that holds a player name as plain text (reservations, listings, who added what ...). Safe to run again.
+do $$
+declare r record; n bigint;
+begin
+  if exists (select 1 from public.players where player_name = 'Rawas') then
+    if exists (select 1 from public.players where player_name = 'Rawaz') then
+      delete from public.players where player_name = 'Rawaz'; -- an empty Rawaz that the seed above may have made
+    end if;
+    update public.players set player_name = 'Rawaz' where player_name = 'Rawas';
+  end if;
+  for r in
+    select c.table_name, c.column_name
+    from information_schema.columns c
+    join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
+    where c.table_schema = 'public' and c.data_type = 'text' and c.table_name <> 'players'
+      and (c.column_name like '%player%' or c.column_name in ('reserved_by', 'added_by', 'updated_by', 'created_by_name', 'owner', 'donor', 'from_player', 'to_player'))
+  loop
+    begin
+      execute format('update public.%I set %I = %L where %I = %L', r.table_name, r.column_name, 'Rawaz', r.column_name, 'Rawas');
+      get diagnostics n = row_count;
+      if n > 0 then raise notice 'Rawas -> Rawaz: %.% (% rows)', r.table_name, r.column_name, n; end if;
+    exception when others then
+      raise notice 'skipped %.%: %', r.table_name, r.column_name, sqlerrm;
+    end;
+  end loop;
+end $$;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Player Rawas is now Rawaz$q$, $q$Players$q$, 'check',
+  $q$After this SQL and the deploy: the name is Rawaz on Members, the player page, the login list ("Choose your player") and the rankings, in the same pink as before. His characters, reservations and listings are still his. Rawaz can still log in.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Player Rawas is now Rawaz$q$);

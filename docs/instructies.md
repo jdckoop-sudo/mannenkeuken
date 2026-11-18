@@ -169,7 +169,7 @@ De Google Sheet is sinds 6 nov 2026 niet meer in gebruik; de tabel `characters` 
 | Jelle | Dirk-Christiaan |
 | Justin | Dokter Tinus |
 | Bas | bas |
-| Rawas | Daddy Draven |
+| Rawaz | Daddy Draven |
 | Jermo | Eterniity - Jermo |
 | Jacco | Jaccico |
 | Laurens | Le Noir |
