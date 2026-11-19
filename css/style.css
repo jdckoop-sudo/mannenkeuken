@@ -36,7 +36,7 @@
   --player-jelle: #6fb7ff;
   --player-justin: #ff8f5e;
   --player-bas: #7ddc7d;
-  --player-rawas: #e58ae0;
+  --player-rawaz: #e58ae0;
   --player-jermo: #b49cff;
   --player-jacco: #4fd8cf;
   --player-laurens: #ff6f91;
@@ -342,7 +342,7 @@ body::before {
 a[href="player.html?name=Jelle"][href] { color: var(--player-jelle); }
 a[href="player.html?name=Justin"][href] { color: var(--player-justin); }
 a[href="player.html?name=Bas"][href] { color: var(--player-bas); }
-a[href="player.html?name=Rawas"][href] { color: var(--player-rawas); }
+a[href="player.html?name=Rawaz"][href] { color: var(--player-rawaz); }
 a[href="player.html?name=Jermo"][href] { color: var(--player-jermo); }
 a[href="player.html?name=Jacco"][href] { color: var(--player-jacco); }
 a[href="player.html?name=Laurens"][href] { color: var(--player-laurens); }
