@@ -15,7 +15,7 @@ export function setDevMode(on) {
 // Main menu: six places. Pages that belong to a place (e.g. the Guild tabs, player and character pages) light it up too.
 const pages = [
   ['index.html', 'Home'],
-  ['roster.html', 'Guild', ['roster.html', 'overview.html', 'professions.html', 'achievements.html', 'player.html', 'character.html']],
+  ['roster.html', 'Guild', ['roster.html', 'overview.html', 'professions.html', 'achievements.html', 'player.html', 'character.html', 'gallery.html']],
   ['market.html', 'Market'],
   ['events.html', 'Events'],
   ['bank.html', 'Bank'],
@@ -27,6 +27,7 @@ export const GUILD_TABS = [
   ['overview.html', 'Overview'],
   ['professions.html', 'Professions'],
   ['achievements.html', 'Achievements'],
+  ['gallery.html', 'Gallery'],
 ];
 // Orange count next to DEV (developer mode only): ideas and fixes that someone else added since this developer last opened
 // the Ideas / Fixes tab on dev.html (database: dev_ticket_news()). Gone once the tab has been opened (dev.html calls this again).
