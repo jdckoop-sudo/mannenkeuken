@@ -1836,3 +1836,120 @@ create policy "gallery comments delete" on public.gallery_comments for delete
   using (public.same_player(user_id) or public.is_dev());
 grant select, insert, update, delete on public.gallery_items to anon, authenticated;
 grant select, insert, delete on public.gallery_comments to anon, authenticated;
+
+-- 2026-11-23: Gallery titles. Every member may give a gallery item a title or change it (shown on the plaque); only the
+-- title, nothing else of the item, so it goes through this function instead of an update policy. Safe to run again.
+alter table public.gallery_items add column if not exists title text check (char_length(title) <= 80);
+alter table public.gallery_items add column if not exists title_by text;
+alter table public.gallery_items add column if not exists title_at timestamptz;
+create or replace function public.set_gallery_title(p_id uuid, p_title text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_member() then raise exception 'Only members can change titles'; end if;
+  update public.gallery_items
+     set title = nullif(left(btrim(coalesce(p_title, '')), 80), ''),
+         title_by = case when nullif(btrim(coalesce(p_title, '')), '') is null then null else public.current_player() end,
+         title_at = now()
+   where id = p_id;
+  if not found then raise exception 'Gallery item not found'; end if;
+end $$;
+revoke all on function public.set_gallery_title(uuid, text) from public;
+grant execute on function public.set_gallery_title(uuid, text) to anon, authenticated;
+
+-- 2026-11-23: Gallery reactions and member uploads. Safe to run again.
+-- Reactions: one emote per player per item (like Facebook); set_gallery_reaction(id, null) takes it back.
+create table if not exists public.gallery_reactions (
+  item_id uuid not null references public.gallery_items(id) on delete cascade,
+  player_name text not null references public.players(player_name) on update cascade,
+  emoji text not null check (char_length(emoji) between 1 and 16),
+  created_at timestamptz not null default now(),
+  primary key (item_id, player_name)
+);
+alter table public.gallery_reactions enable row level security;
+drop policy if exists "gallery reactions read" on public.gallery_reactions;
+create policy "gallery reactions read" on public.gallery_reactions for select using (public.is_member());
+grant select on public.gallery_reactions to anon, authenticated;
+create or replace function public.set_gallery_reaction(p_id uuid, p_emoji text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player();
+begin
+  if not public.is_member() or me is null then raise exception 'Only members can react'; end if;
+  if p_emoji is null or btrim(p_emoji) = '' then
+    delete from public.gallery_reactions where item_id = p_id and player_name = me;
+  else
+    insert into public.gallery_reactions (item_id, player_name, emoji) values (p_id, me, btrim(p_emoji))
+    on conflict (item_id, player_name) do update set emoji = excluded.emoji, created_at = now();
+  end if;
+end $$;
+revoke all on function public.set_gallery_reaction(uuid, text) from public;
+grant execute on function public.set_gallery_reaction(uuid, text) to anon, authenticated;
+
+-- Uploads: every member may put a picture or clip in uploads/ and add it with add_gallery_item(); they may remove their own
+-- upload again (delete_gallery_item() + the file), developers anything.
+drop policy if exists "gallery add members" on storage.objects;
+create policy "gallery add members" on storage.objects for insert
+  with check (bucket_id = 'gallery' and public.is_member() and name like 'uploads/%');
+drop policy if exists "gallery delete own uploads" on storage.objects;
+create policy "gallery delete own uploads" on storage.objects for delete
+  using (bucket_id = 'gallery' and name like 'uploads/%' and owner_id is not null and public.same_player(owner_id::uuid));
+create or replace function public.add_gallery_item(p_path text, p_kind text, p_title text, p_caption text, p_bytes bigint) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); new_id uuid;
+begin
+  if not public.is_member() or me is null then raise exception 'Only members can upload'; end if;
+  if p_path not like 'uploads/%' then raise exception 'Wrong place for an upload'; end if;
+  if p_kind not in ('image', 'video') then raise exception 'Only pictures and clips'; end if;
+  if not exists (select 1 from storage.objects where bucket_id = 'gallery' and name = p_path) then raise exception 'Upload the file first'; end if;
+  insert into public.gallery_items (path, kind, poster, player_name, posted_at, caption, title, title_by, title_at, bytes, source, created_by)
+  values (p_path, p_kind, me, me, now(), nullif(left(btrim(coalesce(p_caption, '')), 500), ''),
+          nullif(left(btrim(coalesce(p_title, '')), 80), ''), case when nullif(btrim(coalesce(p_title, '')), '') is null then null else me end,
+          now(), p_bytes, 'upload', me)
+  returning id into new_id;
+  return new_id;
+end $$;
+revoke all on function public.add_gallery_item(text, text, text, text, bigint) from public;
+grant execute on function public.add_gallery_item(text, text, text, text, bigint) to anon, authenticated;
+create or replace function public.delete_gallery_item(p_id uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  select path, source, player_name into r from public.gallery_items where id = p_id;
+  if not found then raise exception 'Gallery item not found'; end if;
+  if not (public.is_dev() or (r.source = 'upload' and r.player_name = public.current_player())) then
+    raise exception 'You can only remove your own uploads';
+  end if;
+  delete from public.gallery_items where id = p_id;
+  return r.path;
+end $$;
+revoke all on function public.delete_gallery_item(uuid) from public;
+grant execute on function public.delete_gallery_item(uuid) to anon, authenticated;
+
+-- 2026-11-23: Gallery tags: which guild characters are in a picture (only shown, nobody gets a message). Every member may
+-- tag or untag; only characters from the table characters. Safe to run again.
+create table if not exists public.gallery_tags (
+  item_id uuid not null references public.gallery_items(id) on delete cascade,
+  character_name text not null check (char_length(character_name) between 1 and 60),
+  added_by text default public.current_player(),
+  created_at timestamptz not null default now(),
+  primary key (item_id, character_name)
+);
+alter table public.gallery_tags enable row level security;
+drop policy if exists "gallery tags read" on public.gallery_tags;
+create policy "gallery tags read" on public.gallery_tags for select using (public.is_member());
+grant select on public.gallery_tags to anon, authenticated;
+create or replace function public.set_gallery_tag(p_id uuid, p_character text, p_on boolean) returns void
+language plpgsql security definer set search_path = public as $$
+declare real_name text;
+begin
+  if not public.is_member() then raise exception 'Only members can tag'; end if;
+  select name into real_name from public.characters where lower(btrim(name)) = lower(btrim(p_character)) limit 1;
+  if p_on then
+    if real_name is null then raise exception 'That is not a character of the guild'; end if;
+    insert into public.gallery_tags (item_id, character_name, added_by) values (p_id, real_name, public.current_player())
+    on conflict (item_id, character_name) do nothing;
+  else
+    delete from public.gallery_tags where item_id = p_id and lower(character_name) = lower(btrim(p_character));
+  end if;
+end $$;
+revoke all on function public.set_gallery_tag(uuid, text, boolean) from public;
+grant execute on function public.set_gallery_tag(uuid, text, boolean) to anon, authenticated;
