@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gallery – Mannenkeuken</title>
+<link rel="icon" href="img/icon-128.png?v=__V__" type="image/png" sizes="128x128">
+<link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap">
+<link rel="stylesheet" href="css/style.css?v=__V__">
+<style>
+  /* The museum: every picture hangs in a gilded frame with a small plaque underneath. */
+  .gal-tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; }
+  .gal-tools label { max-width: 220px; }
+  .gal-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 28px 24px; padding: 8px 0 24px; }
+  .gal-piece { background: none; border: 0; padding: 0; margin: 0; cursor: pointer; color: inherit; font: inherit; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .gal-frame { position: relative; width: 100%; aspect-ratio: 16 / 10; padding: 10px; border-radius: 3px;
+    background: linear-gradient(135deg, var(--gold-bright), var(--gold-dim) 45%, var(--gold) 70%, var(--gold-dim));
+    box-shadow: 0 10px 24px rgb(0 0 0 / .55), inset 0 0 0 2px var(--gold-dim); transition: transform .2s ease, box-shadow .2s ease; }
+  .gal-frame::before { content: ''; position: absolute; inset: 7px; border: 1px solid var(--gold-dim); pointer-events: none; }
+  .gal-frame > img, .gal-frame > video { display: block; width: 100%; height: 100%; object-fit: cover; background: var(--bg); box-shadow: inset 0 0 12px rgb(0 0 0 / .8); }
+  .gal-piece:hover .gal-frame, .gal-piece:focus-visible .gal-frame { transform: translateY(-4px) scale(1.02); box-shadow: 0 18px 34px rgb(0 0 0 / .6), 0 0 22px var(--gold-dim); }
+  .gal-piece:focus-visible { outline: none; }
+  .gal-play { position: absolute; inset: 0; display: grid; place-items: center; font-size: 42px; color: var(--text); text-shadow: 0 2px 10px rgb(0 0 0 / .9); pointer-events: none; }
+  .gal-plaque { background: var(--panel-2); border: 1px solid var(--border-strong); border-top-color: var(--gold-dim); border-radius: 2px; padding: 5px 12px; font-size: 13px; line-height: 1.35; max-width: 92%; }
+  .gal-plaque b { font-family: var(--font-display); color: var(--gold-bright); font-weight: 600; }
+  .gal-plaque .muted { font-size: 12px; }
+  .gal-count { font-size: 12px; color: var(--muted); }
+
+  /* Lightbox */
+  .gal-view { position: fixed; inset: 0; z-index: 100; background: rgb(0 0 0 / .9); display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
+  .gal-view[hidden] { display: none; }
+  .gal-stage { position: relative; display: flex; align-items: center; justify-content: center; padding: 24px 56px; min-height: 0; }
+  .gal-stage img, .gal-stage video { max-width: 100%; max-height: calc(100vh - 48px); box-shadow: 0 0 0 6px var(--gold-dim), 0 20px 60px rgb(0 0 0 / .8); background: var(--bg); }
+  .gal-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; font-size: 28px; padding: 0; }
+  .gal-nav.prev { left: 6px; } .gal-nav.next { right: 6px; }
+  .gal-side { background: var(--panel); border-left: 1px solid var(--border-strong); padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .gal-side h2 { margin: 0; font-size: 18px; }
+  .gal-close { align-self: flex-end; }
+  .gal-caption { font-style: italic; color: var(--text); margin: 0; white-space: pre-wrap; }
+  .gal-comments { display: flex; flex-direction: column; gap: 10px; }
+  .gal-comment { border-top: 1px solid var(--border); padding-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .gal-comment p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .gal-comment .who { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+  .gal-comment .who .muted { font-size: 12px; }
+  .gal-comment button { align-self: flex-start; font-size: 12px; padding: 2px 8px; min-height: 0; }
+  #gal-form { display: flex; flex-direction: column; gap: 8px; }
+  #gal-form textarea { min-height: 70px; resize: vertical; }
+  @media (max-width: 800px) {
+    .gal-view { grid-template-columns: 1fr; grid-template-rows: minmax(0, 55vh) 1fr; }
+    .gal-stage { padding: 12px 44px; }
+    .gal-stage img, .gal-stage video { max-height: calc(55vh - 24px); }
+    .gal-side { border-left: 0; border-top: 1px solid var(--border-strong); }
+  }
+  @media (prefers-reduced-motion: reduce) { .gal-frame { transition: none; } .gal-piece:hover .gal-frame { transform: none; } }
+</style>
+</head>
+<body>
+<main>
+  <section class="page-head"><div>
+    <h1>Gallery</h1>
+    <p class="muted">Screenshots and clips from our adventures. Click a picture to see it big, with who posted it and when, and leave a comment.</p>
+  </div></section>
+
+  <div id="gal-body"><p class="muted">Loading…</p></div>
+</main>
+
+<div class="gal-view" id="gal-view" hidden role="dialog" aria-modal="true" aria-label="Gallery item">
+  <div class="gal-stage">
+    <button class="btn gal-nav prev" type="button" id="gal-prev" aria-label="Previous">&#8249;</button>
+    <div id="gal-media"></div>
+    <button class="btn gal-nav next" type="button" id="gal-next" aria-label="Next">&#8250;</button>
+  </div>
+  <aside class="gal-side">
+    <button class="btn gal-close" type="button" id="gal-close">Close ✕</button>
+    <div id="gal-info"></div>
+    <h2>Comments</h2>
+    <div class="gal-comments" id="gal-comments"></div>
+    <form id="gal-form">
+      <label>Add a comment<textarea name="body" maxlength="1000" required placeholder="Say something about this one…"></textarea></label>
+      <button class="btn btn-primary" type="submit">Post comment</button>
+    </form>
+  </aside>
+</div>
+
+<script type="module">
+import { renderHeader } from './js/layout.js?v=__V__';
+import { supabase, mine } from './js/supabase.js?v=__V__';
+import { esc } from './js/sheet.js?v=__V__';
+import { playerUrl } from './js/players.js?v=__V__';
+
+const user = await renderHeader();
+const body = document.getElementById('gal-body');
+const when = (iso) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Europe/Amsterdam', hourCycle: 'h23', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const posterHtml = (it) => (it.player_name
+  ? `<a href="${playerUrl(it.player_name)}">${esc(it.player_name)}</a>`
+  : esc(it.poster || 'Unknown'));
+
+// The gallery is for members only: the pictures are private (storage bucket "gallery", read = is_member()).
+if (!user || !supabase) {
+  body.innerHTML = '<div class="box"><p style="margin:0">Choose your player (top right) to see the gallery.</p></div>';
+} else {
+  const [{ data: items, error }, { data: counts }] = await Promise.all([
+    supabase.from('gallery_items').select('*').order('posted_at', { ascending: false }),
+    supabase.from('gallery_comments').select('item_id'),
+  ]);
+  if (error) {
+    body.innerHTML = `<div class="box"><p style="margin:0">The gallery could not be loaded: ${esc(error.message)}</p></div>`;
+  } else if (!items.length) {
+    body.innerHTML = '<div class="box"><p style="margin:0">The gallery is still empty.</p></div>';
+  } else {
+    const nComments = {};
+    for (const c of counts ?? []) nComments[c.item_id] = (nComments[c.item_id] ?? 0) + 1;
+    // Private files: signed links, valid for 6 hours.
+    const { data: signed } = await supabase.storage.from('gallery').createSignedUrls(items.map((i) => i.path), 6 * 3600);
+    const urlOf = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+    for (const it of items) it.url = urlOf.get(it.path);
+    const posters = [...new Set(items.map((i) => i.player_name || i.poster).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
+    body.innerHTML = `
+      <div class="gal-tools">
+        <label>Posted by<select id="gal-who"><option value="">Everyone</option>${posters.map((p) => `<option>${esc(p)}</option>`).join('')}</select></label>
+        <label>Show<select id="gal-kind"><option value="">Pictures and clips</option><option value="image">Pictures</option><option value="video">Clips</option></select></label>
+        <span class="gal-count" id="gal-count"></span>
+      </div>
+      <div class="gal-wall" id="gal-wall"></div>`;
+
+    let shown = items;
+    const wall = document.getElementById('gal-wall');
+    function draw() {
+      const who = document.getElementById('gal-who').value;
+      const kind = document.getElementById('gal-kind').value;
+      shown = items.filter((i) => (!who || (i.player_name || i.poster) === who) && (!kind || i.kind === kind));
+      document.getElementById('gal-count').textContent = `${shown.length} of ${items.length}`;
+      wall.innerHTML = shown.map((it, n) => `
+        <button class="gal-piece" type="button" data-n="${n}" aria-label="Open ${it.kind === 'video' ? 'clip' : 'picture'} posted by ${esc(it.player_name || it.poster || 'unknown')}">
+          <span class="gal-frame">${it.kind === 'video'
+            ? `<video src="${esc(it.url ?? '')}#t=1" preload="metadata" muted playsinline></video><span class="gal-play" aria-hidden="true">&#9654;</span>`
+            : `<img src="${esc(it.url ?? '')}" alt="" loading="lazy">`}</span>
+          <span class="gal-plaque"><b>${esc(it.player_name || it.poster || 'Unknown')}</b><br><span class="muted">${when(it.posted_at)}${nComments[it.id] ? ` · &#128172; ${nComments[it.id]}` : ''}</span></span>
+        </button>`).join('');
+    }
+    document.getElementById('gal-who').addEventListener('change', draw);
+    document.getElementById('gal-kind').addEventListener('change', draw);
+    wall.addEventListener('click', (e) => { const b = e.target.closest('.gal-piece'); if (b) open(+b.dataset.n); });
+    draw();
+
+    // ---- the big view ---------------------------------------------------------------------------------------------
+    const view = document.getElementById('gal-view');
+    let current = -1;
+    async function loadComments(it) {
+      const box = document.getElementById('gal-comments');
+      box.innerHTML = '<p class="muted">Loading…</p>';
+      const { data, error: e } = await supabase.from('gallery_comments').select('*').eq('item_id', it.id).order('created_at');
+      if (e) { box.innerHTML = `<p class="muted">Could not load comments: ${esc(e.message)}</p>`; return; }
+      nComments[it.id] = data.length;
+      box.innerHTML = data.length ? data.map((c) => `
+        <div class="gal-comment">
+          <div class="who"><a href="${playerUrl(c.player_name)}"><b>${esc(c.player_name)}</b></a><span class="muted">${when(c.created_at)}</span></div>
+          <p>${esc(c.body)}</p>
+          ${mine(user, c.user_id) ? `<button class="btn" type="button" data-del="${c.id}">Delete</button>` : ''}
+        </div>`).join('') : '<p class="muted">No comments yet. Be the first!</p>';
+    }
+    function open(n) {
+      if (!shown.length) return;
+      current = (n + shown.length) % shown.length;
+      const it = shown[current];
+      document.getElementById('gal-media').innerHTML = it.kind === 'video'
+        ? `<video src="${esc(it.url ?? '')}" controls autoplay playsinline></video>`
+        : `<img src="${esc(it.url ?? '')}" alt="Picture posted by ${esc(it.player_name || it.poster || 'unknown')}">`;
+      document.getElementById('gal-info').innerHTML = `
+        <h2>${posterHtml(it)}</h2>
+        <p class="muted">${when(it.posted_at)}${it.poster && it.player_name && it.poster !== it.player_name ? ` · on Discord as ${esc(it.poster)}` : ''}</p>
+        ${it.caption ? `<p class="gal-caption">“${esc(it.caption)}”</p>` : ''}`;
+      const many = shown.length > 1;
+      document.getElementById('gal-prev').hidden = !many;
+      document.getElementById('gal-next').hidden = !many;
+      view.hidden = false;
+      document.body.style.overflow = 'hidden';
+      loadComments(it);
+    }
+    function close() {
+      view.hidden = true;
+      document.getElementById('gal-media').innerHTML = '';
+      document.body.style.overflow = '';
+      draw();
+    }
+    document.getElementById('gal-close').addEventListener('click', close);
+    document.getElementById('gal-prev').addEventListener('click', () => open(current - 1));
+    document.getElementById('gal-next').addEventListener('click', () => open(current + 1));
+    view.addEventListener('click', (e) => { if (e.target.classList.contains('gal-stage')) close(); });
+    document.addEventListener('keydown', (e) => {
+      if (view.hidden || e.target.closest('textarea, input, select')) return;
+      if (e.key === 'Escape') close();
+      if (e.key === 'ArrowLeft') open(current - 1);
+      if (e.key === 'ArrowRight') open(current + 1);
+    });
+    document.getElementById('gal-comments').addEventListener('click', async (e) => {
+      const id = e.target.closest('[data-del]')?.dataset.del;
+      if (!id || !confirm('Are you sure you want to delete this comment?')) return;
+      const { error: e2 } = await supabase.from('gallery_comments').delete().eq('id', id);
+      if (e2) alert(`Could not delete: ${e2.message}`);
+      loadComments(shown[current]);
+    });
+    document.getElementById('gal-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const text = f.body.value.trim();
+      if (!text) return;
+      f.querySelector('button').disabled = true;
+      const { error: e3 } = await supabase.from('gallery_comments').insert({ item_id: shown[current].id, body: text, player_name: user.player });
+      f.querySelector('button').disabled = false;
+      if (e3) { alert(`Could not post: ${e3.message}`); return; }
+      f.reset();
+      loadComments(shown[current]);
+    });
+  }
+}
+</script>
+</body>
+</html>
