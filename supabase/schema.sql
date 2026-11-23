@@ -1923,3 +1923,33 @@ begin
 end $$;
 revoke all on function public.delete_gallery_item(uuid) from public;
 grant execute on function public.delete_gallery_item(uuid) to anon, authenticated;
+
+-- 2026-11-23: Gallery tags: which guild characters are in a picture (only shown, nobody gets a message). Every member may
+-- tag or untag; only characters from the table characters. Safe to run again.
+create table if not exists public.gallery_tags (
+  item_id uuid not null references public.gallery_items(id) on delete cascade,
+  character_name text not null check (char_length(character_name) between 1 and 60),
+  added_by text default public.current_player(),
+  created_at timestamptz not null default now(),
+  primary key (item_id, character_name)
+);
+alter table public.gallery_tags enable row level security;
+drop policy if exists "gallery tags read" on public.gallery_tags;
+create policy "gallery tags read" on public.gallery_tags for select using (public.is_member());
+grant select on public.gallery_tags to anon, authenticated;
+create or replace function public.set_gallery_tag(p_id uuid, p_character text, p_on boolean) returns void
+language plpgsql security definer set search_path = public as $$
+declare real_name text;
+begin
+  if not public.is_member() then raise exception 'Only members can tag'; end if;
+  select name into real_name from public.characters where lower(btrim(name)) = lower(btrim(p_character)) limit 1;
+  if p_on then
+    if real_name is null then raise exception 'That is not a character of the guild'; end if;
+    insert into public.gallery_tags (item_id, character_name, added_by) values (p_id, real_name, public.current_player())
+    on conflict (item_id, character_name) do nothing;
+  else
+    delete from public.gallery_tags where item_id = p_id and lower(character_name) = lower(btrim(p_character));
+  end if;
+end $$;
+revoke all on function public.set_gallery_tag(uuid, text, boolean) from public;
+grant execute on function public.set_gallery_tag(uuid, text, boolean) to anon, authenticated;
