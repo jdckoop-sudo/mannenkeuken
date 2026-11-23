@@ -19,8 +19,8 @@
   .gal-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 44px 34px; padding: 26px 0 32px; align-items: start; }
   .gal-piece { position: relative; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; color: inherit; font: inherit; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .gal-piece::before { /* the gallery spotlight on the wall */
-    content: ''; position: absolute; left: 50%; top: -30px; width: 130%; height: 75%; transform: translateX(-50%); pointer-events: none;
-    background: radial-gradient(ellipse at 50% 0, rgb(255 236 190 / .16), transparent 70%); }
+    content: ''; position: absolute; left: 50%; top: -40px; width: 110%; height: 80%; transform: translateX(-50%); pointer-events: none;
+    background: radial-gradient(ellipse 50% 45% at 50% 45%, rgb(255 236 190 / .13), transparent 100%); } /* fades out on every side: no hard edge */
   .gal-wall, .gal-view { /* wood tones for the frames (only used on this page) */
     --wood-dark: rgb(46 26 14); --wood: rgb(92 54 28); --wood-mid: rgb(120 74 38); --wood-light: rgb(158 104 58); }
   .gal-frame { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; box-sizing: border-box; border-radius: 2px;
