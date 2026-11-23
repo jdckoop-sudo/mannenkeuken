@@ -68,6 +68,11 @@
   .gal-reactbar button.mine { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
   .gal-reactbar button:hover { transform: scale(1.08); }
   .gal-who-reacted { font-size: 12px; margin: 0; }
+  .gal-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .gal-tags .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--panel-2); border: 1px solid var(--border-strong); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 13px; }
+  .gal-tags .chip button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; min-height: 0; font-size: 14px; }
+  .gal-tag-add { display: flex; gap: 6px; }
+  .gal-tag-add input { flex: 1; min-width: 0; }
   #gal-upload { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
   #gal-upload[hidden] { display: none; }
 
@@ -143,6 +148,10 @@
     <div id="gal-info"></div>
     <div class="gal-reactbar" id="gal-reactbar" role="group" aria-label="React"></div>
     <p class="muted gal-who-reacted" id="gal-who-reacted"></p>
+    <h2>In this picture</h2>
+    <div class="gal-tags" id="gal-tags"></div>
+    <form class="gal-tag-add" id="gal-tag-form"><input name="who" list="gal-chars" placeholder="Tag a character…" aria-label="Tag a character" autocomplete="off"><button class="btn" type="submit">Tag</button></form>
+    <datalist id="gal-chars"></datalist>
     <h2>Comments</h2>
     <div class="gal-comments" id="gal-comments"></div>
     <form id="gal-form">
@@ -157,7 +166,7 @@
 import { renderHeader } from './js/layout.js?v=__V__';
 import { supabase, mine } from './js/supabase.js?v=__V__';
 import { esc } from './js/sheet.js?v=__V__';
-import { playerUrl } from './js/players.js?v=__V__';
+import { playerUrl, characterUrl } from './js/players.js?v=__V__';
 
 const user = await renderHeader();
 const body = document.getElementById('gal-body');
@@ -198,10 +207,12 @@ if (user && supabase) {
 if (!user || !supabase) {
   body.innerHTML = '<div class="box"><p style="margin:0">Choose your player (top right) to see the gallery.</p></div>';
 } else {
-  const [{ data: items, error }, { data: counts }, { data: reacts }] = await Promise.all([
+  const [{ data: items, error }, { data: counts }, { data: reacts }, { data: tagRows }, { data: chars }] = await Promise.all([
     supabase.from('gallery_items').select('*').order('posted_at', { ascending: false }),
     supabase.from('gallery_comments').select('item_id'),
     supabase.from('gallery_reactions').select('item_id, player_name, emoji'),
+    supabase.from('gallery_tags').select('item_id, character_name'),
+    supabase.from('characters').select('name, player_name, status').neq('status', 'Gestopt').order('name'),
   ]);
   if (error) {
     body.innerHTML = `<div class="box"><p style="margin:0">The gallery could not be loaded: ${esc(error.message)}</p></div>`;
@@ -219,7 +230,13 @@ if (!user || !supabase) {
       for (const r of byItem[id] ?? []) t[r.emoji] = (t[r.emoji] ?? 0) + 1;
       return Object.entries(t).sort((a, b) => b[1] - a[1]);
     };
-    const reactsHtml = (id) => tally(id).map(([m, n]) => `<span title="${n} × ${m}">${m} ${n}</span>`).join('');
+    // Tags: which guild characters are in the picture (just shown, nobody gets a message). tagsOf[id] = ['Bunte Bapsimus', ...]
+    const tagsOf = {};
+    for (const t of tagRows ?? []) (tagsOf[t.item_id] ??= []).push(t.character_name);
+    const charByName = new Map((chars ?? []).map((c) => [c.name.toLowerCase(), c]));
+    document.getElementById('gal-chars').innerHTML = (chars ?? []).map((c) => `<option value="${esc(c.name)}">${esc(c.player_name)}</option>`).join('');
+    const reactsHtml = (id) => tally(id).map(([m, n]) => `<span title="${n} × ${m}">${m} ${n}</span>`).join('')
+      + ((tagsOf[id] ?? []).length ? `<span title="${esc(tagsOf[id].join(', '))}">&#128101; ${tagsOf[id].length}</span>` : '');
     // Private files: signed links, valid for 6 hours.
     const { data: signed } = await supabase.storage.from('gallery').createSignedUrls(items.map((i) => i.path), 6 * 3600);
     const urlOf = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
@@ -229,6 +246,7 @@ if (!user || !supabase) {
     body.innerHTML = `
       <div class="gal-tools">
         <label>Posted by<select id="gal-who"><option value="">Everyone</option>${posters.map((p) => `<option>${esc(p)}</option>`).join('')}</select></label>
+        <label>Who's in it<select id="gal-tagged"><option value="">Anyone</option></select></label>
         <label>Show<select id="gal-kind"><option value="">Pictures and clips</option><option value="image">Pictures</option><option value="video">Clips</option></select></label>
         <span class="gal-count" id="gal-count"></span>
       </div>
@@ -240,7 +258,8 @@ if (!user || !supabase) {
     function draw() {
       const who = document.getElementById('gal-who').value;
       const kind = document.getElementById('gal-kind').value;
-      shown = items.filter((i) => (!who || (i.player_name || i.poster) === who) && (!kind || i.kind === kind));
+      const tagged = document.getElementById('gal-tagged').value;
+      shown = items.filter((i) => (!who || (i.player_name || i.poster) === who) && (!kind || i.kind === kind) && (!tagged || (tagsOf[i.id] ?? []).includes(tagged)));
       document.getElementById('gal-count').textContent = `${shown.length} of ${items.length}`;
       wall.innerHTML = shown.map((it, n) => `
         <button class="gal-piece" type="button" data-n="${n}" aria-label="Open ${it.title ? `${esc(it.title)}, ` : ''}${it.kind === 'video' ? 'clip' : 'picture'} posted by ${esc(it.player_name || it.poster || 'unknown')}">
@@ -255,6 +274,14 @@ if (!user || !supabase) {
     }
     document.getElementById('gal-who').addEventListener('change', draw);
     document.getElementById('gal-kind').addEventListener('change', draw);
+    document.getElementById('gal-tagged').addEventListener('change', draw);
+    function fillTagFilter() {
+      const sel = document.getElementById('gal-tagged');
+      const keep = sel.value;
+      const names = [...new Set(Object.values(tagsOf).flat())].sort((a, b) => a.localeCompare(b));
+      sel.innerHTML = '<option value="">Anyone</option>' + names.map((n) => `<option${n === keep ? ' selected' : ''}>${esc(n)}</option>`).join('');
+    }
+    fillTagFilter();
     wall.addEventListener('click', (e) => { const b = e.target.closest('.gal-piece'); if (b) open(+b.dataset.n); });
     draw();
 
@@ -283,6 +310,7 @@ if (!user || !supabase) {
         : `<span class="gal-bigframe"><img src="${esc(it.url ?? '')}" alt="Picture posted by ${esc(it.player_name || it.poster || 'unknown')}"></span>`;
       drawInfo(it);
       drawReacts(it);
+      drawTags(it);
       const many = shown.length > 1;
       document.getElementById('gal-prev').hidden = !many;
       document.getElementById('gal-next').hidden = !many;
@@ -309,6 +337,32 @@ if (!user || !supabase) {
       byItem[it.id] = list.filter((r) => r.player_name !== user.player);
       if (next) byItem[it.id].push({ item_id: it.id, player_name: user.player, emoji: next });
       drawReacts(it);
+    });
+    function drawTags(it) {
+      const list = tagsOf[it.id] ?? [];
+      document.getElementById('gal-tags').innerHTML = list.length
+        ? list.map((n) => { const c = charByName.get(n.toLowerCase()); return `<span class="chip"><a href="${characterUrl(n)}">${esc(n)}</a>${c ? `<span class="muted" style="font-size:12px">(${esc(c.player_name)})</span>` : ''}<button type="button" data-untag="${esc(n)}" title="Remove the tag" aria-label="Remove ${esc(n)}">&times;</button></span>`; }).join('')
+        : '<p class="muted" style="margin:0;font-size:13px">Nobody tagged yet.</p>';
+    }
+    async function setTag(it, name, on) {
+      const { error: e8 } = await supabase.rpc('set_gallery_tag', { p_id: it.id, p_character: name, p_on: on });
+      if (e8) { alert(`Could not change the tag: ${e8.message}`); return false; }
+      const list = (tagsOf[it.id] ?? []).filter((n) => n.toLowerCase() !== name.toLowerCase());
+      tagsOf[it.id] = on ? [...list, name].sort((a, b) => a.localeCompare(b)) : list;
+      drawTags(it);
+      fillTagFilter();
+      return true;
+    }
+    document.getElementById('gal-tags').addEventListener('click', (e) => {
+      const n = e.target.closest('[data-untag]')?.dataset.untag;
+      if (n) setTag(shown[current], n, false);
+    });
+    document.getElementById('gal-tag-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = e.target.who;
+      const c = charByName.get(input.value.trim().toLowerCase());
+      if (!c) { alert('Pick a character of the guild from the list.'); return; }
+      if (await setTag(shown[current], c.name, true)) input.value = '';
     });
     // Title: every member may give an item a title or change it (database function set_gallery_title()).
     function drawInfo(it) {
