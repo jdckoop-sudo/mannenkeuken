@@ -60,14 +60,33 @@
   .gal-title-edit div { display: flex; gap: 6px; }
   #gal-title-btn { align-self: flex-start; font-size: 13px; padding: 4px 10px; min-height: 0; }
   .gal-count { font-size: 12px; color: var(--muted); }
+  .gal-reacts { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; font-size: 13px; min-height: 22px; }
+  .gal-reacts span { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; color: var(--text); }
+  .gal-reactbar { display: flex; flex-wrap: wrap; gap: 6px; }
+  .gal-reactbar button { display: inline-flex; align-items: center; gap: 4px; font-size: 18px; line-height: 1; padding: 5px 9px; min-height: 0; background: var(--field); border: 1px solid var(--border); border-radius: 999px; color: var(--text); cursor: pointer; }
+  .gal-reactbar button small { font-size: 12px; color: var(--muted); }
+  .gal-reactbar button.mine { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .gal-reactbar button:hover { transform: scale(1.08); }
+  .gal-who-reacted { font-size: 12px; margin: 0; }
+  #gal-upload { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+  #gal-upload[hidden] { display: none; }
 
   /* Lightbox */
   .gal-view { position: fixed; inset: 0; z-index: 100; background: rgb(0 0 0 / .9); display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
   .gal-view[hidden] { display: none; }
   .gal-stage { position: relative; display: flex; align-items: center; justify-content: center; padding: 24px 56px; min-height: 0; }
-  .gal-stage img, .gal-stage video { display: block; max-width: calc(100vw - 340px - 160px); max-height: calc(100vh - 120px); background: var(--bg);
-    border: 26px solid var(--wood); border-image: linear-gradient(135deg, var(--wood-light), var(--wood-mid) 20%, var(--wood) 50%, var(--wood-dark) 80%, var(--wood)) 1;
-    box-shadow: 0 0 0 2px var(--wood-dark), 0 24px 70px rgb(0 0 0 / .85); outline: 2px solid var(--gold); outline-offset: -4px; }
+  .gal-bigframe { /* the same carved walnut frame as on the wall, around the big picture */
+    position: relative; display: inline-block; padding: 24px; border-radius: 2px;
+    background:
+      repeating-linear-gradient(92deg, rgb(0 0 0 / .14) 0 1px, transparent 1px 7px, rgb(255 220 170 / .05) 7px 8px, transparent 8px 13px),
+      repeating-linear-gradient(88deg, transparent 0 21px, rgb(0 0 0 / .10) 21px 23px, transparent 23px 37px),
+      linear-gradient(135deg, var(--wood-light), var(--wood-mid) 18%, var(--wood) 45%, var(--wood-dark) 75%, var(--wood) 100%);
+    border: 2px solid var(--wood-dark);
+    box-shadow:
+      inset 0 0 0 3px var(--wood-mid), inset 0 0 0 5px var(--wood-dark), inset 0 0 0 13px transparent, inset 0 0 0 14px rgb(0 0 0 / .45),
+      inset 4px 4px 7px rgb(255 225 180 / .25), inset -4px -4px 9px rgb(0 0 0 / .55), 0 24px 70px rgb(0 0 0 / .85); }
+  .gal-bigframe > img, .gal-bigframe > video { display: block; max-width: calc(100vw - 340px - 160px); max-height: calc(100vh - 150px); background: var(--bg);
+    box-shadow: 0 0 0 1px var(--wood-dark), 0 0 0 3px var(--gold-dim), 0 0 0 4px var(--gold), 0 0 0 6px var(--wood-dark); }
   .gal-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; font-size: 28px; padding: 0; }
   .gal-nav.prev { left: 6px; } .gal-nav.next { right: 6px; }
   .gal-side { background: var(--panel); border-left: 1px solid var(--border-strong); padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
@@ -88,7 +107,8 @@
   @media (max-width: 800px) {
     .gal-view { grid-template-columns: 1fr; grid-template-rows: minmax(0, 55vh) 1fr; }
     .gal-stage { padding: 12px 44px; }
-    .gal-stage img, .gal-stage video { max-width: calc(100vw - 110px); max-height: calc(55vh - 50px); border-width: 12px; }
+    .gal-bigframe { padding: 14px; }
+    .gal-bigframe > img, .gal-bigframe > video { max-width: calc(100vw - 130px); max-height: calc(55vh - 60px); }
     .gal-side { border-left: 0; border-top: 1px solid var(--border-strong); }
   }
   @media (prefers-reduced-motion: reduce) { .gal-frame { transition: none; } .gal-piece:hover .gal-frame { transform: none; } }
@@ -98,8 +118,16 @@
 <main>
   <section class="page-head"><div>
     <h1>Gallery</h1>
-    <p class="muted">Screenshots and clips from our adventures. Click a picture to see it big, with who posted it and when, and leave a comment.</p>
-  </div></section>
+    <p class="muted">Screenshots and clips from our adventures. Click a picture to see it big, with who posted it and when, react with an emote and leave a comment.</p>
+  </div><button class="btn btn-primary" type="button" id="gal-upload-open" hidden>+ Upload</button></section>
+
+  <form class="box" id="gal-upload" hidden>
+    <h2>Add to the gallery</h2>
+    <label>Picture or clip (max. 50 MB)<input type="file" name="file" accept="image/*,video/*" required></label>
+    <label>Title (optional)<input name="gtitle" maxlength="80" placeholder="Give it a name…"></label>
+    <label>Caption (optional)<textarea name="caption" maxlength="500" placeholder="What happened here?"></textarea></label>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary" type="submit">Upload</button><button class="btn" type="button" id="gal-upload-cancel">Cancel</button><span class="muted" id="gal-upload-status"></span></div>
+  </form>
 
   <div id="gal-body"><p class="muted">Loading…</p></div>
 </main>
@@ -113,6 +141,8 @@
   <aside class="gal-side">
     <button class="btn gal-close" type="button" id="gal-close">Close ✕</button>
     <div id="gal-info"></div>
+    <div class="gal-reactbar" id="gal-reactbar" role="group" aria-label="React"></div>
+    <p class="muted gal-who-reacted" id="gal-who-reacted"></p>
     <h2>Comments</h2>
     <div class="gal-comments" id="gal-comments"></div>
     <form id="gal-form">
@@ -136,13 +166,42 @@ const posterHtml = (it) => (it.player_name
   ? `<a href="${playerUrl(it.player_name)}">${esc(it.player_name)}</a>`
   : esc(it.poster || 'Unknown'));
 
+// Upload: every member can add a picture or clip of their own (file in uploads/, row via add_gallery_item()).
+if (user && supabase) {
+  const form = document.getElementById('gal-upload');
+  const openBtn = document.getElementById('gal-upload-open');
+  openBtn.hidden = false;
+  openBtn.addEventListener('click', () => { form.hidden = false; openBtn.hidden = true; form.file.focus(); });
+  document.getElementById('gal-upload-cancel').addEventListener('click', () => { form.reset(); form.hidden = true; openBtn.hidden = false; });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const status = document.getElementById('gal-upload-status');
+    const file = form.file.files[0];
+    if (!file) return;
+    const kind = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : null;
+    if (!kind) { status.textContent = 'Only pictures and clips can be uploaded.'; return; }
+    if (file.size > 50 * 1024 * 1024) { status.textContent = 'This file is bigger than 50 MB.'; return; }
+    const ext = (file.name.split('.').pop() || (kind === 'video' ? 'mp4' : 'png')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+    const path = `uploads/${crypto.randomUUID()}.${ext}`;
+    form.querySelector('button[type="submit"]').disabled = true;
+    status.textContent = 'Uploading…';
+    const up = await supabase.storage.from('gallery').upload(path, file, { contentType: file.type });
+    if (up.error) { status.textContent = `Upload failed: ${up.error.message}`; form.querySelector('button[type="submit"]').disabled = false; return; }
+    const { error: e5 } = await supabase.rpc('add_gallery_item', { p_path: path, p_kind: kind, p_title: form.elements.gtitle.value.trim(), p_caption: form.caption.value.trim(), p_bytes: file.size });
+    if (e5) { status.textContent = `Could not add it: ${e5.message}`; form.querySelector('button[type="submit"]').disabled = false; return; }
+    status.textContent = 'Added!';
+    location.reload();
+  });
+}
+
 // The gallery is for members only: the pictures are private (storage bucket "gallery", read = is_member()).
 if (!user || !supabase) {
   body.innerHTML = '<div class="box"><p style="margin:0">Choose your player (top right) to see the gallery.</p></div>';
 } else {
-  const [{ data: items, error }, { data: counts }] = await Promise.all([
+  const [{ data: items, error }, { data: counts }, { data: reacts }] = await Promise.all([
     supabase.from('gallery_items').select('*').order('posted_at', { ascending: false }),
     supabase.from('gallery_comments').select('item_id'),
+    supabase.from('gallery_reactions').select('item_id, player_name, emoji'),
   ]);
   if (error) {
     body.innerHTML = `<div class="box"><p style="margin:0">The gallery could not be loaded: ${esc(error.message)}</p></div>`;
@@ -151,6 +210,16 @@ if (!user || !supabase) {
   } else {
     const nComments = {};
     for (const c of counts ?? []) nComments[c.item_id] = (nComments[c.item_id] ?? 0) + 1;
+    // Reactions: one emote per player per item (like Facebook). byItem[id] = [{ player_name, emoji }]
+    const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '💀', '🏆'];
+    const byItem = {};
+    for (const r of reacts ?? []) (byItem[r.item_id] ??= []).push(r);
+    const tally = (id) => {
+      const t = {};
+      for (const r of byItem[id] ?? []) t[r.emoji] = (t[r.emoji] ?? 0) + 1;
+      return Object.entries(t).sort((a, b) => b[1] - a[1]);
+    };
+    const reactsHtml = (id) => tally(id).map(([m, n]) => `<span title="${n} × ${m}">${m} ${n}</span>`).join('');
     // Private files: signed links, valid for 6 hours.
     const { data: signed } = await supabase.storage.from('gallery').createSignedUrls(items.map((i) => i.path), 6 * 3600);
     const urlOf = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
@@ -165,6 +234,7 @@ if (!user || !supabase) {
       </div>
       <div class="gal-wall" id="gal-wall"></div>`;
 
+    const { data: isDev } = await supabase.rpc('is_dev');
     let shown = items;
     const wall = document.getElementById('gal-wall');
     function draw() {
@@ -180,6 +250,7 @@ if (!user || !supabase) {
           <span class="gal-plaque">${it.title
             ? `<b>${esc(it.title)}</b><br><span class="muted">${esc(it.player_name || it.poster || 'Unknown')} · ${when(it.posted_at)}`
             : `<b>${esc(it.player_name || it.poster || 'Unknown')}</b><br><span class="muted">${when(it.posted_at)}`}${nComments[it.id] ? ` · &#128172; ${nComments[it.id]}` : ''}</span></span>
+          <span class="gal-reacts" aria-label="Reactions">${reactsHtml(it.id)}</span>
         </button>`).join('');
     }
     document.getElementById('gal-who').addEventListener('change', draw);
@@ -208,9 +279,10 @@ if (!user || !supabase) {
       current = (n + shown.length) % shown.length;
       const it = shown[current];
       document.getElementById('gal-media').innerHTML = it.kind === 'video'
-        ? `<video src="${esc(it.url ?? '')}" controls autoplay playsinline></video>`
-        : `<img src="${esc(it.url ?? '')}" alt="Picture posted by ${esc(it.player_name || it.poster || 'unknown')}">`;
+        ? `<span class="gal-bigframe"><video src="${esc(it.url ?? '')}" controls autoplay playsinline></video></span>`
+        : `<span class="gal-bigframe"><img src="${esc(it.url ?? '')}" alt="Picture posted by ${esc(it.player_name || it.poster || 'unknown')}"></span>`;
       drawInfo(it);
+      drawReacts(it);
       const many = shown.length > 1;
       document.getElementById('gal-prev').hidden = !many;
       document.getElementById('gal-next').hidden = !many;
@@ -218,6 +290,26 @@ if (!user || !supabase) {
       document.body.style.overflow = 'hidden';
       loadComments(it);
     }
+    function drawReacts(it) {
+      const list = byItem[it.id] ?? [];
+      const mineR = list.find((r) => r.player_name === user.player)?.emoji;
+      const count = (m) => list.filter((r) => r.emoji === m).length;
+      document.getElementById('gal-reactbar').innerHTML = REACTIONS.map((m) => `<button type="button" data-react="${m}" class="${mineR === m ? 'mine' : ''}" title="${esc(list.filter((r) => r.emoji === m).map((r) => r.player_name).join(', ') || 'React with ' + m)}">${m}${count(m) ? `<small>${count(m)}</small>` : ''}</button>`).join('');
+      document.getElementById('gal-who-reacted').textContent = list.length ? list.map((r) => `${r.emoji} ${r.player_name}`).join(' · ') : 'No reactions yet.';
+    }
+    document.getElementById('gal-reactbar').addEventListener('click', async (e) => {
+      const m = e.target.closest('[data-react]')?.dataset.react;
+      if (!m) return;
+      const it = shown[current];
+      const list = byItem[it.id] ??= [];
+      const mineR = list.find((r) => r.player_name === user.player);
+      const next = mineR?.emoji === m ? null : m; // same emote again = take it back
+      const { error: e6 } = await supabase.rpc('set_gallery_reaction', { p_id: it.id, p_emoji: next });
+      if (e6) { alert(`Could not react: ${e6.message}`); return; }
+      byItem[it.id] = list.filter((r) => r.player_name !== user.player);
+      if (next) byItem[it.id].push({ item_id: it.id, player_name: user.player, emoji: next });
+      drawReacts(it);
+    });
     // Title: every member may give an item a title or change it (database function set_gallery_title()).
     function drawInfo(it) {
       document.getElementById('gal-info').innerHTML = `
@@ -225,9 +317,19 @@ if (!user || !supabase) {
         <button class="btn" type="button" id="gal-title-btn">&#9998; ${it.title ? 'Edit title' : 'Add a title'}</button>
         ${it.title_by ? `<p class="muted" style="font-size:12px">Title by ${esc(it.title_by)}</p>` : ''}
         <p class="muted">Posted by ${posterHtml(it)} · ${when(it.posted_at)}${it.poster && it.player_name && it.poster !== it.player_name ? ` · on Discord as ${esc(it.poster)}` : ''}</p>
-        ${it.caption ? `<p class="gal-caption">“${esc(it.caption)}”</p>` : ''}`;
+        ${it.caption ? `<p class="gal-caption">“${esc(it.caption)}”</p>` : ''}
+        ${(it.source === 'upload' && it.player_name === user.player) || isDev ? '<button class="btn" type="button" id="gal-delete" style="align-self:flex-start;font-size:12px;padding:2px 8px;min-height:0">Remove from the gallery</button>' : ''}`;
     }
-    document.getElementById('gal-info').addEventListener('click', (e) => {
+    document.getElementById('gal-info').addEventListener('click', async (e) => {
+      if (e.target.closest('#gal-delete')) {
+        const it = shown[current];
+        if (!confirm('Are you sure you want to remove this from the gallery? This cannot be undone.')) return;
+        const { data: path, error: e7 } = await supabase.rpc('delete_gallery_item', { p_id: it.id });
+        if (e7) { alert(`Could not remove it: ${e7.message}`); return; }
+        await supabase.storage.from('gallery').remove([path]);
+        location.reload();
+        return;
+      }
       if (!e.target.closest('#gal-title-btn')) return;
       const it = shown[current];
       const h = document.querySelector('#gal-info h2');
