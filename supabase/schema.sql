@@ -1953,3 +1953,2037 @@ begin
 end $$;
 revoke all on function public.set_gallery_tag(uuid, text, boolean) from public;
 grant execute on function public.set_gallery_tag(uuid, text, boolean) to anon, authenticated;
+
+-- 2026-11-23: Opie Market. Every NEW listing on the Trade Market (offer or request) gets one message in the Discord channel
+-- #loot-showcase, posted by the webhook "Opie Market"; players tagged on the listing get an @mention (players.discord_id;
+-- without an id their name in bold, nobody pinged). Listings that already existed are never posted (only an insert starts it).
+-- No Edge Function: the trigger calls market_post(), which posts with pg_net (like Odin). The webhook URL is a secret: only in
+-- the Vault as market_webhook_url (Supabase > Integrations > Vault > Secrets). Without it nothing is posted and the market keeps working.
+-- See the message without posting:  select public.market_post('<listing id>', true);   What Discord said:  select * from net._http_response order by created desc limit 5;
+create or replace function public.market_post(p_id uuid, p_dry boolean default false)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  l record;
+  v_url text;
+  v_tags text := '';
+  v_ids jsonb := '[]'::jsonb;
+  v_name text;
+  v_id text;
+  v_body jsonb;
+  v_fields jsonb := '[]'::jsonb;
+begin
+  select * into l from public.listings where id = p_id;
+  if not found then return jsonb_build_object('result', 'no listing'); end if;
+  foreach v_name in array coalesce(l.pinged, '{}') loop
+    select discord_id into v_id from public.players where player_name = v_name;
+    if v_id is not null and v_id ~ '^[0-9]{5,25}$' then
+      v_tags := v_tags || ' <@' || v_id || '>';
+      v_ids := v_ids || to_jsonb(v_id);
+    else
+      v_tags := v_tags || ' **' || replace(v_name, '*', '') || '**';
+    end if;
+  end loop;
+  if l.profession is not null then
+    v_fields := v_fields || jsonb_build_object('name', 'Profession', 'value', l.profession || coalesce(' (skill ' || l.min_skill || '+)', ''), 'inline', true);
+  end if;
+  if l.quantity > 1 then
+    v_fields := v_fields || jsonb_build_object('name', 'Quantity', 'value', l.quantity::text, 'inline', true);
+  end if;
+  v_body := jsonb_build_object(
+    'username', 'Opie Market',
+    'content', case when l.kind = 'offer' then '🛒 **' else '🔎 **' end || replace(l.author_name, '*', '') || '** '
+      || case when l.kind = 'offer' then 'offers' else 'is looking for' end || ' **' || replace(l.item, '*', '') || '**'
+      || case when l.quantity > 1 then ' ×' || l.quantity else '' end || ' on the Trade Market!'
+      || case when v_tags <> '' then E'\nTagged:' || v_tags else '' end,
+    'embeds', jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(
+      'title', case when l.kind = 'offer' then 'Offer: ' else 'Wanted: ' end || l.item,
+      'url', 'https://jdckoop-sudo.github.io/mannenkeuken/market.html',
+      'description', nullif(btrim(coalesce(l.note, '')), ''),
+      'color', case when l.kind = 'offer' then 4235597 else 15105570 end,
+      'fields', case when jsonb_array_length(v_fields) > 0 then v_fields end,
+      'footer', jsonb_build_object('text', 'Mannenkeuken Trade Market · open the link to reserve or help'),
+      'timestamp', to_char(l.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')))),
+    -- only the tagged players are pinged, whatever the text says
+    'allowed_mentions', jsonb_build_object('parse', '[]'::jsonb, 'users', v_ids));
+  if p_dry then return jsonb_build_object('result', 'dry run', 'body', v_body); end if;
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'market_webhook_url' limit 1;
+  if v_url is null or v_url !~ '^https://([a-z]+\.)?discord(app)?\.com/api/webhooks/' then return jsonb_build_object('result', 'no webhook'); end if;
+  perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type', 'application/json'), body := v_body);
+  return jsonb_build_object('result', 'posted');
+end $$;
+-- only the trigger (and the SQL Editor) may start it: not the site, not a logged-in player
+revoke all on function public.market_post(uuid, boolean) from public, anon, authenticated;
+
+create or replace function public.market_post_new() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  begin
+    perform public.market_post(new.id);
+  exception when others then
+    raise warning 'Opie Market could not post listing %: %', new.id, sqlerrm; -- never block the market itself
+  end;
+  return new;
+end $$;
+revoke all on function public.market_post_new() from public, anon, authenticated;
+drop trigger if exists market_post_new on public.listings;
+create trigger market_post_new after insert on public.listings for each row execute function public.market_post_new();
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Opie Market: new listings in #loot-showcase$q$, $q$Discord$q$, 'check',
+  $q$After the SQL and after the webhook URL of Opie Market is in the Vault as market_webhook_url: put a new offer or request on the Trade Market. Opie Market posts it once in #loot-showcase, tagged players get an @mention. Editing or finishing a listing posts nothing; the listings from before are never posted. Look without posting: select public.market_post('<id>', true);$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Opie Market: new listings in #loot-showcase$q$);
+-- Run this once in Supabase: SQL Editor → New query → paste → Run.
+-- Everyone can read; logged-in users can add; you can only change/delete your own rows.
+
+create table if not exists public.listings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  author_name text not null,
+  kind text not null check (kind in ('offer', 'request')),
+  item text not null check (char_length(item) <= 80),
+  quantity int not null default 1 check (quantity > 0),
+  price text check (char_length(price) <= 80),
+  note text check (char_length(note) <= 300),
+  status text not null default 'open' check (status in ('open', 'done')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.tips (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  author_name text not null,
+  category text not null check (category in ('addon', 'macro', 'setting')),
+  title text not null check (char_length(title) <= 80),
+  class text,
+  link text,
+  content text check (char_length(content) <= 2000),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  author_name text not null,
+  title text not null,
+  starts_at timestamptz not null,
+  min_level int,
+  tanks_needed int default 1,
+  healers_needed int default 1,
+  dps_needed int default 3,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.signups (
+  event_id uuid not null references public.events(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  author_name text not null,
+  role text not null check (role in ('Tank', 'Healer', 'DPS')),
+  answer text not null default 'yes' check (answer in ('yes', 'maybe', 'no')),
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
+-- 2026-11-02: link a listing to an item from data/items.json (optional)
+alter table public.listings add column if not exists item_id int;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['listings', 'tips', 'events', 'signups'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "read all" on public.%I', t);
+    execute format('drop policy if exists "insert own" on public.%I', t);
+    execute format('drop policy if exists "update own" on public.%I', t);
+    execute format('drop policy if exists "delete own" on public.%I', t);
+    execute format('create policy "read all" on public.%I for select using (true)', t);
+    execute format('create policy "insert own" on public.%I for insert to authenticated with check (user_id = auth.uid())', t);
+    execute format('create policy "update own" on public.%I for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid())', t);
+    execute format('create policy "delete own" on public.%I for delete to authenticated using (user_id = auth.uid())', t);
+  end loop;
+end $$;
+
+-- 2026-11-02: addons live on the site (moved from the "Addons" tab of the sheet).
+-- Anyone logged in can add an addon and remove any addon (the site asks "Are you sure?").
+create table if not exists public.addons (
+  id uuid primary key default gen_random_uuid(),
+  sort int,
+  category text not null default 'Other',
+  name text not null check (char_length(name) <= 80),
+  what text check (char_length(what) <= 500),
+  priority text,
+  who text,
+  link text,
+  link_label text,
+  note text check (char_length(note) <= 500),
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  author_name text,
+  created_at timestamptz not null default now()
+);
+alter table public.addons enable row level security;
+drop policy if exists "read all" on public.addons;
+drop policy if exists "insert own" on public.addons;
+drop policy if exists "delete any logged in" on public.addons;
+create policy "read all" on public.addons for select using (true);
+create policy "insert own" on public.addons for insert to authenticated with check (created_by = auth.uid());
+create policy "delete any logged in" on public.addons for delete to authenticated using (true);
+
+-- 2026-11-02: guild bank (Opie Bank), event types + quest help.
+-- Guild bank inventory: shared, so any logged-in member can add, change and remove.
+create table if not exists public.bank_items (
+  id uuid primary key default gen_random_uuid(),
+  item text not null check (char_length(item) <= 80),
+  item_id int,
+  quantity int not null default 1 check (quantity >= 0),
+  category text,
+  note text check (char_length(note) <= 200),
+  deposited_by text,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+alter table public.bank_items enable row level security;
+drop policy if exists "read all" on public.bank_items;
+drop policy if exists "write logged in" on public.bank_items;
+create policy "read all" on public.bank_items for select using (true);
+create policy "write logged in" on public.bank_items for all to authenticated using (true) with check (true);
+-- Where the item is: 'opie' = bank character Opie Bank (kept up to date by Jelle), 'guild' = the shared guild bank.
+-- status 'sent' = a member mailed it to Opie Bank, not yet in the inventory; 'in_stock' = in the inventory.
+alter table public.bank_items add column if not exists location text not null default 'opie';
+alter table public.bank_items add column if not exists status text not null default 'in_stock';
+-- When it was added; deposits only count on player pages from launch day (test entries before that don't).
+alter table public.bank_items add column if not exists created_at timestamptz not null default now();
+alter table public.bank_items drop constraint if exists bank_items_location_check;
+alter table public.bank_items add constraint bank_items_location_check check (location in ('opie', 'guild'));
+alter table public.bank_items drop constraint if exists bank_items_status_check;
+alter table public.bank_items add constraint bank_items_status_check check (status in ('in_stock', 'sent'));
+
+-- Guild bank gold (one row, id = 1). Amounts in copper.
+create table if not exists public.bank (
+  id int primary key default 1 check (id = 1),
+  copper bigint not null default 0 check (copper >= 0),
+  goal_copper bigint not null default 1000000,
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+insert into public.bank (id) values (1) on conflict (id) do nothing;
+alter table public.bank enable row level security;
+drop policy if exists "read all" on public.bank;
+drop policy if exists "update logged in" on public.bank;
+create policy "read all" on public.bank for select using (true);
+create policy "update logged in" on public.bank for update to authenticated using (true) with check (true);
+
+-- Event type (raid / dungeon / quest help / guild night / other) and the quest for quest help.
+alter table public.events add column if not exists kind text not null default 'dungeon';
+alter table public.events add column if not exists quest text;
+-- 2026-11-02: 'any players' instead of specific roles (players_needed set = roles not used), and tagged players.
+alter table public.events add column if not exists players_needed int;
+alter table public.events add column if not exists pinged text[] not null default '{}';
+-- Quest picked from data/quests.json (Wowhead Forever id); quest keeps the name (also for typed quests).
+alter table public.events add column if not exists quest_id int;
+-- Dungeon/raid picked from js/dungeons.js (name; links to Wowhead).
+alter table public.events add column if not exists dungeon text check (char_length(dungeon) <= 80);
+
+-- 2026-11-02: players (sheet name <-> Discord name), profile link, bank reservations, guild bank purchase.
+-- Who is who: the player's name in the guild sheet (column A) and their Discord display name.
+-- Kept up to date by the "sync de guild" routine (see the project instructions).
+create table if not exists public.players (
+  player_name text primary key check (char_length(player_name) <= 40),
+  discord_name text check (char_length(discord_name) <= 60),
+  updated_at timestamptz not null default now()
+);
+alter table public.players enable row level security;
+drop policy if exists "read all" on public.players;
+drop policy if exists "write logged in" on public.players;
+create policy "read all" on public.players for select using (true);
+create policy "write logged in" on public.players for all to authenticated using (true) with check (true);
+insert into public.players (player_name, discord_name) values
+  ('Jelle', 'Dirk-Christiaan'), ('Justin', 'Dokter Tinus'), ('Bas', 'bas'), ('Rawaz', 'Daddy Draven'),
+  ('Jermo', 'Eterniity - Jermo'), ('Jacco', 'Jaccico'), ('Laurens', 'Le Noir'), ('Mike', 'VDwerg'),
+  ('Murn', 'MURN'), ('Yvo', 'Skynal'), ('Mees', 'mjezzo'), ('Ian', 'Troy')
+on conflict (player_name) do update set discord_name = excluded.discord_name;
+
+-- Guild bank: saving for the guild bank (100 gold) until it is bought; after that just the guild gold.
+alter table public.bank add column if not exists guild_bank_bought boolean not null default false;
+
+-- Reservations on bank items: any logged-in member can reserve for one of their characters.
+create table if not exists public.bank_reservations (
+  id uuid primary key default gen_random_uuid(),
+  bank_item_id uuid not null references public.bank_items(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  reserved_by text not null,
+  character text not null check (char_length(character) <= 40),
+  quantity int not null default 1 check (quantity > 0),
+  created_at timestamptz not null default now()
+);
+alter table public.bank_reservations enable row level security;
+drop policy if exists "read all" on public.bank_reservations;
+drop policy if exists "insert own" on public.bank_reservations;
+drop policy if exists "delete own" on public.bank_reservations;
+create policy "read all" on public.bank_reservations for select using (true);
+create policy "insert own" on public.bank_reservations for insert to authenticated with check (user_id = auth.uid());
+create policy "delete own" on public.bank_reservations for delete to authenticated using (user_id = auth.uid());
+
+-- 2026-11-02: reservations on trade market offers (same idea as bank reservations).
+create table if not exists public.listing_reservations (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.listings(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  reserved_by text not null,
+  character text not null check (char_length(character) <= 40),
+  quantity int not null default 1 check (quantity > 0),
+  created_at timestamptz not null default now()
+);
+alter table public.listing_reservations enable row level security;
+drop policy if exists "read all" on public.listing_reservations;
+drop policy if exists "insert own" on public.listing_reservations;
+drop policy if exists "delete own" on public.listing_reservations;
+create policy "read all" on public.listing_reservations for select using (true);
+create policy "insert own" on public.listing_reservations for insert to authenticated with check (user_id = auth.uid());
+create policy "delete own" on public.listing_reservations for delete to authenticated using (user_id = auth.uid());
+
+-- 2026-11-02: crafting requests – which profession can make the item, and the skill needed (optional).
+alter table public.listings add column if not exists profession text check (char_length(profession) <= 40);
+alter table public.listings add column if not exists min_skill int check (min_skill between 1 and 300);
+
+-- 2026-11-02: tag (ping) players on a trade listing; they see it on their Home page.
+alter table public.listings add column if not exists pinged text[] not null default '{}';
+
+-- =====================================================================
+-- 2026-11-02: log in by choosing your player + a shared guild code (no Discord login).
+-- The browser signs in anonymously (Supabase "anonymous sign-ins" must be ON) and calls
+-- join_guild(code, player). That links the browser (auth.uid()) to a sheet player in `members`.
+-- One player can have several browsers (phone + pc); "own rows" means: rows of the same player.
+-- The guild code is stored only as a bcrypt hash. Set or change it (Jelle runs this himself):
+--   insert into private.settings (key, value)
+--   values ('guild_code_hash', extensions.crypt('THE-CODE', extensions.gen_salt('bf')))
+--   on conflict (key) do update set value = excluded.value;
+-- =====================================================================
+create extension if not exists pgcrypto with schema extensions;
+create schema if not exists private;
+revoke all on schema private from anon, authenticated;
+create table if not exists private.settings (key text primary key, value text not null);
+create table if not exists private.join_attempts (user_id uuid primary key, attempts int not null default 0, last_at timestamptz not null default now());
+
+create table if not exists public.members (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  player_name text not null references public.players(player_name) on update cascade on delete cascade,
+  joined_at timestamptz not null default now()
+);
+alter table public.members enable row level security;
+drop policy if exists "read all" on public.members;
+create policy "read all" on public.members for select using (true);
+-- no insert/update/delete policies: only join_guild() writes here
+
+-- Earlier Discord logins keep their rows: link them to their player.
+insert into public.members (user_id, player_name)
+select u.id, pl.player_name from auth.users u
+join public.players pl on lower(pl.discord_name) in (
+  lower(u.raw_user_meta_data->>'full_name'), lower(u.raw_user_meta_data->>'name'),
+  lower(u.raw_user_meta_data->'custom_claims'->>'global_name'))
+on conflict (user_id) do nothing;
+
+create or replace function public.join_guild(code text, player text) returns text
+language plpgsql security definer set search_path = public, private, extensions as $$
+declare h text; n int;
+begin
+  if auth.uid() is null then raise exception 'Not signed in'; end if;
+  insert into private.join_attempts (user_id) values (auth.uid()) on conflict (user_id) do nothing;
+  update private.join_attempts set attempts = case when last_at < now() - interval '1 hour' then 1 else attempts + 1 end, last_at = now()
+    where user_id = auth.uid() returning attempts into n;
+  if n > 10 then raise exception 'Too many tries, wait an hour'; end if;
+  select value into h from private.settings where key = 'guild_code_hash';
+  if h is null then raise exception 'The guild code has not been set yet'; end if;
+  if extensions.crypt(coalesce(code, ''), h) <> h then raise exception 'Wrong guild code'; end if;
+  if not exists (select 1 from public.players where player_name = player) then raise exception 'Unknown player'; end if;
+  insert into public.members (user_id, player_name) values (auth.uid(), player)
+    on conflict (user_id) do update set player_name = excluded.player_name, joined_at = now();
+  delete from private.join_attempts where user_id = auth.uid();
+  return player;
+end $$;
+revoke all on function public.join_guild(text, text) from public, anon;
+grant execute on function public.join_guild(text, text) to authenticated;
+
+create or replace function public.is_member() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.members where user_id = auth.uid()) $$;
+create or replace function public.same_player(uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.members a join public.members b using (player_name)
+                 where a.user_id = auth.uid() and b.user_id = uid) $$;
+grant execute on function public.is_member() to anon, authenticated;
+grant execute on function public.same_player(uuid) to anon, authenticated;
+
+-- Personal tables: insert as yourself (member only); change/delete rows of your own player.
+do $$
+declare t text;
+begin
+  foreach t in array array['listings', 'tips', 'events', 'signups', 'bank_reservations', 'listing_reservations'] loop
+    execute format('drop policy if exists "insert own" on public.%I', t);
+    execute format('drop policy if exists "update own" on public.%I', t);
+    execute format('drop policy if exists "delete own" on public.%I', t);
+    execute format('create policy "insert own" on public.%I for insert to authenticated with check (user_id = auth.uid() and public.is_member())', t);
+    execute format('create policy "update own" on public.%I for update to authenticated using (public.same_player(user_id)) with check (public.same_player(user_id))', t);
+    execute format('create policy "delete own" on public.%I for delete to authenticated using (public.same_player(user_id))', t);
+  end loop;
+end $$;
+-- Shared things: any member.
+drop policy if exists "insert own" on public.addons;
+drop policy if exists "delete any logged in" on public.addons;
+create policy "insert own" on public.addons for insert to authenticated with check (created_by = auth.uid() and public.is_member());
+create policy "delete any logged in" on public.addons for delete to authenticated using (public.is_member());
+drop policy if exists "write logged in" on public.bank_items;
+create policy "write logged in" on public.bank_items for all to authenticated using (public.is_member()) with check (public.is_member());
+drop policy if exists "update logged in" on public.bank;
+create policy "update logged in" on public.bank for update to authenticated using (public.is_member()) with check (public.is_member());
+drop policy if exists "write logged in" on public.players;
+create policy "write logged in" on public.players for all to authenticated using (public.is_member()) with check (public.is_member());
+
+-- 2026-11-03: gold donations per player (Top donors on the Guild Bank page, counted from LAUNCH).
+-- Shared: any member may add/remove; the page also changes the bank balance.
+create table if not exists public.gold_donations (
+  id uuid primary key default gen_random_uuid(),
+  player_name text not null references public.players(player_name) on update cascade,
+  copper bigint not null check (copper > 0),
+  note text check (char_length(note) <= 200),
+  added_by text,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table public.gold_donations enable row level security;
+drop policy if exists "read all" on public.gold_donations;
+drop policy if exists "write members" on public.gold_donations;
+create policy "read all" on public.gold_donations for select using (true);
+create policy "write members" on public.gold_donations for all to authenticated using (public.is_member()) with check (public.is_member());
+
+-- 2026-11-03: developer mode (dev.html, opened by clicking the class icon 5 times; only for Jelle and Justin).
+create or replace function public.is_dev() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.members where user_id = auth.uid() and player_name in ('Jelle', 'Justin')) $$;
+grant execute on function public.is_dev() to anon, authenticated;
+
+-- Checklist: which updates work, which are broken, what still needs a look.
+create table if not exists public.dev_checks (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(title) <= 120),
+  area text check (char_length(area) <= 40),
+  status text not null default 'check' check (status in ('ok', 'broken', 'check')),
+  note text check (char_length(note) <= 500),
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+alter table public.dev_checks enable row level security;
+drop policy if exists "read all" on public.dev_checks;
+drop policy if exists "write devs" on public.dev_checks;
+create policy "read all" on public.dev_checks for select using (true);
+create policy "write devs" on public.dev_checks for all to authenticated using (public.is_dev()) with check (public.is_dev());
+-- Developers (Jelle, Justin) may delete any listing in developer mode (the reservations on it go with it).
+drop policy if exists "delete dev" on public.listings;
+create policy "delete dev" on public.listings for delete to authenticated using (public.is_dev());
+
+-- Messages between the developers ("To do for you" in developer mode): stays until the receiver clicks Done.
+create table if not exists public.dev_messages (
+  id uuid primary key default gen_random_uuid(),
+  to_player text not null check (to_player in ('Jelle', 'Justin')),
+  from_player text,
+  text text not null check (char_length(text) <= 1000),
+  done_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.dev_messages enable row level security;
+drop policy if exists "read devs" on public.dev_messages;
+drop policy if exists "write devs" on public.dev_messages;
+create policy "read devs" on public.dev_messages for select to authenticated using (public.is_dev());
+create policy "write devs" on public.dev_messages for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+-- 2026-11-04: the addon texts (category, what, priority, who, note) in English; they were Dutch.
+-- Idempotent: each row is matched on the addon name (the old or the new name) and set to the English text.
+update public.addons as a set
+  name = v.new_name, category = v.category, what = v.what, priority = v.priority, who = v.who,
+  note = nullif(v.note, ''), link_label = coalesce(v.link_label, a.link_label)
+from (values
+  ($q$CurseForge-app$q$, $q$CurseForge-app$q$, $q$Basics$q$, $q$Addon manager: installs and updates all your addons automatically.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Not an addon but a program on your PC. Pick the "Forever" version for WoW.$q$, null),
+  ($q$BugSack + BugGrabber$q$, $q$BugSack + BugGrabber$q$, $q$Basics$q$, $q$Catches red Lua error messages so they don't spam your screen, and shows you which addon is broken.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Update after a patch.$q$, null),
+  ($q$Guild Found Forever$q$, $q$Guild Found Forever$q$, $q$Guild-found$q$, $q$Guild-found rules: no Auction House, post and trade only within the guild, group lock with outsiders. Plus deathlog, guild map and announcements (level 60, deaths, epics).$q$, $q$Must-have$q$, $q$Whole guild$q$, $q$Best match for your own guild; an officer sets the rules via the guild info. Still beta, 1.0 planned for 4 Nov – check whether it is on CurseForge by then.$q$, null),
+  ($q$Guild Self Forever 2.0$q$, $q$Guild Self Forever 2.0$q$, $q$Guild-found$q$, $q$Blocks the AH and trading/posting outside the guild; shared bank, craft requests and roles.$q$, $q$Alternative$q$, $q$Whole guild$q$, $q$Already works on Forever, but is built for the (French-speaking) GSF guild network; rules only apply to registered characters.$q$, null),
+  ($q$ForeverGuild+$q$, $q$ForeverGuild+$q$, $q$Guild$q$, $q$Guild roster with roles, professions and craft requests, raid sign-ups, loot history and group finder.$q$, $q$Recommended$q$, $q$Whole guild$q$, $q$Does NOT enforce guild-found rules; only really works once everyone has it.$q$, null),
+  ($q$Questie$q$, $q$Questie$q$, $q$Questing & levelling$q$, $q$Shows on the map and minimap where you pick up, do and hand in quests.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$Leatrix Plus$q$, $q$Leatrix Plus$q$, $q$Questing & levelling$q$, $q$Convenience pack: sell grey items, auto-repair, hand in quests faster, block duels, zoom out further.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Everything can be switched on or off separately in the options.$q$, null),
+  ($q$Nova Spell Rank Checker$q$, $q$Nova Spell Rank Checker$q$, $q$Questing & levelling$q$, $q$Warns when an old rank of a spell is on your action bar.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$In Forever a spell on your bar does not upgrade to the new rank by itself.$q$, null),
+  ($q$GnomeLevelUp$q$, $q$GnomeLevelUp$q$, $q$Questing & levelling$q$, $q$On every level-up shows what improved and which spells you can learn from the trainer.$q$, $q$Recommended$q$, $q$Beginners$q$, $q$$q$, null),
+  ($q$Class Quests Forever$q$, $q$Class Quests Forever$q$, $q$Questing & levelling$q$, $q$Journal of all class quests; tells you when a new one unlocks and where your trainer is.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$RestedXP Guides$q$, $q$RestedXP Guides$q$, $q$Questing & levelling$q$, $q$Levelling guide with an arrow to the fastest quests.$q$, $q$Optional$q$, $q$Anyone who wants to level fast$q$, $q$Level 1–20 free, paid after that.$q$, null),
+  ($q$Leatrix Maps$q$, $q$Leatrix Maps$q$, $q$Maps & navigation$q$, $q$World map fully revealed, with zone levels and extra icons.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Don't combine with OpenMap or Mapster.$q$, null),
+  ($q$Forever Dungeon Map$q$, $q$Forever Dungeon Map$q$, $q$Maps & navigation$q$, $q$Dungeon entrances with levels on the map.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$TomTom$q$, $q$TomTom$q$, $q$Maps & navigation$q$, $q$Arrow on your screen pointing to a spot on the map (/way x y).$q$, $q$Optional$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$Edit Mode (ingebouwd)$q$, $q$Edit Mode (built in)$q$, $q$Interface$q$, $q$Move and scale action bars and frames: Esc → Edit Mode.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$Try this first before you pick a UI addon.$q$, $q$Built into the game$q$),
+  ($q$Bartender4$q$, $q$Bartender4$q$, $q$Interface$q$, $q$Action bars exactly how you want them, extra bars and /kb to set keybinds quickly.$q$, $q$Optional$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$MinimapButtonButton$q$, $q$MinimapButtonButton$q$, $q$Interface$q$, $q$Collects all addon buttons around the minimap into one button.$q$, $q$Optional$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$Baganator$q$, $q$Baganator$q$, $q$Bags & gear$q$, $q$All your bags (and bank) in one window, with search bar and sorting.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$ForeverGear$q$, $q$ForeverGear$q$, $q$Bags & gear$q$, $q$Shows whether an item is an upgrade for your spec, including quest rewards.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Choose your own spec profile; some profiles are still provisional.$q$, null),
+  ($q$Deadly Boss Mods (DBM)$q$, $q$Deadly Boss Mods (DBM)$q$, $q$Dungeons & raids$q$, $q$Warnings and timers for boss abilities.$q$, $q$Must-have$q$, $q$Everyone$q$, $q$$q$, null),
+  ($q$ThreatClassic2$q$, $q$ThreatClassic2$q$, $q$Dungeons & raids$q$, $q$Threat meter: see who has aggro and how close you are to it.$q$, $q$Must-have$q$, $q$Everyone (especially tanks)$q$, $q$Threat is harder to hold in Forever than in retail.$q$, null),
+  ($q$DungeonJournal$q$, $q$DungeonJournal$q$, $q$Dungeons & raids$q$, $q$/dj: bosses, loot, maps and quests per dungeon.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Dungeons only, no raids.$q$, null),
+  ($q$AtlasLoot Classic Forever$q$, $q$AtlasLoot Classic Forever$q$, $q$Dungeons & raids$q$, $q$Loot tables of dungeons and raids.$q$, $q$Recommended$q$, $q$Everyone$q$, $q$Get THIS version, not the old AtlasLootClassic.$q$, null),
+  ($q$Details!$q$, $q$Details!$q$, $q$Dungeons & raids$q$, $q$Extensive damage and heal meter.$q$, $q$Optional$q$, $q$Everyone$q$, $q$There is already a damage meter in the game; Details! is extra.$q$, null),
+  ($q$SkillUp Forever$q$, $q$SkillUp Forever$q$, $q$Professions$q$, $q$Chance of a skill-up per recipe, shopping list and levelling route for your profession.$q$, $q$Recommended$q$, $q$Anyone with a profession$q$, $q$Extra handy in guild-found: you have to make everything yourself.$q$, null),
+  ($q$ForeverMapNotes$q$, $q$ForeverMapNotes$q$, $q$Professions$q$, $q$Ores, herbs, chests and rares on the map.$q$, $q$Optional$q$, $q$Mining / Herbalism$q$, $q$$q$, null),
+  ($q$HealBot Continued$q$, $q$HealBot Continued$q$, $q$Role: healer$q$, $q$Heal frames: click a teammate (or hover + key) to heal.$q$, $q$Must-have$q$, $q$Healers$q$, $q$Pick HealBot OR VuhDo, not both.$q$, null),
+  ($q$VuhDo$q$, $q$VuhDo$q$, $q$Role: healer$q$, $q$Alternative to HealBot with raid frames and click-healing.$q$, $q$Alternative$q$, $q$Healers$q$, $q$$q$, null),
+  ($q$Decursive$q$, $q$Decursive$q$, $q$Role: healer$q$, $q$Shows who has a debuff you can remove; one click to dispel.$q$, $q$Recommended$q$, $q$Priest, Paladin, Druid, Shaman, Mage$q$, $q$$q$, null),
+  ($q$Threat Plates$q$, $q$Threat Plates$q$, $q$Role: tank$q$, $q$Colours nameplates by threat, so you immediately see which mob breaks loose.$q$, $q$Recommended$q$, $q$Tanks (also handy for DPS)$q$, $q$During the beta the CurseForge version lagged behind; check whether there is a Forever file.$q$, null),
+  ($q$Forever Classmate$q$, $q$Forever Classmate$q$, $q$Class-specific$q$, $q$Recognises your class and shows only what you need: buff reminders, resources, DoT bars.$q$, $q$Recommended$q$, $q$All classes$q$, $q$Good replacement for WeakAuras (which doesn't work on Forever).$q$, null),
+  ($q$Mage Tools Forever$q$, $q$Mage Tools Forever$q$, $q$Class-specific$q$, $q$Conjure and hand out food/drink per level, portal bar and Polymorph bar.$q$, $q$Recommended$q$, $q$Mage$q$, $q$$q$, null),
+  ($q$Warlock Tools Forever$q$, $q$Warlock Tools Forever$q$, $q$Class-specific$q$, $q$Manage Soul Shards, Soulstone/Healthstone buttons, DoT tracker, Fear/Banish bar.$q$, $q$Recommended$q$, $q$Warlock$q$, $q$$q$, null),
+  ($q$TotemTimers$q$, $q$TotemTimers$q$, $q$Class-specific$q$, $q$Timers and quick buttons for your totems.$q$, $q$Recommended$q$, $q$Shaman$q$, $q$$q$, null),
+  ($q$Combo Points on Plate$q$, $q$Combo Points on Plate$q$, $q$Class-specific$q$, $q$Combo points under the nameplate of your target.$q$, $q$Optional$q$, $q$Rogue, Feral Druid$q$, $q$$q$, null),
+  ($q$Auctionator / TSM$q$, $q$Auctionator / TSM$q$, $q$Not needed / doesn't work$q$, $q$Auction House addons.$q$, $q$Not needed$q$, $q$—$q$, $q$Guild-found = no Auction House.$q$, null),
+  ($q$WeakAuras, OmniCC, OmniBar, Postal, AdiBags$q$, $q$WeakAuras, OmniCC, OmniBar, Postal, AdiBags$q$, $q$Not needed / doesn't work$q$, $q$Well-known addons without a working Forever version.$q$, $q$Doesn't work$q$, $q$—$q$, $q$Use Forever Classmate / the built-in Cooldown Manager, Baganator instead of AdiBags.$q$, null)
+) as v(old_name, new_name, category, what, priority, who, note, link_label)
+where a.name in (v.old_name, v.new_name);
+
+-- 2026-11-03: Tickets in developer mode (dev.html → tabs Ideas and Fixes): cards for ideas and for things that
+-- still need fixing, which a developer can put on his name ("I'm working on this"). Only Jelle and Justin (is_dev()).
+create table if not exists public.dev_tickets (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null default 'idea' check (kind in ('idea', 'fix')),
+  title text not null check (char_length(title) <= 120),
+  area text check (char_length(area) <= 40),
+  body text check (char_length(body) <= 6000),
+  status text not null default 'open' check (status in ('open', 'doing', 'done')),
+  created_by text,
+  claimed_by text check (claimed_by in ('Jelle', 'Justin')),
+  updated_by text,
+  done_at timestamptz,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+alter table public.dev_tickets enable row level security;
+drop policy if exists "read devs" on public.dev_tickets;
+drop policy if exists "write devs" on public.dev_tickets;
+create policy "read devs" on public.dev_tickets for select to authenticated using (public.is_dev());
+create policy "write devs" on public.dev_tickets for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+-- Urgency of a ticket: 4 = Urgent, 3 = High, 2 = Normal, 1 = Low (highest first on the board).
+alter table public.dev_tickets add column if not exists urgency smallint not null default 2 check (urgency between 1 and 4);
+
+-- Reactions on a ticket (❤️ 👍 …): per emoji the names of who reacted, e.g. {"❤️": ["Jelle", "Justin"]}.
+-- Changed only through toggle_ticket_reaction(), which takes your name from members (so you can only switch your own).
+alter table public.dev_tickets add column if not exists reactions jsonb not null default '{}'::jsonb;
+create or replace function public.toggle_ticket_reaction(p_ticket uuid, p_emoji text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare me text; cur jsonb; arr jsonb;
+begin
+  if not public.is_dev() then raise exception 'Only developers can react'; end if;
+  if p_emoji not in ('❤️', '👍', '👎', '🔥', '😂', '🤔', '🎉', '👀', '🚀', '⭐') then raise exception 'Unknown reaction'; end if;
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  select reactions into cur from public.dev_tickets where id = p_ticket for update;
+  if cur is null then raise exception 'Ticket not found'; end if;
+  arr := coalesce(cur -> p_emoji, '[]'::jsonb);
+  if arr ? me then
+    arr := (select coalesce(jsonb_agg(x), '[]'::jsonb) from jsonb_array_elements_text(arr) as x where x <> me);
+  else
+    arr := arr || to_jsonb(me);
+  end if;
+  if jsonb_array_length(arr) = 0 then cur := cur - p_emoji; else cur := jsonb_set(cur, array[p_emoji], arr); end if;
+  update public.dev_tickets set reactions = cur where id = p_ticket;
+  return cur;
+end $$;
+revoke execute on function public.toggle_ticket_reaction(uuid, text) from public, anon;
+grant execute on function public.toggle_ticket_reaction(uuid, text) to authenticated;
+
+-- Comments on a ticket (dev.html → Ideas / Fixes → 💬). The author is filled in by the database (from members),
+-- so it always shows the right name; you can only remove your own comment.
+create table if not exists public.dev_ticket_comments (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references public.dev_tickets (id) on delete cascade,
+  author text,
+  text text not null check (char_length(text) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+create index if not exists dev_ticket_comments_ticket on public.dev_ticket_comments (ticket_id, created_at);
+create or replace function public.set_comment_author() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.author := (select player_name from public.members where user_id = auth.uid() limit 1);
+  new.created_at := now();
+  return new;
+end $$;
+drop trigger if exists set_comment_author on public.dev_ticket_comments;
+create trigger set_comment_author before insert on public.dev_ticket_comments for each row execute function public.set_comment_author();
+alter table public.dev_ticket_comments enable row level security;
+drop policy if exists "read devs" on public.dev_ticket_comments;
+drop policy if exists "add devs" on public.dev_ticket_comments;
+drop policy if exists "delete own" on public.dev_ticket_comments;
+create policy "read devs" on public.dev_ticket_comments for select to authenticated using (public.is_dev());
+create policy "add devs" on public.dev_ticket_comments for insert to authenticated with check (public.is_dev());
+create policy "delete own" on public.dev_ticket_comments for delete to authenticated
+  using (public.is_dev() and author = (select player_name from public.members where user_id = auth.uid() limit 1));
+
+-- The first ideas used to be added here on every run, so a removed idea came back. They are in the database already and are no longer added; they stay on the board until someone removes them.
+
+-- The example fix card is gone: this file used to add it again on every run, also after someone removed it. This removes the last copy.
+delete from public.dev_tickets where id = '6f1d2a10-0001-4c3e-9a51-000000000101';
+
+-- Checklist item for the new boards.
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$, $q$Developer mode$q$, 'check', $q$Try every button on dev.html → Ideas and Fixes once, as Jelle and as Justin.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ideas + Fixes boards: add, edit, claim, let go, done, reopen$q$);
+
+-- 2026-11-04: where a card came from: 'board' = added on dev.html itself, 'player' = sent in with "Report a problem" / "Suggest a feature"
+-- (also when a developer used those buttons: that card does count as new for the developer who sent it).
+alter table public.dev_tickets add column if not exists source text not null default 'board' check (source in ('board', 'player'));
+
+-- 2026-11-04: every logged-in player can report a problem or suggest a feature (account menu → "Report a problem" / "Suggest a feature").
+-- It becomes a card on the Fixes or Ideas board (dev_tickets) with the player's name as created_by. Players cannot read or change
+-- the boards themselves (only is_dev()); they only hand a ticket in through this function, which takes the name from `members`
+-- (so nobody can send in something in another player's name) and allows 10 per hour per player.
+create or replace function public.submit_ticket(p_kind text, p_title text, p_body text, p_page text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare me text; new_id uuid; t text; b text;
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if me is null then raise exception 'Choose your player first'; end if;
+  if p_kind not in ('idea', 'fix') then raise exception 'Unknown kind'; end if;
+  t := btrim(coalesce(p_title, ''));
+  b := btrim(coalesce(p_body, ''));
+  if char_length(t) < 3 then raise exception 'Give it a short title'; end if;
+  if (select count(*) from public.dev_tickets where created_by = me and created_at > now() - interval '1 hour') >= 10 then
+    raise exception 'That is a lot of reports in an hour, try again later';
+  end if;
+  insert into public.dev_tickets (kind, title, area, body, created_by, updated_by, source)
+  values (p_kind, left(t, 120), nullif(left(btrim(coalesce(p_page, '')), 40), ''), nullif(left(b, 6000), ''), me, me, 'player')
+  returning id into new_id;
+  return new_id;
+end $$;
+revoke all on function public.submit_ticket(text, text, text, text) from public, anon;
+grant execute on function public.submit_ticket(text, text, text, text) to authenticated;
+
+-- What is new for a developer: per developer the moment they last opened the Ideas tab and the Fixes tab on dev.html.
+-- The orange count next to DEV = tickets made by someone else after that moment. First time: everything that exists counts as seen.
+create table if not exists public.dev_seen (
+  player_name text primary key,
+  ideas_seen_at timestamptz not null default now(),
+  fixes_seen_at timestamptz not null default now()
+);
+alter table public.dev_seen enable row level security;  -- no policies: only the two functions below use it
+
+create or replace function public.dev_ticket_news() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare me text; s public.dev_seen; ni int; nf int;
+begin
+  if not public.is_dev() then return jsonb_build_object('ideas', 0, 'fixes', 0); end if;
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  insert into public.dev_seen (player_name) values (me) on conflict (player_name) do nothing;
+  select * into s from public.dev_seen where player_name = me;
+  select count(*) into ni from public.dev_tickets where kind = 'idea' and created_at > s.ideas_seen_at and (coalesce(created_by, '') <> me or source = 'player');
+  select count(*) into nf from public.dev_tickets where kind = 'fix' and created_at > s.fixes_seen_at and (coalesce(created_by, '') <> me or source = 'player');
+  return jsonb_build_object('ideas', ni, 'fixes', nf, 'ideas_seen_at', s.ideas_seen_at, 'fixes_seen_at', s.fixes_seen_at);
+end $$;
+
+create or replace function public.dev_mark_tickets_seen(p_kind text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text;
+begin
+  if not public.is_dev() then return; end if;
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  insert into public.dev_seen (player_name) values (me) on conflict (player_name) do nothing;
+  if p_kind = 'idea' then update public.dev_seen set ideas_seen_at = now() where player_name = me;
+  elsif p_kind = 'fix' then update public.dev_seen set fixes_seen_at = now() where player_name = me;
+  end if;
+end $$;
+revoke all on function public.dev_ticket_news() from public, anon;
+revoke all on function public.dev_mark_tickets_seen(text) from public, anon;
+grant execute on function public.dev_ticket_news() to authenticated;
+grant execute on function public.dev_mark_tickets_seen(text) to authenticated;
+
+-- Checklist item for this feature.
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Report a problem / Suggest a feature from the account menu, with the orange count next to DEV$q$, $q$Developer mode$q$, 'check',
+  $q$As a player (not Jelle or Justin): menu → Report a problem and Suggest a feature, send one of each. As a developer: the orange count shows up next to DEV, the cards are on Fixes / Ideas with the player's name and a New label, and the count is gone after opening the tab.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Report a problem / Suggest a feature from the account menu, with the orange count next to DEV$q$);
+
+-- 2026-11-04: automatic check after every deploy (workflow "Check site after deploy", tools/check-site.mjs).
+-- The workflow reports its result with report_deploy_check(). It has no login, so it proves itself with a secret that is stored
+-- only as a hash (like the guild code). Set it once (Jelle or Justin, in the SQL Editor), and put the SAME secret in GitHub as the
+-- Actions secret DEPLOY_CHECK_SECRET (use a long random one, e.g. 40 characters):
+--   insert into private.settings (key, value)
+--   values ('deploy_check_hash', extensions.crypt('A-LONG-RANDOM-SECRET', extensions.gen_salt('bf')))
+--   on conflict (key) do update set value = excluded.value;
+-- Result: one line in Checks ("Automatic check after every deploy": red when broken, green when fine) and, while it is broken,
+-- one open card in Fixes (made by "Deploy check", kept up to date; closed again when the check is green and nobody picked it up).
+create or replace function public.report_deploy_check(p_secret text, p_ok boolean, p_summary text, p_details text, p_commit text) returns void
+language plpgsql security definer set search_path = public, private, extensions as $$
+declare h text; chk constant text := 'Automatic check after every deploy'; note_text text; card text; open_id uuid;
+begin
+  select value into h from private.settings where key = 'deploy_check_hash';
+  if h is null or extensions.crypt(coalesce(p_secret, ''), h) <> h then raise exception 'Not allowed'; end if;
+  note_text := left(coalesce(p_summary, '') || case when coalesce(p_commit, '') <> '' then ' · ' || p_commit else '' end, 500);
+  card := left(coalesce(p_summary, '') || E'\n\n' || coalesce(p_details, '') || E'\n\n' || coalesce(p_commit, ''), 6000);
+
+  update public.dev_checks set status = case when p_ok then 'ok' else 'broken' end, note = note_text, updated_by = 'Deploy check', updated_at = now()
+  where title = chk;
+  if not found then
+    insert into public.dev_checks (title, area, status, note, updated_by)
+    values (chk, 'Deploy', case when p_ok then 'ok' else 'broken' end, note_text, 'Deploy check');
+  end if;
+
+  select id into open_id from public.dev_tickets
+  where kind = 'fix' and created_by = 'Deploy check' and status in ('open', 'doing') order by created_at desc limit 1;
+  if not p_ok then
+    if open_id is null then
+      insert into public.dev_tickets (kind, title, area, body, urgency, created_by, updated_by)
+      values ('fix', 'The automatic check after the deploy found errors', 'Deploy', card, 3, 'Deploy check', 'Deploy check');
+    else
+      update public.dev_tickets set body = card, updated_by = 'Deploy check', updated_at = now() where id = open_id;
+    end if;
+  elsif open_id is not null then
+    update public.dev_tickets set status = 'done', done_at = now(), updated_by = 'Deploy check', updated_at = now()
+    where id = open_id and status = 'open';
+  end if;
+end $$;
+revoke all on function public.report_deploy_check(text, boolean, text, text, text) from public;
+grant execute on function public.report_deploy_check(text, boolean, text, text, text) to anon, authenticated;
+
+-- Checklist item for this feature.
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$, $q$Deploy$q$, 'check',
+  $q$1) Put a long random secret in GitHub as DEPLOY_CHECK_SECRET. 2) Run the SQL in the comment above report_deploy_check in schema.sql with the same secret. 3) GitHub → Actions → Check site after deploy → Run workflow: the line "Automatic check after every deploy" appears here, green.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Deploy check: set the secret (GitHub + Supabase) and run it once$q$);
+
+-- 2026-11-04: Switch main on My profile. Takes the player name from `members`; only this function may change a player's status (see characters_guard).
+create or replace function public.set_main_character(p_character text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text; c text;
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if me is null then raise exception 'Choose your player first'; end if;
+  c := btrim(coalesce(p_character, ''));
+  if char_length(c) < 1 or char_length(c) > 60 then raise exception 'Unknown character'; end if;
+  if not exists (select 1 from public.characters ch where ch.player_name = me and lower(btrim(ch.name)) = lower(c)) then
+    raise exception 'Unknown character';
+  end if;
+  -- The old main becomes an Alt first (one main per player).
+  perform set_config('app.switching_main', 'on', true);  -- lets characters_guard allow this status change; only for this transaction
+  update public.characters set status = 'Alt' where player_name = me and status = 'Main' and lower(btrim(name)) <> lower(c);
+  update public.characters set status = 'Main' where player_name = me and lower(btrim(name)) = lower(c) and status <> 'Main';
+end $$;
+revoke all on function public.set_main_character(text) from public, anon;
+grant execute on function public.set_main_character(text) to authenticated;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Choose your main character (My profile)$q$, $q$Profile$q$, 'check',
+  $q$Player with 2+ characters: pick a main on My profile, then check Roster / Home / Overview (main + alts). Switch to another main and back. Player with 1 character: automatically main. Then run a guild sync: Discord follows the choice.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Choose your main character (My profile)$q$);
+
+-- 2026-11-04: Change log per ticket (dev.html → Ideas / Fixes → card → History). A trigger on dev_tickets writes a line for
+-- every real change (created, taken, let go, done, reopened, urgency, edited), whoever or whatever made it (dev.html,
+-- submit_ticket(), SQL). Reactions and plain "updated_at" bumps are not logged. Only is_dev() can read it; nobody writes it by hand.
+create table if not exists public.dev_ticket_log (
+  id uuid primary key default gen_random_uuid(),
+  ticket_id uuid not null references public.dev_tickets (id) on delete cascade,
+  actor text,
+  text text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists dev_ticket_log_ticket on public.dev_ticket_log (ticket_id, created_at);
+alter table public.dev_ticket_log add column if not exists detail text;  -- 2026-11-04: what the text was before / is now (details edits)
+alter table public.dev_ticket_log enable row level security;
+drop policy if exists "read devs" on public.dev_ticket_log;
+create policy "read devs" on public.dev_ticket_log for select to authenticated using (public.is_dev());
+
+create or replace function public.log_ticket_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare me text; urgs text[] := array['Low', 'Normal', 'High', 'Urgent'];
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if tg_op = 'INSERT' then
+    insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+    values (new.id, coalesce(new.created_by, me), case when new.source = 'player' then 'Reported it' else 'Added it' end, new.created_at);
+    return new;
+  end if;
+  me := coalesce(me, new.updated_by);
+  if new.status is distinct from old.status or new.claimed_by is distinct from old.claimed_by then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, case
+      when new.status = 'done' then 'Marked it done' || coalesce(' (on ' || new.claimed_by || '''s name)', '')
+      when new.status = 'doing' and old.status = 'doing' and old.claimed_by is not null then 'Took it over from ' || old.claimed_by
+      when new.status = 'doing' then 'Took it ("I''ll take this")'
+      when new.status = 'open' and old.status = 'done' then 'Reopened it'
+      when new.status = 'open' and old.status = 'doing' then 'Let go of it' || coalesce(' (was on ' || old.claimed_by || '''s name)', '')
+      else 'Status: ' || old.status || ' → ' || new.status end);
+  end if;
+  if new.urgency is distinct from old.urgency then
+    insert into public.dev_ticket_log (ticket_id, actor, text)
+    values (new.id, me, 'Urgency: ' || urgs[old.urgency] || ' → ' || urgs[new.urgency]);
+  end if;
+  if new.title is distinct from old.title then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Changed the title (was "' || old.title || '")');
+  end if;
+  if new.area is distinct from old.area then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Area: ' || coalesce(old.area, '–') || ' → ' || coalesce(new.area, '–'));
+  end if;
+  if new.body is distinct from old.body then
+    insert into public.dev_ticket_log (ticket_id, actor, text, detail)
+    values (new.id, me, 'Edited the details', 'Was: ' || coalesce(left(old.body, 400), '(empty)') || E'\nNow: ' || coalesce(left(new.body, 400), '(empty)'));
+  end if;
+  return new;
+end $$;
+drop trigger if exists log_ticket_change on public.dev_tickets;
+create trigger log_ticket_change after insert or update on public.dev_tickets for each row execute function public.log_ticket_change();
+
+-- Tickets from before this log existed: one "created" line (and "done" if it is done), so every card has a start.
+insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+select t.id, t.created_by, case when t.source = 'player' then 'Reported it' else 'Added it' end, t.created_at
+from public.dev_tickets t where not exists (select 1 from public.dev_ticket_log l where l.ticket_id = t.id);
+insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+select t.id, coalesce(t.claimed_by, t.updated_by), 'Marked it done', coalesce(t.done_at, t.updated_at)
+from public.dev_tickets t where t.status = 'done'
+  and not exists (select 1 from public.dev_ticket_log l where l.ticket_id = t.id and l.text like 'Marked it done%');
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ticket history (Ideas + Fixes cards)$q$, $q$Developer mode$q$, 'check',
+  $q$After running schema.sql: open a card → 🕘 History shows who created it. Take it, change urgency, edit, let go, done, reopen: each adds a line with the right name and time. Reactions add nothing. A report sent in through the account menu shows "Reported it".$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ticket history (Ideas + Fixes cards)$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$, $q$Developer mode$q$, 'check',
+  $q$Open 🕘 History of all fixes under the board: newest first, who + what + ticket + "now: phase" + time. Click a ticket name: the card opens. Do something to a ticket (take, done, edit): a new line appears on top.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$History of all tickets (bottom of the Ideas / Fixes boards)$q$);
+
+-- 2026-11-05: character data from the Blizzard API, every 15 minutes (every 5 minutes since 2026-11-07) (GitHub's own schedule proved unreliable, and data in the repo meant a commit
+-- + deploy per update). The Edge Function supabase/functions/update-characters writes these tables with the service key; the site only reads them
+-- (loadBlizzard() in js/sheet.js). blizzard_characters: one row per character, data = one entry per character.
+-- blizzard_update: one row with the last successful run (updated_at), its counts, and the last problem (message).
+create table if not exists public.blizzard_characters (
+  key text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.blizzard_update (
+  id int primary key default 1 check (id = 1),
+  updated_at timestamptz,
+  ok int,
+  not_found int,
+  errors int,
+  message text
+);
+alter table public.blizzard_characters enable row level security;
+alter table public.blizzard_update enable row level security;
+drop policy if exists "read all" on public.blizzard_characters;
+drop policy if exists "read all" on public.blizzard_update;
+create policy "read all" on public.blizzard_characters for select using (true);  -- no write policies: only the service key writes
+create policy "read all" on public.blizzard_update for select using (true);
+grant select on public.blizzard_characters, public.blizzard_update to anon, authenticated;
+grant all on public.blizzard_characters, public.blizzard_update to service_role;
+
+-- The timer: every 5 minutes pg_cron calls the Edge Function. The secret comes from the Vault (never in this file), once, by a developer:
+--   select vault.create_secret('<the same text as the function secret UPDATE_CHARACTERS_SECRET>', 'update_characters_secret');
+-- To change it later:  select vault.update_secret((select id from vault.secrets where name = 'update_characters_secret'), '<new text>');
+-- See what it did:     select * from cron.job_run_details order by start_time desc limit 10;  select * from net._http_response order by created desc limit 10;
+create extension if not exists pg_cron with schema pg_catalog;
+create extension if not exists pg_net with schema extensions;
+select cron.schedule('update-characters', '*/5 * * * *', $job$
+  select net.http_post(
+    url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/update-characters',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+      'x-update-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'update_characters_secret' limit 1)),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 140000
+  )
+$job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character data every 5 minutes (Supabase)$q$, $q$Characters$q$, 'check',
+  $q$After the setup: Checks → Blizzard characters shows "Updated" less than 30 minutes ago and comes from the database. Log out in the game with a character of level 10+, wait up to 5 minutes, reload Members: the new level and skills are there, without a new commit or deploy.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character data every 5 minutes (Supabase)$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Game statistics on Home and player pages$q$, $q$Characters$q$, 'check',
+  $q$After deploying the Edge Function update-characters again in Supabase: within 5 minutes Home shows Activity in the game (quests, kills, deaths, fish). Compare one player page with that character's in-game statistics, and check that the player pages add up to the guild total.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Game statistics on Home and player pages$q$);
+
+-- 2026-11-06: all characters in one table (this replaced the Google Sheet and the tables profiles, alts and main_characters).
+-- Everyone can read. The API stays leading on the site where it knows a character (applyApi() in js/sheet.js); these rows are what the API cannot tell.
+-- Who may change what is enforced by the trigger below:
+--   developers (is_dev()): everything; a player: only their own characters.
+--   a player, API does not know the character yet (under level 10): name, race, class and role.
+--   a player, API knows the character: only the role.
+-- Level and professions come from the API. professions: [{"name": "Mining", "kind": "primary" | "secondary", "skill": 12}]. No limit on the number of alts.
+create table if not exists public.characters (
+  id uuid primary key default gen_random_uuid(),
+  player_name text not null references public.players(player_name) on update cascade,
+  name text not null check (char_length(btrim(name)) between 1 and 60),
+  race text check (char_length(race) <= 40),
+  class text check (char_length(class) <= 40),
+  role text check (role in ('Tank', 'Healer', 'DPS')),
+  level int check (level between 1 and 60),
+  professions jsonb not null default '[]'::jsonb check (jsonb_typeof(professions) = 'array'),
+  status text not null default 'Alt' check (status in ('Main', 'Alt', 'Gestopt')),
+  notes text check (char_length(notes) <= 500),
+  recipes text check (char_length(recipes) <= 500),
+  updated_at timestamptz not null default now(),
+  updated_by text,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists characters_name_key on public.characters ((lower(btrim(name))));  -- the name is the key on the site and in the API
+create unique index if not exists characters_one_main on public.characters (player_name) where status = 'Main';
+alter table public.characters enable row level security;
+
+create or replace function public.current_player() returns text
+language sql stable security definer set search_path = public as $$
+  select player_name from public.members where user_id = auth.uid() limit 1 $$;
+grant execute on function public.current_player() to anon, authenticated;
+
+drop policy if exists "read all" on public.characters;
+drop policy if exists "insert own" on public.characters;
+drop policy if exists "update own" on public.characters;
+drop policy if exists "delete devs" on public.characters;
+create policy "read all" on public.characters for select using (true);
+create policy "insert own" on public.characters for insert to authenticated with check (public.is_dev() or player_name = public.current_player());
+create policy "update own" on public.characters for update to authenticated using (public.is_dev() or player_name = public.current_player()) with check (public.is_dev() or player_name = public.current_player());
+create policy "delete devs" on public.characters for delete to authenticated using (public.is_dev());
+grant select on public.characters to anon, authenticated;
+grant insert, update, delete on public.characters to authenticated;
+grant all on public.characters to service_role;
+
+create or replace function public.characters_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare known boolean;
+begin
+  if auth.uid() is null then return new; end if;  -- SQL Editor (import, which keeps the sheet's date) and the service key
+  new.updated_at := now();
+  new.updated_by := public.current_player();
+  if public.is_dev() then return new; end if;
+  if tg_op = 'INSERT' then
+    -- A player only gives name, race, class and role. The first character of a player is the main.
+    new.level := null; new.professions := '[]'::jsonb; new.notes := null; new.recipes := null;
+    new.status := case when exists (select 1 from public.characters c where c.player_name = new.player_name and c.status = 'Main') then 'Alt' else 'Main' end;
+    return new;
+  end if;
+  if new.player_name is distinct from old.player_name or new.level is distinct from old.level or new.professions is distinct from old.professions
+     or (new.status is distinct from old.status and current_setting('app.switching_main', true) is distinct from 'on')
+     or new.notes is distinct from old.notes or new.recipes is distinct from old.recipes then
+    raise exception 'Only the name, race, class and role of a character can be changed here';
+  end if;
+  known := exists (select 1 from public.blizzard_characters b where b.key = lower(btrim(old.name)) and b.data->>'status' = 'ok');  -- since 10 Nov 2026 also 'guild': see the new version at the bottom
+  if known and (new.name is distinct from old.name or new.race is distinct from old.race or new.class is distinct from old.class) then
+    raise exception 'The game knows this character: only the role can be changed';
+  end if;
+  return new;
+end $$;
+drop trigger if exists characters_guard on public.characters;
+create trigger characters_guard before insert or update on public.characters for each row execute function public.characters_guard();
+
+-- 2026-11-06: the Google Sheet is gone. The old character tables are not used any more: all their characters are in the table characters.
+drop table if exists public.profiles;
+drop table if exists public.alts;
+drop table if exists public.main_characters;
+delete from public.dev_checks where title = $q$Table characters: import from the sheet$q$;
+
+-- 2026-11-06: test points for Justin's changes (sheet removed, characters table, character pictures, Details card).
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Google Sheet gone: site works without it$q$, $q$Characters$q$, 'check',
+  $q$Open Home, Roster, Professions, Overview and a player page: all show the characters (levels, professions, roles) without errors. Nothing mentions the sheet any more. Developer mode > Checks: no red lines for old sheet or import checks.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Google Sheet gone: site works without it$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$My profile: main + alts, character picture$q$, $q$My profile$q$, 'check',
+  $q$Open My profile: cards are equal and narrower, the main and its alts (sorted by level) sit under each other with the items around the character picture from the game. Switch main still works. Set up a new character (not known to the game yet): rules still allow editing race, class and role.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$My profile: main + alts, character picture$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character picture on the player and character pages$q$, $q$Characters$q$, 'check',
+  $q$Player page: full-width character cards with the items around the picture. Character page: stat tiles on top, picture fits its frame. A character the game does not know yet shows no broken image.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character picture on the player and character pages$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character page: Last login and Last updated in Details$q$, $q$Characters$q$, 'check',
+  $q$Open a character the game knows: Details shows Last login and Last updated with date and time in Dutch time. A character under level 10 shows only the date it was last changed. The From the game card is gone.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character page: Last login and Last updated in Details$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Developer mode > Characters: edit and lock$q$, $q$Developer mode$q$, 'check',
+  $q$Characters tab shows what the site shows. Game fields (level, race, class, professions) are locked for characters the game knows; role, status, name and notes can be edited, for one of your own and for another player's. Saving works and the change shows on the site.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Developer mode > Characters: edit and lock$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Update characters every 5 minutes (Edge Function)$q$, $q$Characters$q$, 'check',
+  $q$Developer mode > Checks: the Blizzard data line is green and not older than about 10 minutes (orange after 30). Level, professions and last login change after a player logs out. If you changed supabase/functions/update-characters, deploy it in Supabase first.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Update characters every 5 minutes (Edge Function)$q$);
+
+-- 2026-11-06: achievement tree (achievements.html, js/achievements.js). The catalogue lives in the code; this table holds what the developers
+-- changed: switch an achievement off (player_name '' only), force it unlocked / locked, enter a value, or reset it (baseline = what the
+-- player had at that moment, progress counts from there). player_name '' = everyone / a guild goal; a player's own row wins over it.
+create table if not exists public.achievement_overrides (
+  achievement_id text not null check (char_length(achievement_id) <= 40),
+  player_name text not null default '' check (char_length(player_name) <= 40),
+  disabled boolean not null default false,
+  forced text check (forced in ('unlocked', 'locked')),
+  value numeric check (value >= 0),
+  baseline numeric not null default 0 check (baseline >= 0),
+  note text check (char_length(note) <= 200),
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  primary key (achievement_id, player_name)
+);
+alter table public.achievement_overrides enable row level security;
+drop policy if exists "read all" on public.achievement_overrides;
+drop policy if exists "write devs" on public.achievement_overrides;
+create policy "read all" on public.achievement_overrides for select using (true);
+create policy "write devs" on public.achievement_overrides for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Achievement tree: unlock flow and progress$q$, $q$Achievements$q$, 'check',
+  $q$After running schema.sql: open Achievements. Everything behind an unfinished achievement shows ???. Progress bars match the Roster (levels, skill), Bank (donations). Switch "Viewing" to another player: points and unlocks change. Check kills, quests, deaths and fish against From the game numbers.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Achievement tree: unlock flow and progress$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Achievement tree: developer controls$q$, $q$Achievements$q$, 'check',
+  $q$In developer mode click an achievement. Switch off: it greys out, stops counting and does not block the ones behind it. Force unlocked / locked, Set value, Reset progress and Remove all changes each ask for confirmation and change the tree at once. A non-developer cannot save (the database refuses).$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Achievement tree: developer controls$q$);
+
+-- 2026-11-06: only the developers (Jelle and Justin, is_dev()) may change the guild gold: the bank balance / goal / "bought" flag and the gold
+-- donations (Top donors, achievements). Until now any member could, the page only hid the buttons. The database refuses it now.
+-- Reading stays open for everybody. Bank items and reservations are unchanged (any member).
+drop policy if exists "update logged in" on public.bank;
+drop policy if exists "update devs" on public.bank;
+create policy "update devs" on public.bank for update to authenticated using (public.is_dev()) with check (public.is_dev());
+drop policy if exists "write members" on public.gold_donations;
+drop policy if exists "write devs" on public.gold_donations;
+create policy "write devs" on public.gold_donations for all to authenticated using (public.is_dev()) with check (public.is_dev());
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Gold can only be changed by developers$q$, $q$Bank$q$, 'check',
+  $q$After running schema.sql: as Jelle/Justin the Bank manager still works (+ Add with donor, Set, Remove donation, goal, bought). As a normal player (switch player, no developer mode) the manager is hidden; if you try in the browser console `supabase.from('gold_donations').insert(...)` or update `bank`, the database refuses it.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Gold can only be changed by developers$q$);
+
+-- 2026-11-06: Ding Dinky, the Discord bot (Edge Function supabase/functions/ding-bot): posts level ups and achievements in the Discord channel #dings.
+-- players.discord_id = the Discord user id (digits) of the player, used to @mention them. The ding_* tables are the bot's memory; everybody may read
+-- them (Developer mode shows the log), nobody but the function (service key) may write.
+alter table public.players add column if not exists discord_id text;
+alter table public.players drop constraint if exists players_discord_id_check;
+alter table public.players add constraint players_discord_id_check check (discord_id is null or discord_id ~ '^[0-9]{15,25}$');
+
+create table if not exists public.ding_levels (
+  character_key text primary key,
+  character_name text,
+  player_name text,
+  level int not null,
+  updated_at timestamptz not null default now()
+);
+-- 2026-11-07: the recap shows what a character did since the previous run, so its numbers are remembered per run
+alter table public.ding_levels add column if not exists quests int;
+alter table public.ding_levels add column if not exists kills int;
+alter table public.ding_levels add column if not exists deaths int;
+alter table public.ding_levels add column if not exists skills jsonb;
+alter table public.ding_levels add column if not exists gear jsonb; -- item ids worn at the previous run (2026-11-07)
+create table if not exists public.ding_known (
+  player_name text not null default '',
+  achievement_id text not null,
+  first_seen timestamptz not null default now(),
+  primary key (player_name, achievement_id)
+);
+create table if not exists public.ding_players (
+  player_name text primary key,
+  baselined_at timestamptz not null default now()
+);
+create table if not exists public.ding_log (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null,
+  player_name text,
+  summary text
+);
+create table if not exists public.ding_status (
+  id int primary key default 1 check (id = 1),
+  last_run_at timestamptz,
+  posted int not null default 0,
+  message text,
+  activated_at timestamptz
+);
+do $$ declare t text; begin
+  foreach t in array array['ding_levels', 'ding_known', 'ding_players', 'ding_log', 'ding_status'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "read all" on public.%I', t);
+    execute format('create policy "read all" on public.%I for select using (true)', t);
+  end loop;
+end $$;
+
+-- Every 5 minutes, 2 minutes after update-characters (a level only changes after the character has logged out).
+-- Same secret as update-characters: the Vault secret update_characters_secret and the function secret UPDATE_CHARACTERS_SECRET.
+select cron.unschedule(jobid) from cron.job where jobname = 'ding-bot';
+select cron.schedule('ding-bot', '2-59/5 * * * *', $job$
+  select net.http_post(
+    url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/ding-bot',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-update-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'update_characters_secret')
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 140000
+  );
+$job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding-bot: level ups and achievements in #dings$q$, $q$Discord$q$, 'check',
+  $q$After deploying the Edge Function ding-bot and setting DING_WEBHOOK_URL: select * from ding_status shows a run within 5 minutes (activated_at = first run, which posts nothing). Then let a character level up or earn an achievement: one message per player with an @mention, a link to Achievements with the new ones highlighted. A guild goal gives ONE @everyone message. ding_log lists what was posted.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding-bot: level ups and achievements in #dings$q$);
+
+-- 2026-11-06: Watch over Ding Dinky. The function can crash before it writes anything (it did: "Module not found"), so the check is done
+-- here in the database: every 5 minutes, 2 minutes after the bot's own run, ding_watch() looks at ding_status. It is a problem when the
+-- last run ended with an error message (for example Discord refused a message) or when there has been no successful run for 35 minutes.
+-- Then ONE open card appears in Fixes (made by "Ding Dinky watch", kept up to date, not repeated every 5 minutes); when the bot is fine
+-- again the card is closed, unless a developer already picked it up (like the deploy check).
+create or replace function public.ding_watch() returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare
+  st public.ding_status%rowtype; ref timestamptz; problem text := ''; hint text; open_id uuid;
+  who constant text := 'Ding Dinky watch';
+begin
+  select * into st from public.ding_status where id = 1;
+  ref := coalesce(st.last_run_at, (select min(d.start_time) from cron.job_run_details d join cron.job j on j.jobid = d.jobid where j.jobname = 'ding-bot'));
+  if ref is null then return; end if; -- the timer has not started yet
+  if st.message is not null then problem := 'The last run could not finish: ' || st.message; end if;
+  if now() - ref > interval '35 minutes' then
+    problem := case when problem = '' then '' else problem || E'\n\n' end
+      || case when st.last_run_at is null then 'The function has never finished a run (the timer started on ' else 'No successful run since ' end
+      || to_char(ref at time zone 'Europe/Amsterdam', 'DD-MM-YYYY HH24:MI') || case when st.last_run_at is null then ', Dutch time).' else ' (Dutch time).' end
+      || ' The timer starts one every 5 minutes.';
+  end if;
+
+  select id into open_id from public.dev_tickets where kind = 'fix' and created_by = who and status in ('open', 'doing') order by created_at desc limit 1;
+  if problem <> '' then
+    select left(content, 300) into hint from net._http_response where status_code >= 400 and created > now() - interval '1 hour' order by created desc limit 1;
+    problem := left(problem
+      || coalesce(E'\n\nLatest failed HTTP answer of a timer call (can also come from update-characters): ' || hint, '')
+      || E'\n\nLook at: Supabase → Edge Functions → ding-bot → Logs, and select * from ding_status;', 6000);
+    if open_id is null then
+      insert into public.dev_tickets (kind, title, area, body, urgency, created_by, updated_by)
+      values ('fix', 'Ding Dinky (the Discord bot) is not working', 'Discord', problem, 3, who, who);
+    else
+      update public.dev_tickets set body = problem, updated_by = who, updated_at = now() where id = open_id and body is distinct from problem;
+    end if;
+  elsif open_id is not null then
+    update public.dev_tickets set status = 'done', done_at = now(), updated_by = who, updated_at = now() where id = open_id and status = 'open';
+  end if;
+end $$;
+revoke all on function public.ding_watch() from public, anon, authenticated;
+
+select cron.unschedule(jobid) from cron.job where jobname = 'ding-watch';
+select cron.schedule('ding-watch', '4-59/5 * * * *', $job$ select public.ding_watch(); $job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky watch: a failed run becomes a card in Fixes$q$, $q$Discord$q$, 'check',
+  $q$Test (SQL Editor, in one go, leaves nothing): begin; insert into public.ding_status (id, last_run_at, message) values (1, now() - interval '2 hours', 'test') on conflict (id) do update set last_run_at = excluded.last_run_at, message = excluded.message; select public.ding_watch(); select title, status from public.dev_tickets where created_by = 'Ding Dinky watch'; rollback; Expected: one card in Fixes.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky watch: a failed run becomes a card in Fixes$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Home: portrait of the main character$q$, $q$Home$q$, 'check',
+  $q$Home → My character: left of your main character is the portrait (picture from the game, or the class icon). A click opens your player page. On a phone the portrait sits above the details. Alts have no portrait.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Home: portrait of the main character$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character page: Activity in the game$q$, $q$Roster$q$, 'check',
+  $q$Open a character page (Guild → Members → a name): under the top tiles is Activity in the game with Quests, Kills, Deaths, Fish, Kills per death and Quests per level, each with its place in the guild. A character the game does not know yet has no block. On a phone: two tiles per row.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character page: Activity in the game$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Achievements: player portrait and player page block$q$, $q$Achievements$q$, 'check',
+  $q$Achievements: above the tiles is the portrait of the viewed player (picture from the game, or the class icon); a click opens his player page. Switch "Viewing": the portrait changes. Player page: the Achievements block shows Mannenkoker Level, points and his unlocked medals; a medal opens the tree with it highlighted.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Achievements: player portrait and player page block$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: totals, deaths and new boards$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records: the totals on top (kills, quests, deaths, fish, gold donated, characters) match the Home / player pages. Boards for Slayers, Quest masters, Graveyard regulars (deaths), Big fish and Generous souls show players with the right numbers; the bar behind a row follows the leader. Did you know? shows sensible facts and hides itself without data.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: totals, deaths and new boards$q$);
+
+-- 2026-11-07: update every 5 minutes instead of every 15 (Jelle). The three timers moved above (update-characters, ding-bot, ding-watch);
+-- the checks that mentioned 15 minutes are renamed here, so nobody gets a second copy of them.
+update public.dev_checks set title = $q$Character data every 5 minutes (Supabase)$q$,
+  note = replace(replace(note, 'less than an hour ago', 'less than 30 minutes ago'), 'wait up to 15 minutes', 'wait up to 5 minutes')
+  where title = $q$Character data every 15 minutes (Supabase)$q$;
+update public.dev_checks set title = $q$Update characters every 5 minutes (Edge Function)$q$,
+  note = replace(note, 'not older than about 15 minutes', 'not older than about 10 minutes (orange after 30)')
+  where title = $q$Update characters every 15 minutes (Edge Function)$q$;
+update public.dev_checks set note = replace(note, 'within 15 minutes', 'within 5 minutes')
+  where title in ($q$Game statistics on Home and player pages$q$, $q$Ding-bot: level ups and achievements in #dings$q$);
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Updates every 5 minutes: bot and data$q$, $q$Characters$q$, 'check',
+  $q$SQL Editor: select jobname, schedule from cron.job; shows update-characters */5, ding-bot 2-59/5 and ding-watch 4-59/5. After 10 minutes: select * from ding_status; has a last_run_at less than 5 minutes old and Developer mode > Checks shows Blizzard characters green.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Updates every 5 minutes: bot and data$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$, $q$Discord$q$, 'check',
+  $q$After deploying the Edge Function ding-bot again (the SQL with the new ding_levels columns first): the first run only remembers the numbers. Then log out in the game with a character that levelled up: #dings shows "<player> achieved this session:" with a line per character (level, +quests, +kills, +deaths, profession skills) and the achievements. Text must be English. select character_key, quests, kills, deaths, skills from ding_levels; has numbers.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$);
+
+-- 2026-11-07: the recap also shows new gear (Jelle); the earlier check gets the extra word
+update public.dev_checks set note = replace(note, '(level, +quests, +kills, +deaths, profession skills)', '(level, +quests, +kills, +deaths, profession skills, new gear)')
+  where title = $q$Ding Dinky: session recap with quests, kills, deaths and skills$q$;
+
+-- 2026-11-07: fun records (Records tab) and per session: campfires and XP in the recap (Jelle)
+alter table public.ding_levels add column if not exists camps integer;
+alter table public.ding_levels add column if not exists xp bigint;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: fun records$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records: under the boards is Fun records (campfires, critters, deaths by falling / drowning / fire / fatigue, emotes, potions, bandages, food, drinks). A board shows once somebody has the counter; the block hides itself while nobody has. Tiles on top: Campfires, Critters killed. Numbers appear 5 minutes after update-characters is deployed. Drowning, fire, fatigue, hugs, facepalms, violin: check their names with the Blizzard statistics workflow.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: fun records$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: campfires and XP per session$q$, $q$Discord$q$, 'check',
+  $q$After deploying both Edge Functions (update-characters and ding-bot) and running the SQL: the first run of the bot only remembers campfires and XP. Then log out with a character that levelled up after lighting a campfire: the recap line has "🔥 +N campfires" and "✨ +N XP" (the XP of the whole session, also over a level up). A player with two characters that gained XP also gets a "Total this session" line. select character_key, camps, xp from ding_levels; has numbers.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: campfires and XP per session$q$);
+
+-- 2026-11-08: the recap shows levels gained, XP gained and the total level (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: levels, XP and total level in the recap$q$, $q$Discord$q$, 'check',
+  $q$After deploying the ding-bot again: a recap shows per character "⬆️ +2 levels (12 → 14)" and "✨ +N XP", and under it one line "📊 This session: ⬆️ +N levels · ✨ +N XP · Total level X" (total level = the levels of all his characters added up, same as the dashboard). The XP of the whole character is never shown. Only an achievement: the line is just "📊 Total level X".$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: levels, XP and total level in the recap$q$);
+
+-- 2026-11-07: character pictures: Undead shows the class icon (the game draws a gnome), and a changed character fetches its picture anew (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character pictures: Undead icon and fresh pictures$q$, $q$Roster$q$, 'check',
+  $q$Pala Pim (Undead Paladin): Home, character page and player page show the Paladin class icon, not a gnome. A Troll/Orc/Tauren still has its picture. After a character logs out in the game and the next update (5 minutes), a hard refresh is no longer needed to see the new picture. When Blizzard draws Undead right, remove 'Undead' from WRONG_PICTURE_RACES in js/charpicture.js.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character pictures: Undead icon and fresh pictures$q$);
+
+-- 2026-11-07: the icon is only for the Undead paladins of Pim and Ian, not for the whole race (Jelle)
+update public.dev_checks set title = $q$Character pictures: Undead paladins icon and fresh pictures$q$,
+  note = $q$Pala Pim and Pietrein Defeinkleijn (the Undead paladins of Pim and Ian): Home, character page and player page show the Paladin class icon, not a gnome. Every other character (also another Undead) still has its picture. A changed character (login, level, gear) fetches its picture anew without a hard refresh; a picture Blizzard has not drawn again stays the old one. When Blizzard draws them right, remove the name from WRONG_PICTURE_CHARACTERS in js/charpicture.js.$q$
+  where title = $q$Character pictures: Undead icon and fresh pictures$q$;
+
+-- 2026-11-07: Fun records got a clickable legend and /train (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: fun records legend$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records > Fun records: a legend with groups In the wild / Deaths / Emotes / Supplies; every button shows the leader and the number, one is chosen at the start. Click another: the ranking (with Guild total) on the right changes. A record nobody has is dimmed (no data yet) and cannot be clicked. On a phone the ranking sits above the legend and scrolls into view after a click. /train only shows data when the game counts it: check the name with the Blizzard statistics workflow.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: fun records legend$q$);
+
+-- 2026-11-08: the legend also for Rankings and Best per profession, train icon (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Records tab: legend for rankings and professions$q$, $q$Achievements$q$, 'check',
+  $q$Achievements > Records: Rankings (Levels / In the game / Guild) and Best per profession (Professions / Secondary) now work like Fun records: click a legend button and the ranking with Guild total shows on the right. Empty ones are dimmed. Check on a phone (panel above the legend) and that the /train button has a small train icon, not an airplane.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Records tab: legend for rankings and professions$q$);
+
+-- 2026-11-07: Records moved to Overview: one block with categories, stats and a panel (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Overview: all stats in one explorer$q$, $q$Overview$q$, 'check',
+  $q$Guild > Overview: totals on top, then category buttons (Levels, In the game, Gold, Fun, Roles, Classes, Races, Professions, Level brackets). Click a category: the legend shows the stats; click a stat: the ranking shows on the right. Roles/Classes/Races/Professions/Level brackets: Mains / Mains + Alts filter and Show as table work, and also have Kills, Quests, Deaths, Fish per group. Achievements now only has the tree (no Records tab). Check on a phone too.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Overview: all stats in one explorer$q$);
+
+-- 2026-11-07: clearer Discord session recap (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Discord recap: clearer layout$q$, $q$Discord$q$, 'check',
+  $q$After deploying the ding-bot function: the next session recap has a block per character (name, then progress, activity, professions and gear on separate lines), a blank line, the totals line and the achievements with their description on a second line. Check that it reads well on a phone and that nothing is cut off.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Discord recap: clearer layout$q$);
+
+-- 2026-11-07: Discord recap with the summary on top (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Discord recap: summary on top$q$, $q$Discord$q$, 'check',
+  $q$After deploying the ding-bot function: the next session recap starts with a header "This session" and one line (XP, levels with total level before to after, Total level), then a block per character, then the Achievements header. Check that the ### headers show correctly in the embed on desktop and phone.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Discord recap: summary on top$q$);
+
+-- 2026-11-08: Overview with all stats in categories, new Blizzard stats (Jelle)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Overview: new categories and Blizzard stats$q$, $q$Overview$q$, 'check',
+  $q$After deploying update-characters (Supabase, Deploy updates) and waiting one update: Guild > Overview has Players (Levels, Combat, Dungeons, Quests, Gear and loot, Travel, Achievements, Fun, Gold) and Characters (Roles, Classes, Races, Professions, Level brackets, Factions, Genders, Guild). Check that Combat, Dungeons (per boss), Gear and Travel get data, that every result shows (not only 10) and that it looks good on a phone.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Overview: new categories and Blizzard stats$q$);
+
+-- 2026-11-09: Dag Dinky and Week Dinky (Edge Function ding-bot): one message for the whole guild every night / every Monday. ding_period is their memory:
+-- kind = 'day' | 'week'; key c:<character> = the stats at the previous post, p:<player> = the finished achievements, _run = { date, since, xp } (when it was posted last).
+-- Run this BEFORE deploying the new ding-bot, otherwise ding_status shows an error and Ding Dinky watch opens a card in Fixes.
+create table if not exists public.ding_period (
+  kind text not null check (kind in ('day', 'week')),
+  key text not null,
+  snap jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (kind, key)
+);
+alter table public.ding_period enable row level security;
+drop policy if exists "read all" on public.ding_period;
+create policy "read all" on public.ding_period for select using (true);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Dag Dinky and Week Dinky in #dings$q$, $q$Discord$q$, 'check',
+  $q$After running this SQL and deploying ding-bot: the first run only remembers the starting point (select kind, key from ding_period where key = '_run'; shows day and week). Next night from 00:07 Dutch time: Dag Dinky with @everyone (top 3, all players A-Z, guild total). Mondays: Week Dinky. Quiet players are left out; a quiet day posts nothing. No gear line. Preview: POST {"dryRun": true, "force": "day" or "week"}.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Dag Dinky and Week Dinky in #dings$q$);
+
+-- 2026-11-10: Blizzard now draws Pala Pim and Pietrein Defeinkleijn right, so WRONG_PICTURE_CHARACTERS is empty (Justin)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character pictures: Pala Pim and Pietrein show their picture$q$, $q$Roster$q$, 'check',
+  $q$Pala Pim and Pietrein Defeinkleijn (the Undead paladins of Pim and Ian): Home, My profile, character page and player page now show their picture from the game (an Undead, not a gnome, not the class icon). If a picture is wrong again, put the name back in WRONG_PICTURE_CHARACTERS in js/charpicture.js.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character pictures: Pala Pim and Pietrein show their picture$q$);
+
+-- 2026-11-10: guild roster as fallback (Justin). A character without a public profile (under level 10) that is in the guild gets status 'guild' in
+-- blizzard_characters, with level, race and class from the roster (update-characters). Then the game leads for race and class too: same guard, 'ok' or 'guild'.
+create or replace function public.characters_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare known boolean;
+begin
+  if auth.uid() is null then return new; end if;  -- SQL Editor (import, which keeps the sheet's date) and the service key
+  new.updated_at := now();
+  new.updated_by := public.current_player();
+  if public.is_dev() then return new; end if;
+  if tg_op = 'INSERT' then
+    -- A player only gives name, race, class and role. The first character of a player is the main.
+    new.level := null; new.professions := '[]'::jsonb; new.notes := null; new.recipes := null;
+    new.status := case when exists (select 1 from public.characters c where c.player_name = new.player_name and c.status = 'Main') then 'Alt' else 'Main' end;
+    return new;
+  end if;
+  if new.player_name is distinct from old.player_name or new.level is distinct from old.level or new.professions is distinct from old.professions
+     or (new.status is distinct from old.status and current_setting('app.switching_main', true) is distinct from 'on')
+     or new.notes is distinct from old.notes or new.recipes is distinct from old.recipes then
+    raise exception 'Only the name, race, class and role of a character can be changed here';
+  end if;
+  known := exists (select 1 from public.blizzard_characters b where b.key = lower(btrim(old.name)) and b.data->>'status' in ('ok', 'guild'));
+  if known and (new.name is distinct from old.name or new.race is distinct from old.race or new.class is distinct from old.class) then
+    raise exception 'The game knows this character: only the role can be changed';
+  end if;
+  return new;
+end $$;
+drop trigger if exists characters_guard on public.characters;
+create trigger characters_guard before insert or update on public.characters for each row execute function public.characters_guard();
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Characters under level 10 from the guild roster$q$, $q$Characters$q$, 'check',
+  $q$After deploying update-characters and one update: Je Keek (Jelle's alt, level 2, in the guild) shows level, race and class from the game on Roster, Overview, his player page and the character page (Faction and Guild in Details). My profile shows him as known (only the role can change). Mayo Menaise (not in the guild) still shows the table values. Developer mode > Checks: the Blizzard line counts "from the guild roster". The function result lists notInTable (e.g. Maerwyn Spasmebal).$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Characters under level 10 from the guild roster$q$);
+
+-- 2026-11-10: talent trees on the character page (Justin): update-characters stores the chosen talents (field talents), data/talents.json the trees
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Character page: talent trees$q$, $q$Characters$q$, 'check',
+  $q$After running "Update talents" once (Actions) and deploying update-characters: a character page from level 10 (e.g. Pala Pim) shows Talents under the gear: three trees, Wowhead icons in the tiles, gold = full, green = partly, grey = not chosen, arrows, "30 of 30 talent points spent". Hover a talent: the text under its tree changes. On a phone the tree with the most points is on top. A character under level 10 shows no Talents block. Item icons next to the gear stay small.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Character page: talent trees$q$);
+
+-- 2026-11-10: Home → My character: every card (also the alts) has a portrait, the class icon when the game has no picture (Justin)
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Home: portraits for alts too$q$, $q$Home$q$, 'check',
+  $q$Home → My character (logged in, with alts): every card has a portrait on the left, so the names and chips line up. A character without a picture from the game (e.g. under level 10) shows its class icon. The main's portrait opens the player page, an alt's portrait and every name open the character page. On a phone the portrait sits above the details.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Home: portraits for alts too$q$);
+
+-- 2026-11-10: Who can make this? (Justin): update-characters stores the known recipes per profession, data/recipes.json every recipe
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Who can make this? (recipes)$q$, $q$Professions$q$, 'check',
+  $q$Needs "Update recipes" (Actions) and the new update-characters. Professions: "Who can make this?" on top; "linen bandage" shows the recipe, its reagents and who knows it (highest skill first). Market: a request for a craftable item shows "Can make this"; "I can craft" uses real recipes; a new listing names the crafters. Character page: "N recipes known" under each profession, per category.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Who can make this? (recipes)$q$);
+
+-- 2026-11-10: a fourth column on the Ideas and Fixes boards (Justin): Won't do = tickets we don't want or can't do now, but maybe later.
+-- Status 'wontdo' (done_at = when it was moved there, for the order of the column); Reopen brings it back to Open. The change log says so.
+alter table public.dev_tickets drop constraint if exists dev_tickets_status_check;
+alter table public.dev_tickets add constraint dev_tickets_status_check check (status in ('open', 'doing', 'done', 'wontdo'));
+create or replace function public.log_ticket_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare me text; urgs text[] := array['Low', 'Normal', 'High', 'Urgent'];
+begin
+  select player_name into me from public.members where user_id = auth.uid() limit 1;
+  if tg_op = 'INSERT' then
+    insert into public.dev_ticket_log (ticket_id, actor, text, created_at)
+    values (new.id, coalesce(new.created_by, me), case when new.source = 'player' then 'Reported it' else 'Added it' end, new.created_at);
+    return new;
+  end if;
+  me := coalesce(me, new.updated_by);
+  if new.status is distinct from old.status or new.claimed_by is distinct from old.claimed_by then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, case
+      when new.status = 'done' then 'Marked it done' || coalesce(' (on ' || new.claimed_by || '''s name)', '')
+      when new.status = 'wontdo' then 'Moved it to Won''t do'
+      when old.status = 'wontdo' then 'Brought it back from Won''t do'
+      when new.status = 'doing' and old.status = 'doing' and old.claimed_by is not null then 'Took it over from ' || old.claimed_by
+      when new.status = 'doing' then 'Took it ("I''ll take this")'
+      when new.status = 'open' and old.status = 'done' then 'Reopened it'
+      when new.status = 'open' and old.status = 'doing' then 'Let go of it' || coalesce(' (was on ' || old.claimed_by || '''s name)', '')
+      else 'Status: ' || old.status || ' → ' || new.status end);
+  end if;
+  if new.urgency is distinct from old.urgency then
+    insert into public.dev_ticket_log (ticket_id, actor, text)
+    values (new.id, me, 'Urgency: ' || urgs[old.urgency] || ' → ' || urgs[new.urgency]);
+  end if;
+  if new.title is distinct from old.title then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Changed the title (was "' || old.title || '")');
+  end if;
+  if new.area is distinct from old.area then
+    insert into public.dev_ticket_log (ticket_id, actor, text) values (new.id, me, 'Area: ' || coalesce(old.area, '–') || ' → ' || coalesce(new.area, '–'));
+  end if;
+  if new.body is distinct from old.body then
+    insert into public.dev_ticket_log (ticket_id, actor, text, detail)
+    values (new.id, me, 'Edited the details', 'Was: ' || coalesce(left(old.body, 400), '(empty)') || E'\nNow: ' || coalesce(left(new.body, 400), '(empty)'));
+  end if;
+  return new;
+end $$;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ideas and Fixes: Won't do column$q$, $q$Developer mode$q$, 'check',
+  $q$Developer mode > Ideas and Fixes: a fourth column "Won't do". Move an open card there with its "Won't do" button (asks first) or by dragging it; it shows dimmed with "Won't do · <time>", no urgency button, and is not counted in the number of open tickets. "Reopen" brings it back to Open. The card's History says "Moved it to Won't do" / "Brought it back from Won't do". More than 5: "Show all".$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ideas and Fixes: Won't do column$q$);
+
+-- 2026-11-10: history of the character data (Justin, idea "Weekly overview + level graph"): one row per character per day (Dutch date) with
+-- the level and the profession skills. snapshot_characters() runs every hour and keeps today's row up to date (a level never goes down),
+-- so at the end of a day the row holds that day's final numbers. Source: the Blizzard data (status ok, or guild = from the roster) and the
+-- table characters where the game does not know the character. Read by Home (This week), the character page and Guild → Overview (graphs).
+create table if not exists public.character_history (
+  day date not null,
+  key text not null,                                  -- lower-case character name, as in blizzard_characters
+  name text,
+  player text,
+  level int,
+  professions jsonb not null default '{}'::jsonb,     -- { "Mining": 75, "First Aid": 120, ... }
+  source text check (source in ('game', 'roster', 'table', 'dinky')),
+  updated_at timestamptz not null default now(),
+  primary key (day, key)
+);
+alter table public.character_history enable row level security;
+drop policy if exists "read all" on public.character_history;
+create policy "read all" on public.character_history for select using (true);  -- no write policies: only snapshot_characters() writes
+grant select on public.character_history to anon, authenticated;
+
+create or replace function public.snapshot_characters() returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  insert into public.character_history (day, key, name, player, level, professions, source, updated_at)
+  select (now() at time zone 'Europe/Amsterdam')::date, lower(btrim(c.name)), btrim(c.name), c.player_name,
+    case when b.data->>'status' in ('ok', 'guild') and (b.data->>'level') ~ '^[0-9]+$' then (b.data->>'level')::int else c.level end,
+    coalesce((select jsonb_object_agg(p->>'name', round((p->>'skill')::numeric)::int)
+              from jsonb_array_elements(case when b.data->>'status' = 'ok' and jsonb_typeof(b.data->'professions') = 'array' and jsonb_array_length(b.data->'professions') > 0
+                                             then b.data->'professions' else coalesce(c.professions, '[]'::jsonb) end) p
+              where coalesce(p->>'name', '') <> '' and (p->>'skill') ~ '^[0-9]+(\.[0-9]+)?$'), '{}'::jsonb),
+    case b.data->>'status' when 'ok' then 'game' when 'guild' then 'roster' else 'table' end,
+    now()
+  from public.characters c
+  left join public.blizzard_characters b on b.key = lower(btrim(c.name))
+  where c.status is distinct from 'Gestopt' and btrim(coalesce(c.name, '')) <> ''
+  on conflict (day, key) do update set
+    name = excluded.name, player = excluded.player,
+    level = greatest(public.character_history.level, excluded.level),
+    professions = excluded.professions, source = excluded.source, updated_at = excluded.updated_at;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.snapshot_characters() from public, anon, authenticated;
+
+-- Every hour at :09 (after update-characters at :05), and once now.
+select cron.schedule('character-history', '9 * * * *', $job$ select public.snapshot_characters(); $job$);
+select public.snapshot_characters();
+
+-- The history before this table existed: Ding Dinky remembers level and skills per character at the start of the current day and week
+-- (ding_period, written at 00:07 Dutch time = the numbers at the end of the day before). Copied once as source 'dinky'; never overwrites.
+insert into public.character_history (day, key, name, player, level, professions, source, updated_at)
+select ((d.updated_at at time zone 'Europe/Amsterdam') - interval '1 hour')::date, substr(d.key, 3), c.name, c.player_name,
+  (d.snap->>'level')::int, coalesce(d.snap->'skills', '{}'::jsonb), 'dinky', d.updated_at
+from public.ding_period d
+left join public.characters c on lower(btrim(c.name)) = substr(d.key, 3)
+where d.key like 'c:%' and (d.snap->>'level') ~ '^[0-9]+$'
+on conflict (day, key) do nothing;
+
+-- When a market listing was finished (for "This week" on Home): set when the status becomes done, cleared when it is reopened.
+alter table public.listings add column if not exists done_at timestamptz;
+create or replace function public.listing_done_at() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.status = 'done' and old.status is distinct from 'done' then new.done_at := now();
+  elsif new.status <> 'done' then new.done_at := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists listing_done_at on public.listings;
+create trigger listing_done_at before update on public.listings for each row execute function public.listing_done_at();
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$History: This week and level graphs$q$, $q$Home$q$, 'check',
+  $q$After running this SQL: select * from character_history order by day desc limit 20 (rows for today, 8 and 9 Nov). Home shows "This week" (levels, skills, market, donations, events). Character page: graph of level and skill per day. Overview: guild graph. Mark a listing done: done_at is set.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$History: This week and level graphs$q$);
+
+-- 2026-11-10: the history also keeps the counters of Week Dinky (Justin: "This week" on Home in line with Ding Dinky): total XP, quests, kills,
+-- deaths, campfires and boss kills per character per day. Total XP = the XP of all levels below + the XP inside the level (the same Classic
+-- table as XP_TO_NEXT in supabase/functions/ding-bot/index.ts), so the numbers match Week Dinky in Discord.
+alter table public.character_history add column if not exists xp_total bigint;
+alter table public.character_history add column if not exists quests int;
+alter table public.character_history add column if not exists kills int;
+alter table public.character_history add column if not exists deaths int;
+alter table public.character_history add column if not exists camps int;
+alter table public.character_history add column if not exists boss int;
+
+create or replace function public.total_xp(p_level int, p_xp bigint) returns bigint
+language sql immutable as $$
+  select case when p_level is null or p_xp is null then null else
+    coalesce((select sum(v) from unnest(array[400,900,1400,2100,2800,3600,4500,5400,6500,7600,8800,10100,11400,12900,14400,16000,17700,19400,21300,23200,25200,27300,29400,31700,34000,36400,38900,41400,44300,47400,50800,54500,58600,62800,67100,71600,76100,80800,85700,90700,95800,101000,106300,111800,117500,123200,129100,135100,141200,147500,153900,160400,167100,173900,180800,187900,195000,202300,209800]::bigint[]) with ordinality as x(v, i) where i < p_level), 0) + p_xp end
+$$;
+
+create or replace function public.snapshot_characters() returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  insert into public.character_history (day, key, name, player, level, professions, source, updated_at, xp_total, quests, kills, deaths, camps, boss)
+  select (now() at time zone 'Europe/Amsterdam')::date, lower(btrim(c.name)), btrim(c.name), c.player_name,
+    case when b.data->>'status' in ('ok', 'guild') and (b.data->>'level') ~ '^[0-9]+$' then (b.data->>'level')::int else c.level end,
+    coalesce((select jsonb_object_agg(p->>'name', round((p->>'skill')::numeric)::int)
+              from jsonb_array_elements(case when b.data->>'status' = 'ok' and jsonb_typeof(b.data->'professions') = 'array' and jsonb_array_length(b.data->'professions') > 0
+                                             then b.data->'professions' else coalesce(c.professions, '[]'::jsonb) end) p
+              where coalesce(p->>'name', '') <> '' and (p->>'skill') ~ '^[0-9]+(\.[0-9]+)?$'), '{}'::jsonb),
+    case b.data->>'status' when 'ok' then 'game' when 'guild' then 'roster' else 'table' end,
+    now(),
+    -- the counters only when the game knows the character (status ok); otherwise empty, as Week Dinky does
+    case when b.data->>'status' = 'ok' and (b.data->>'level') ~ '^[0-9]+$' and (b.data->>'xp') ~ '^[0-9]+$' then public.total_xp((b.data->>'level')::int, (b.data->>'xp')::bigint) end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,quests}') ~ '^[0-9]+$' then (b.data#>>'{stats,quests}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,kills}') ~ '^[0-9]+$' then (b.data#>>'{stats,kills}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,deaths}') ~ '^[0-9]+$' then (b.data#>>'{stats,deaths}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,camps}') ~ '^[0-9]+$' then (b.data#>>'{stats,camps}')::int end,
+    case when b.data->>'status' = 'ok' and (b.data#>>'{stats,bossKills}') ~ '^[0-9]+$' then (b.data#>>'{stats,bossKills}')::int end
+  from public.characters c
+  left join public.blizzard_characters b on b.key = lower(btrim(c.name))
+  where c.status is distinct from 'Gestopt' and btrim(coalesce(c.name, '')) <> ''
+  on conflict (day, key) do update set
+    name = excluded.name, player = excluded.player,
+    level = greatest(public.character_history.level, excluded.level),
+    professions = excluded.professions, source = excluded.source, updated_at = excluded.updated_at,
+    xp_total = coalesce(excluded.xp_total, public.character_history.xp_total),
+    quests = coalesce(excluded.quests, public.character_history.quests),
+    kills = coalesce(excluded.kills, public.character_history.kills),
+    deaths = coalesce(excluded.deaths, public.character_history.deaths),
+    camps = coalesce(excluded.camps, public.character_history.camps),
+    boss = coalesce(excluded.boss, public.character_history.boss);
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.snapshot_characters() from public, anon, authenticated;
+select public.snapshot_characters();
+
+-- The counters for the days copied from Ding Dinky (8 and 9 Nov): its snapshots have them (xp = total XP already). Only fills what is empty.
+insert into public.character_history (day, key, name, player, level, professions, source, updated_at, xp_total, quests, kills, deaths, camps, boss)
+select ((d.updated_at at time zone 'Europe/Amsterdam') - interval '1 hour')::date, substr(d.key, 3), c.name, c.player_name,
+  (d.snap->>'level')::int, coalesce(d.snap->'skills', '{}'::jsonb), 'dinky', d.updated_at,
+  nullif(d.snap->>'xp', '')::bigint, nullif(d.snap->>'quests', '')::int, nullif(d.snap->>'kills', '')::int,
+  nullif(d.snap->>'deaths', '')::int, nullif(d.snap->>'camps', '')::int, nullif(d.snap->>'boss', '')::int
+from public.ding_period d
+left join public.characters c on lower(btrim(c.name)) = substr(d.key, 3)
+where d.key like 'c:%' and (d.snap->>'level') ~ '^[0-9]+$'
+on conflict (day, key) do update set
+  xp_total = coalesce(public.character_history.xp_total, excluded.xp_total),
+  quests = coalesce(public.character_history.quests, excluded.quests),
+  kills = coalesce(public.character_history.kills, excluded.kills),
+  deaths = coalesce(public.character_history.deaths, excluded.deaths),
+  camps = coalesce(public.character_history.camps, excluded.camps),
+  boss = coalesce(public.character_history.boss, excluded.boss);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Home This week like Week Dinky$q$, $q$Home$q$, 'check',
+  $q$After this SQL: character_history has xp_total, quests, kills, deaths, camps, boss (also on 8 and 9 Nov). Home > This week: Guild total, Top 3 of the week with medals, and a line per player, with the same numbers as Week Dinky in Discord.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Home This week like Week Dinky$q$);
+
+-- 2026-11-17: the guild bank is bought. Contents of tab 1 (Pims 100kgBallen) as Jelle pasted them from the game; item ids from data/items.json.
+-- Safe to run again: it replaces everything with location 'guild'. The gold amount is not touched (set it in the Bank manager).
+update public.bank set guild_bank_bought = true where id = 1;
+delete from public.bank_items where location = 'guild';
+insert into public.bank_items (item, item_id, quantity, location, status, note)
+select v.item, v.item_id, v.quantity, 'guild', 'in_stock', $q$Guild bank tab 1$q$
+from (values
+  ($q$Aquamarine$q$, 7909, 8),
+  ($q$Bauxite$q$, 249425, 4),
+  ($q$Black Pearl$q$, 7971, 2),
+  ($q$Blue Pearl$q$, 4611, 1),
+  ($q$Citrine$q$, 3864, 6),
+  ($q$Craftsman's Writ: Shadoweave Gloves$q$, 264105, 1),
+  ($q$Elemental Fire$q$, 7068, 2),
+  ($q$Elixir of Greater Intellect$q$, 9179, 33),
+  ($q$Filet of Redgill$q$, 13930, 60),
+  ($q$Firefin Snapper$q$, 6359, 20),
+  ($q$Fish Bowl$q$, 279967, 13),
+  ($q$Giant Egg$q$, 12207, 11),
+  ($q$Golden Pearl$q$, 13926, 1),
+  ($q$Greater Mana Potion$q$, 6149, 10),
+  ($q$Heart of the Wild$q$, 10286, 7),
+  ($q$Heavy Armor Kit$q$, 4265, 31),
+  ($q$Ichor of Undeath$q$, 7972, 2),
+  ($q$Iridescent Pearl$q$, 5500, 3),
+  ($q$Jade$q$, 1529, 8),
+  ($q$Lesser Moonstone$q$, 1705, 16),
+  ($q$Light Feather$q$, 17056, 5),
+  ($q$Living Essence$q$, 12803, 1),
+  ($q$Long Elegant Feather$q$, 4589, 1),
+  ($q$Magenta Dye$q$, 249430, 1),
+  ($q$Malachite$q$, 774, 21),
+  ($q$Mana Potion$q$, 3827, 3),
+  ($q$Mithril Head Trout$q$, 8364, 40),
+  ($q$Moss Agate$q$, 1206, 2),
+  ($q$Oily Blackmouth$q$, 6358, 5),
+  ($q$Pyrite$q$, 249391, 18),
+  ($q$Shadowgem$q$, 1210, 29),
+  ($q$Silver Bar$q$, 2842, 2),
+  ($q$Silver Contact$q$, 4404, 9),
+  ($q$Small Lustrous Pearl$q$, 5498, 9),
+  ($q$Stag Meat$q$, 5471, 5),
+  ($q$Star Ruby$q$, 7910, 3),
+  ($q$Stonescale Eel$q$, 13422, 5),
+  ($q$Superior Mana Potion$q$, 13443, 2),
+  ($q$Tigerseye$q$, 818, 18),
+  ($q$Tin Bar$q$, 3576, 19),
+  ($q$Tin Ore$q$, 2771, 72),
+  ($q$Un'Goro Soil$q$, 11018, 19),
+  ($q$Undamaged Hippogryph Feather$q$, 10450, 1),
+  ($q$Vibrant Plume$q$, 5117, 1),
+  ($q$Waylaid Crate: Apprentice Curiosities$q$, 248685, 1),
+  ($q$Waylaid Crate: Apprentice Ore$q$, 248683, 1),
+  ($q$Waylaid Crate: Apprentice Parts$q$, 248704, 2),
+  ($q$Waylaid Crate: Earthly Expert Herbs$q$, 248690, 5),
+  ($q$Waylaid Crate: Expert Curiosities$q$, 248694, 3),
+  ($q$Waylaid Crate: Expert Fabrics$q$, 248708, 3),
+  ($q$Waylaid Crate: Expert Parts$q$, 248710, 2),
+  ($q$Waylaid Crate: Expert Textiles$q$, 248693, 3),
+  ($q$Waylaid Crate: Flowering Expert Herbs$q$, 248691, 2),
+  ($q$Waylaid Crate: Journeyman Curiosities$q$, 248689, 4),
+  ($q$Waylaid Crate: Journeyman Ore$q$, 248687, 1),
+  ($q$Waylaid Crate: Journeyman Textiles$q$, 248688, 1)
+) as v(item, item_id, quantity);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Guild bank contents on the Bank page$q$, $q$Bank$q$, 'check',
+  $q$After this SQL: Bank > Guild bank shows 56 items (tab 1) with Wowhead hover and the notice about saving gold is gone. Search works, a member can reserve an item, and the gold card says Guild gold.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Guild bank contents on the Bank page$q$);
+
+-- 2026-11-15: Odin (Jelle). Every day at 02:30 and at 14:30 Dutch time a webhook called Odin posts "NATVOERTIJD!" with an @mention of Laurens in the
+-- Discord channel kletsen. No Edge Function: pg_cron starts odin_call(), which posts to the Discord webhook with pg_net.
+-- The webhook URL is a secret: it lives only in the Vault, under the name odin_webhook_url (Supabase > Integrations > Vault > Secrets). Never in the repo.
+-- Without that secret nothing is posted. Test:  select public.odin_call(true);   See what it did:  select * from net._http_response order by created desc limit 5;
+-- pg_cron runs in UTC and the Netherlands has winter and summer time, so the job starts at the four UTC half hours that can be 02:30 or 14:30 here;
+-- odin_due() lets only the right one through.
+create or replace function public.odin_due(p_at timestamptz default now())
+returns boolean language sql stable set search_path = public, pg_temp as $$
+  select extract(hour from p_at at time zone 'Europe/Amsterdam') in (2, 14)
+     and extract(minute from p_at at time zone 'Europe/Amsterdam') between 30 and 39;
+$$;
+
+create or replace function public.odin_call(p_force boolean default false)
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_url text;
+  v_id text;
+begin
+  if not p_force and not public.odin_due() then return 'not now'; end if;
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'odin_webhook_url' limit 1;
+  if v_url is null or v_url !~ '^https://([a-z]+\.)?discord(app)?\.com/api/webhooks/' then return 'no webhook'; end if;
+  select discord_id into v_id from public.players where player_name = 'Laurens';
+  perform net.http_post(
+    url := v_url,
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    body := jsonb_build_object(
+      'username', 'Odin',
+      'content', case when v_id is null then '**Laurens** NATVOERTIJD!' else '<@' || v_id || '> NATVOERTIJD!' end,
+      -- only Laurens is pinged, whatever the text says
+      'allowed_mentions', case when v_id is null then jsonb_build_object('parse', '[]'::jsonb) else jsonb_build_object('users', jsonb_build_array(v_id)) end)
+  );
+  return 'posted';
+end $$;
+
+-- only the timer (and the SQL Editor) may start it: not the site, not a logged-in player
+revoke all on function public.odin_call(boolean) from public, anon, authenticated;
+
+select cron.unschedule(jobid) from cron.job where jobname = 'odin';
+select cron.schedule('odin', '30 0,1,12,13 * * *', $job$ select public.odin_call(); $job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Odin: NATVOERTIJD! in #kletsen at 02:30 and 14:30$q$, $q$Discord$q$, 'check',
+  $q$After the SQL and after the webhook URL of Odin is in the Vault as odin_webhook_url: at 02:30 and at 14:30 (Dutch time) Odin posts NATVOERTIJD! in #kletsen with an @mention of Laurens. Test right away: select public.odin_call(true); (gives posted, no webhook or not now). Not callable from the site (anon / logged-in players get permission denied).$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Odin: NATVOERTIJD! in #kletsen at 02:30 and 14:30$q$);
+
+-- 2026-11-14: Ding Dinky only after a session (the log out), at the end of the day and at the end of the week. No change to the database: update-characters keeps
+-- the level of the profile as profileLevel in blizzard_characters.data and ding-bot uses that one (docs/instructies.md, "Alleen na een sessie"). Only a line for the checklist.
+-- an earlier version of this line (same day, before "after every session") is replaced, not doubled
+delete from public.dev_checks where title = $q$Ding Dinky: level up only after the log out$q$;
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: only after a session, end of day, end of week$q$, $q$Discord$q$, 'check',
+  $q$After deploying update-characters and ding-bot. Level up while staying online: the site may show it, #dings stays quiet. After EVERY log out in which something was done: ONE recap (levels, XP, quests, kills), also without a level up. Logging in and out without doing anything: nothing. A gold donation or a guild goal: no message. No more messages for several players in the same minute.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: only after a session, end of day, end of week$q$);
+
+-- 2026-11-13: agenda in Discord (Edge Function event-bot). Every event of the dashboard agenda gets ONE message in the Discord channel LFG, edited when
+-- people sign up, marked cancelled when the event is deleted. event_posts remembers the Discord message per event. No foreign key to events on purpose:
+-- a cancelled event (row deleted) must still be found, so its message can be edited to "Cancelled". Only the service key writes here (RLS: read for all).
+create table if not exists public.event_posts (
+  event_id uuid primary key,
+  message_id text not null,
+  hash text not null,
+  title text,
+  starts_at timestamptz,
+  cancelled boolean not null default false,
+  posted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.event_bot_status (
+  id int primary key default 1 check (id = 1),
+  last_run_at timestamptz,
+  posted int not null default 0,
+  message text
+);
+do $$ declare t text; begin
+  foreach t in array array['event_posts', 'event_bot_status'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "read all" on public.%I', t);
+    execute format('create policy "read all" on public.%I for select using (true)', t);
+  end loop;
+end $$;
+
+-- Every minute (so a sign-up shows in Discord within a minute). Same secret as ding-bot: the Vault secret update_characters_secret.
+-- Order: run this SQL first, then deploy the function and set EVENTS_WEBHOOK_URL (see docs/instructies.md, "Event-bot"); until then the calls only fail quietly.
+select cron.unschedule(jobid) from cron.job where jobname = 'event-bot';
+select cron.schedule('event-bot', '* * * * *', $job$
+  select net.http_post(
+    url := 'https://uvnmgyhnqlibnvpivhdf.supabase.co/functions/v1/event-bot',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-update-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'update_characters_secret')
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 50000
+  );
+$job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Agenda in Discord: event, sign-up, tag, cancel$q$, $q$Discord$q$, 'check',
+  $q$After the SQL, event-bot and EVENTS_WEBHOOK_URL: (1) create an event and tag a player: within a minute one message in the LFG channel with @everyone, the @tag, Dutch time, what is still needed and a link. (2) Sign up: the same message changes, no new ping; with 1 tank, 1 healer and 3 DPS it says Group is full. (3) Cancel the event: the message says cancelled. Check: select * from event_bot_status;$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Agenda in Discord: event, sign-up, tag, cancel$q$);
+
+-- 2026-11-13: propose another time for an event; the players vote; the time changes by itself when more than half of the players of the event agree.
+-- Who may propose and vote: the players who signed up (Sign up or Maybe) and the organiser. One proposal and one vote per PLAYER per event (not per browser).
+-- A proposal wins when its votes are more than half of those players; the event then gets the new time (so the agenda and the Discord message follow) and the
+-- proposals of that event are cleared. Everything is changed through the functions below; the tables can only be read (RLS) and only written by the functions.
+create table if not exists public.event_time_proposals (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events(id) on delete cascade,
+  proposer text not null,
+  starts_at timestamptz not null,
+  votes_needed int not null default 1,
+  created_at timestamptz not null default now(),
+  unique (event_id, proposer)
+);
+create table if not exists public.event_time_votes (
+  event_id uuid not null references public.events(id) on delete cascade,
+  voter text not null,
+  proposal_id uuid not null references public.event_time_proposals(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (event_id, voter)
+);
+do $$ declare t text; begin
+  foreach t in array array['event_time_proposals', 'event_time_votes'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "read all" on public.%I', t);
+    execute format('create policy "read all" on public.%I for select using (true)', t);
+    execute format('revoke insert, update, delete on public.%I from anon, authenticated', t);
+    execute format('grant select on public.%I to anon, authenticated', t);
+  end loop;
+end $$;
+
+-- the players of an event who may propose and vote: the organiser and everybody who signed up (yes or maybe)
+create or replace function public.event_time_voters(p_event uuid) returns setof text
+language sql stable security definer set search_path = public as $$
+  select m.player_name from public.events e join public.members m on m.user_id = e.user_id where e.id = p_event
+  union
+  select m.player_name from public.signups s join public.members m on m.user_id = s.user_id where s.event_id = p_event and s.answer in ('yes', 'maybe') $$;
+
+-- keeps votes_needed up to date and applies a proposal that more than half of the players voted for
+create or replace function public.event_time_apply(p_event uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare total int; need int; win public.event_time_proposals%rowtype;
+begin
+  select count(*) into total from public.event_time_voters(p_event);
+  if total = 0 then return; end if;
+  need := total / 2 + 1;
+  update public.event_time_proposals set votes_needed = need where event_id = p_event and votes_needed is distinct from need;
+  select p.* into win from public.event_time_proposals p
+   where p.event_id = p_event and (select count(*) from public.event_time_votes v where v.proposal_id = p.id) >= need
+   order by (select count(*) from public.event_time_votes v where v.proposal_id = p.id) desc, p.created_at limit 1;
+  if found then
+    update public.events set starts_at = win.starts_at where id = p_event;
+    delete from public.event_time_proposals where event_id = p_event;  -- the votes go with them
+  end if;
+end $$;
+
+create or replace function public.propose_event_time(p_event uuid, p_starts timestamptz) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); cur timestamptz; pid uuid;
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  select starts_at into cur from public.events where id = p_event;
+  if cur is null then raise exception 'Event not found'; end if;
+  if not exists (select 1 from public.event_time_voters(p_event) v where v = me) then
+    raise exception 'Sign up (or choose Maybe) first: only the players of this event can propose or vote on a time'; end if;
+  if cur < now() then raise exception 'This event has already started'; end if;
+  if p_starts <= now() then raise exception 'Choose a time in the future'; end if;
+  if p_starts = cur then raise exception 'That is already the time of the event'; end if;
+  delete from public.event_time_proposals where event_id = p_event and proposer = me;  -- a new proposal replaces your old one (and its votes)
+  select id into pid from public.event_time_proposals where event_id = p_event and starts_at = p_starts;
+  if pid is null then
+    insert into public.event_time_proposals (event_id, proposer, starts_at) values (p_event, me, p_starts) returning id into pid;
+  end if;
+  insert into public.event_time_votes (event_id, voter, proposal_id) values (p_event, me, pid)
+    on conflict (event_id, voter) do update set proposal_id = excluded.proposal_id, created_at = now();
+  perform public.event_time_apply(p_event);
+end $$;
+
+create or replace function public.vote_event_time(p_proposal uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); ev uuid;
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  select event_id into ev from public.event_time_proposals where id = p_proposal;
+  if ev is null then raise exception 'This proposal does not exist any more'; end if;
+  if not exists (select 1 from public.event_time_voters(ev) v where v = me) then
+    raise exception 'Sign up (or choose Maybe) first: only the players of this event can propose or vote on a time'; end if;
+  insert into public.event_time_votes (event_id, voter, proposal_id) values (ev, me, p_proposal)
+    on conflict (event_id, voter) do update set proposal_id = excluded.proposal_id, created_at = now();
+  perform public.event_time_apply(ev);
+end $$;
+
+create or replace function public.unvote_event_time(p_event uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player();
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  delete from public.event_time_votes where event_id = p_event and voter = me;
+end $$;
+
+-- the proposer and the organiser may withdraw a proposal
+create or replace function public.withdraw_event_time(p_proposal uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); ev uuid; who text;
+begin
+  if me is null then raise exception 'Choose your player first'; end if;
+  select event_id, proposer into ev, who from public.event_time_proposals where id = p_proposal;
+  if ev is null then return; end if;
+  if who is distinct from me and not exists (select 1 from public.events e where e.id = ev and public.same_player(e.user_id)) then
+    raise exception 'Only the proposer or the organiser can withdraw a proposal'; end if;
+  delete from public.event_time_proposals where id = p_proposal;
+end $$;
+
+-- when somebody signs up, changes or withdraws, the number of players (and so the votes needed) changes
+create or replace function public.event_time_after_signup() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.event_time_apply(coalesce(new.event_id, old.event_id));
+  return null;
+end $$;
+drop trigger if exists event_time_after_signup on public.signups;
+create trigger event_time_after_signup after insert or update or delete on public.signups for each row execute function public.event_time_after_signup();
+
+revoke all on function public.event_time_voters(uuid), public.event_time_apply(uuid), public.event_time_after_signup() from public, anon, authenticated;
+revoke all on function public.propose_event_time(uuid, timestamptz), public.vote_event_time(uuid), public.unvote_event_time(uuid), public.withdraw_event_time(uuid) from public, anon;
+grant execute on function public.propose_event_time(uuid, timestamptz), public.vote_event_time(uuid), public.unvote_event_time(uuid), public.withdraw_event_time(uuid) to authenticated;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Events: propose another time and vote$q$, $q$Events$q$, 'check',
+  $q$Open an event you signed up for (or organise): Propose another time (date + time), the proposal shows with votes. Another signed-up player votes; with more than half of the players (organiser included) the event time changes, the agenda too and the Discord message within a minute. Someone who did not sign up gets a hint instead of the buttons. Withdraw removes a proposal.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Events: propose another time and vote$q$);
+
+-- 2026-11-17: need/greed rolls are hidden on Guild > Overview because Blizzard does not report them for every character. Ticket to look at it again.
+insert into public.dev_tickets (kind, title, area, body, status, created_by, urgency)
+select 'fix', $q$Need/greed rolls: Blizzard does not report them for every character$q$, $q$Overview$q$,
+  $q$Blizzard's statistics (ids 1044 Need rolls made on loot, 1043 Greed rolls made on loot, category Character > Gear) are missing for Bunte, Pala, Henk, Nazeebo and Murn, although they roll on loot. Checked 17 Nov with the Blizzard statistics workflow: Bunte has no roll line at all. Grootste (97 need / 132 greed) matches the dashboard exactly, and 25 other counters of Bunte match too. So the ranking is hidden (chips say "hidden for now"). Later: check again after a log out; if Blizzard gives the numbers for everyone, turn player(...) back on in overview.html (see docs).$q$,
+  'open', 'Claude', 2
+where not exists (select 1 from public.dev_tickets where title = $q$Need/greed rolls: Blizzard does not report them for every character$q$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Overview: need/greed rolls hidden$q$, $q$Overview$q$, 'check',
+  $q$Guild > Overview > Gear and loot: Need rollers and Greed rollers show "hidden for now" (greyed out, with the explanation under the chips). Mounts and item level still work.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Overview: need/greed rolls hidden$q$);
+
+-- 2026-11-18: player Rawas is spelled Rawaz. Renames the player (tables that point to players follow by themselves, on update cascade)
+-- and every other column that holds a player name as plain text (reservations, listings, who added what ...). Safe to run again.
+do $$
+declare r record; n bigint;
+begin
+  if exists (select 1 from public.players where player_name = 'Rawas') then
+    if exists (select 1 from public.players where player_name = 'Rawaz') then
+      delete from public.players where player_name = 'Rawaz'; -- an empty Rawaz that the seed above may have made
+    end if;
+    update public.players set player_name = 'Rawaz' where player_name = 'Rawas';
+  end if;
+  for r in
+    select c.table_name, c.column_name
+    from information_schema.columns c
+    join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
+    where c.table_schema = 'public' and c.data_type = 'text' and c.table_name <> 'players'
+      and (c.column_name like '%player%' or c.column_name in ('reserved_by', 'added_by', 'updated_by', 'created_by_name', 'owner', 'donor', 'from_player', 'to_player'))
+  loop
+    begin
+      execute format('update public.%I set %I = %L where %I = %L', r.table_name, r.column_name, 'Rawaz', r.column_name, 'Rawas');
+      get diagnostics n = row_count;
+      if n > 0 then raise notice 'Rawas -> Rawaz: %.% (% rows)', r.table_name, r.column_name, n; end if;
+    exception when others then
+      raise notice 'skipped %.%: %', r.table_name, r.column_name, sqlerrm;
+    end;
+  end loop;
+end $$;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Player Rawas is now Rawaz$q$, $q$Players$q$, 'check',
+  $q$After this SQL and the deploy: the name is Rawaz on Members, the player page, the login list ("Choose your player") and the rankings, in the same pink as before. His characters, reservations and listings are still his. Rawaz can still log in.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Player Rawas is now Rawaz$q$);
+
+-- 2026-11-23: Gallery (gallery.html, Guild > Gallery). Screenshots and clips from Discord, chosen by Jelle, in the private
+-- storage bucket "gallery". Only members (guild code) can see them and comment; only the developers add or remove items.
+-- Safe to run again.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('gallery', 'gallery', false, 52428800)
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
+
+drop policy if exists "gallery read members" on storage.objects;
+create policy "gallery read members" on storage.objects for select
+  using (bucket_id = 'gallery' and public.is_member());
+drop policy if exists "gallery add devs" on storage.objects;
+create policy "gallery add devs" on storage.objects for insert
+  with check (bucket_id = 'gallery' and public.is_dev());
+drop policy if exists "gallery change devs" on storage.objects;
+create policy "gallery change devs" on storage.objects for update
+  using (bucket_id = 'gallery' and public.is_dev());
+drop policy if exists "gallery delete devs" on storage.objects;
+create policy "gallery delete devs" on storage.objects for delete
+  using (bucket_id = 'gallery' and public.is_dev());
+
+create table if not exists public.gallery_items (
+  id uuid primary key default gen_random_uuid(),
+  path text not null unique,                                   -- file in the storage bucket "gallery"
+  kind text not null check (kind in ('image', 'video')),
+  poster text check (char_length(poster) <= 80),               -- name on Discord of who posted it
+  player_name text references public.players(player_name) on update cascade on delete set null,
+  posted_at timestamptz not null,                              -- when it was posted on Discord
+  caption text check (char_length(caption) <= 500),            -- the text of the Discord message, if any
+  bytes bigint,
+  source text not null default 'discord',
+  source_id text,                                              -- Discord message id
+  created_by text default public.current_player(),
+  created_at timestamptz not null default now()
+);
+alter table public.gallery_items enable row level security;
+drop policy if exists "gallery items read" on public.gallery_items;
+create policy "gallery items read" on public.gallery_items for select using (public.is_member());
+drop policy if exists "gallery items devs" on public.gallery_items;
+create policy "gallery items devs" on public.gallery_items for all using (public.is_dev()) with check (public.is_dev());
+
+create table if not exists public.gallery_comments (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references public.gallery_items(id) on delete cascade,
+  user_id uuid not null default auth.uid(),
+  player_name text not null references public.players(player_name) on update cascade,
+  body text not null check (char_length(btrim(body)) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+create index if not exists gallery_comments_item on public.gallery_comments (item_id, created_at);
+alter table public.gallery_comments enable row level security;
+drop policy if exists "gallery comments read" on public.gallery_comments;
+create policy "gallery comments read" on public.gallery_comments for select using (public.is_member());
+drop policy if exists "gallery comments add" on public.gallery_comments;
+create policy "gallery comments add" on public.gallery_comments for insert
+  with check (public.is_member() and user_id = auth.uid() and player_name = public.current_player());
+drop policy if exists "gallery comments delete" on public.gallery_comments;
+create policy "gallery comments delete" on public.gallery_comments for delete
+  using (public.same_player(user_id) or public.is_dev());
+grant select, insert, update, delete on public.gallery_items to anon, authenticated;
+grant select, insert, delete on public.gallery_comments to anon, authenticated;
+
+-- 2026-11-23: Gallery titles. Every member may give a gallery item a title or change it (shown on the plaque); only the
+-- title, nothing else of the item, so it goes through this function instead of an update policy. Safe to run again.
+alter table public.gallery_items add column if not exists title text check (char_length(title) <= 80);
+alter table public.gallery_items add column if not exists title_by text;
+alter table public.gallery_items add column if not exists title_at timestamptz;
+create or replace function public.set_gallery_title(p_id uuid, p_title text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_member() then raise exception 'Only members can change titles'; end if;
+  update public.gallery_items
+     set title = nullif(left(btrim(coalesce(p_title, '')), 80), ''),
+         title_by = case when nullif(btrim(coalesce(p_title, '')), '') is null then null else public.current_player() end,
+         title_at = now()
+   where id = p_id;
+  if not found then raise exception 'Gallery item not found'; end if;
+end $$;
+revoke all on function public.set_gallery_title(uuid, text) from public;
+grant execute on function public.set_gallery_title(uuid, text) to anon, authenticated;
+
+-- 2026-11-23: Gallery reactions and member uploads. Safe to run again.
+-- Reactions: one emote per player per item (like Facebook); set_gallery_reaction(id, null) takes it back.
+create table if not exists public.gallery_reactions (
+  item_id uuid not null references public.gallery_items(id) on delete cascade,
+  player_name text not null references public.players(player_name) on update cascade,
+  emoji text not null check (char_length(emoji) between 1 and 16),
+  created_at timestamptz not null default now(),
+  primary key (item_id, player_name)
+);
+alter table public.gallery_reactions enable row level security;
+drop policy if exists "gallery reactions read" on public.gallery_reactions;
+create policy "gallery reactions read" on public.gallery_reactions for select using (public.is_member());
+grant select on public.gallery_reactions to anon, authenticated;
+create or replace function public.set_gallery_reaction(p_id uuid, p_emoji text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player();
+begin
+  if not public.is_member() or me is null then raise exception 'Only members can react'; end if;
+  if p_emoji is null or btrim(p_emoji) = '' then
+    delete from public.gallery_reactions where item_id = p_id and player_name = me;
+  else
+    insert into public.gallery_reactions (item_id, player_name, emoji) values (p_id, me, btrim(p_emoji))
+    on conflict (item_id, player_name) do update set emoji = excluded.emoji, created_at = now();
+  end if;
+end $$;
+revoke all on function public.set_gallery_reaction(uuid, text) from public;
+grant execute on function public.set_gallery_reaction(uuid, text) to anon, authenticated;
+
+-- Uploads: every member may put a picture or clip in uploads/ and add it with add_gallery_item(); they may remove their own
+-- upload again (delete_gallery_item() + the file), developers anything.
+drop policy if exists "gallery add members" on storage.objects;
+create policy "gallery add members" on storage.objects for insert
+  with check (bucket_id = 'gallery' and public.is_member() and name like 'uploads/%');
+drop policy if exists "gallery delete own uploads" on storage.objects;
+create policy "gallery delete own uploads" on storage.objects for delete
+  using (bucket_id = 'gallery' and name like 'uploads/%' and owner_id is not null and public.same_player(owner_id::uuid));
+create or replace function public.add_gallery_item(p_path text, p_kind text, p_title text, p_caption text, p_bytes bigint) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); new_id uuid;
+begin
+  if not public.is_member() or me is null then raise exception 'Only members can upload'; end if;
+  if p_path not like 'uploads/%' then raise exception 'Wrong place for an upload'; end if;
+  if p_kind not in ('image', 'video') then raise exception 'Only pictures and clips'; end if;
+  if not exists (select 1 from storage.objects where bucket_id = 'gallery' and name = p_path) then raise exception 'Upload the file first'; end if;
+  insert into public.gallery_items (path, kind, poster, player_name, posted_at, caption, title, title_by, title_at, bytes, source, created_by)
+  values (p_path, p_kind, me, me, now(), nullif(left(btrim(coalesce(p_caption, '')), 500), ''),
+          nullif(left(btrim(coalesce(p_title, '')), 80), ''), case when nullif(btrim(coalesce(p_title, '')), '') is null then null else me end,
+          now(), p_bytes, 'upload', me)
+  returning id into new_id;
+  return new_id;
+end $$;
+revoke all on function public.add_gallery_item(text, text, text, text, bigint) from public;
+grant execute on function public.add_gallery_item(text, text, text, text, bigint) to anon, authenticated;
+create or replace function public.delete_gallery_item(p_id uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  select path, source, player_name into r from public.gallery_items where id = p_id;
+  if not found then raise exception 'Gallery item not found'; end if;
+  if not (public.is_dev() or (r.source = 'upload' and r.player_name = public.current_player())) then
+    raise exception 'You can only remove your own uploads';
+  end if;
+  delete from public.gallery_items where id = p_id;
+  return r.path;
+end $$;
+revoke all on function public.delete_gallery_item(uuid) from public;
+grant execute on function public.delete_gallery_item(uuid) to anon, authenticated;
+
+-- 2026-11-23: Gallery tags: which guild characters are in a picture (only shown, nobody gets a message). Every member may
+-- tag or untag; only characters from the table characters. Safe to run again.
+create table if not exists public.gallery_tags (
+  item_id uuid not null references public.gallery_items(id) on delete cascade,
+  character_name text not null check (char_length(character_name) between 1 and 60),
+  added_by text default public.current_player(),
+  created_at timestamptz not null default now(),
+  primary key (item_id, character_name)
+);
+alter table public.gallery_tags enable row level security;
+drop policy if exists "gallery tags read" on public.gallery_tags;
+create policy "gallery tags read" on public.gallery_tags for select using (public.is_member());
+grant select on public.gallery_tags to anon, authenticated;
+create or replace function public.set_gallery_tag(p_id uuid, p_character text, p_on boolean) returns void
+language plpgsql security definer set search_path = public as $$
+declare real_name text;
+begin
+  if not public.is_member() then raise exception 'Only members can tag'; end if;
+  select name into real_name from public.characters where lower(btrim(name)) = lower(btrim(p_character)) limit 1;
+  if p_on then
+    if real_name is null then raise exception 'That is not a character of the guild'; end if;
+    insert into public.gallery_tags (item_id, character_name, added_by) values (p_id, real_name, public.current_player())
+    on conflict (item_id, character_name) do nothing;
+  else
+    delete from public.gallery_tags where item_id = p_id and lower(character_name) = lower(btrim(p_character));
+  end if;
+end $$;
+revoke all on function public.set_gallery_tag(uuid, text, boolean) from public;
+grant execute on function public.set_gallery_tag(uuid, text, boolean) to anon, authenticated;
