@@ -1953,3 +1953,82 @@ begin
 end $$;
 revoke all on function public.set_gallery_tag(uuid, text, boolean) from public;
 grant execute on function public.set_gallery_tag(uuid, text, boolean) to anon, authenticated;
+
+-- 2026-11-23: Opie Market. Every NEW listing on the Trade Market (offer or request) gets one message in the Discord channel
+-- #loot-showcase, posted by the webhook "Opie Market"; players tagged on the listing get an @mention (players.discord_id;
+-- without an id their name in bold, nobody pinged). Listings that already existed are never posted (only an insert starts it).
+-- No Edge Function: the trigger calls market_post(), which posts with pg_net (like Odin). The webhook URL is a secret: only in
+-- the Vault as market_webhook_url (Supabase > Integrations > Vault > Secrets). Without it nothing is posted and the market keeps working.
+-- See the message without posting:  select public.market_post('<listing id>', true);   What Discord said:  select * from net._http_response order by created desc limit 5;
+create or replace function public.market_post(p_id uuid, p_dry boolean default false)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  l record;
+  v_url text;
+  v_tags text := '';
+  v_ids jsonb := '[]'::jsonb;
+  v_name text;
+  v_id text;
+  v_body jsonb;
+  v_fields jsonb := '[]'::jsonb;
+begin
+  select * into l from public.listings where id = p_id;
+  if not found then return jsonb_build_object('result', 'no listing'); end if;
+  foreach v_name in array coalesce(l.pinged, '{}') loop
+    select discord_id into v_id from public.players where player_name = v_name;
+    if v_id is not null and v_id ~ '^[0-9]{5,25}$' then
+      v_tags := v_tags || ' <@' || v_id || '>';
+      v_ids := v_ids || to_jsonb(v_id);
+    else
+      v_tags := v_tags || ' **' || replace(v_name, '*', '') || '**';
+    end if;
+  end loop;
+  if l.profession is not null then
+    v_fields := v_fields || jsonb_build_object('name', 'Profession', 'value', l.profession || coalesce(' (skill ' || l.min_skill || '+)', ''), 'inline', true);
+  end if;
+  if l.quantity > 1 then
+    v_fields := v_fields || jsonb_build_object('name', 'Quantity', 'value', l.quantity::text, 'inline', true);
+  end if;
+  v_body := jsonb_build_object(
+    'username', 'Opie Market',
+    'content', case when l.kind = 'offer' then '🛒 **' else '🔎 **' end || replace(l.author_name, '*', '') || '** '
+      || case when l.kind = 'offer' then 'offers' else 'is looking for' end || ' **' || replace(l.item, '*', '') || '**'
+      || case when l.quantity > 1 then ' ×' || l.quantity else '' end || ' on the Trade Market!'
+      || case when v_tags <> '' then E'\nTagged:' || v_tags else '' end,
+    'embeds', jsonb_build_array(jsonb_strip_nulls(jsonb_build_object(
+      'title', case when l.kind = 'offer' then 'Offer: ' else 'Wanted: ' end || l.item,
+      'url', 'https://jdckoop-sudo.github.io/mannenkeuken/market.html',
+      'description', nullif(btrim(coalesce(l.note, '')), ''),
+      'color', case when l.kind = 'offer' then 4235597 else 15105570 end,
+      'fields', case when jsonb_array_length(v_fields) > 0 then v_fields end,
+      'footer', jsonb_build_object('text', 'Mannenkeuken Trade Market · open the link to reserve or help'),
+      'timestamp', to_char(l.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')))),
+    -- only the tagged players are pinged, whatever the text says
+    'allowed_mentions', jsonb_build_object('parse', '[]'::jsonb, 'users', v_ids));
+  if p_dry then return jsonb_build_object('result', 'dry run', 'body', v_body); end if;
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'market_webhook_url' limit 1;
+  if v_url is null or v_url !~ '^https://([a-z]+\.)?discord(app)?\.com/api/webhooks/' then return jsonb_build_object('result', 'no webhook'); end if;
+  perform net.http_post(url := v_url, headers := jsonb_build_object('Content-Type', 'application/json'), body := v_body);
+  return jsonb_build_object('result', 'posted');
+end $$;
+-- only the trigger (and the SQL Editor) may start it: not the site, not a logged-in player
+revoke all on function public.market_post(uuid, boolean) from public, anon, authenticated;
+
+create or replace function public.market_post_new() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  begin
+    perform public.market_post(new.id);
+  exception when others then
+    raise warning 'Opie Market could not post listing %: %', new.id, sqlerrm; -- never block the market itself
+  end;
+  return new;
+end $$;
+revoke all on function public.market_post_new() from public, anon, authenticated;
+drop trigger if exists market_post_new on public.listings;
+create trigger market_post_new after insert on public.listings for each row execute function public.market_post_new();
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Opie Market: new listings in #loot-showcase$q$, $q$Discord$q$, 'check',
+  $q$After the SQL and after the webhook URL of Opie Market is in the Vault as market_webhook_url: put a new offer or request on the Trade Market. Opie Market posts it once in #loot-showcase, tagged players get an @mention. Editing or finishing a listing posts nothing; the listings from before are never posted. Look without posting: select public.market_post('<id>', true);$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Opie Market: new listings in #loot-showcase$q$);
