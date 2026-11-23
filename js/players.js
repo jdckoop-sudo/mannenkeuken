@@ -48,10 +48,15 @@ export function bossKills(chars, blizzard) {
 }
 // What the Blizzard API knows about one character (level, item level, gender, faction, guild ...), or null when it does not know it (yet).
 export const apiOf = (c, blizzard) => { const e = blizzard?.characters?.[norm(c.name)]; return e && e.status === 'ok' ? e : null; };
+// Counters the game gives per account, not per character (every character of a player gets the same number, alts included):
+// over a player's characters take the highest, never the sum (23 Nov 2026, Jelle: Bunte and Hunte both have 2 mounts, so Jelle has 2, not 4).
+export const ACCOUNT_STATS = ['mounts'];
 export function gameTotals(chars, blizzard) {
   const stats = chars.map((c) => blizzard?.characters?.[norm(c.name)]?.stats).filter(Boolean);
   const totals = { known: stats.length };
-  for (const key of [...GAME_STATS.map(([k]) => k), ...FUN_STATS]) totals[key] = stats.reduce((sum, s) => sum + (s[key] ?? 0), 0);
+  for (const key of [...GAME_STATS.map(([k]) => k), ...FUN_STATS]) totals[key] = ACCOUNT_STATS.includes(key)
+    ? stats.reduce((max, s) => Math.max(max, s[key] ?? 0), 0)
+    : stats.reduce((sum, s) => sum + (s[key] ?? 0), 0);
   return totals;
 }
 // The four tiles, for inside a .grid.glance
