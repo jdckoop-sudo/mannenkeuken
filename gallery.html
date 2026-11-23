@@ -12,29 +12,59 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/style.css?v=__V__">
 <style>
-  /* The museum: every picture hangs in a gilded frame with a small plaque underneath. */
+  /* The museum: every picture hangs in a carved walnut frame with a thin gilded slip, like an old and very expensive
+     painting, lit from above, with a brass plaque underneath. Only CSS (gradients and shadows), no images. */
   .gal-tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; }
   .gal-tools label { max-width: 220px; }
-  .gal-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 28px 24px; padding: 8px 0 24px; }
-  .gal-piece { background: none; border: 0; padding: 0; margin: 0; cursor: pointer; color: inherit; font: inherit; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .gal-frame { position: relative; width: 100%; aspect-ratio: 16 / 10; padding: 10px; border-radius: 3px;
-    background: linear-gradient(135deg, var(--gold-bright), var(--gold-dim) 45%, var(--gold) 70%, var(--gold-dim));
-    box-shadow: 0 10px 24px rgb(0 0 0 / .55), inset 0 0 0 2px var(--gold-dim); transition: transform .2s ease, box-shadow .2s ease; }
-  .gal-frame::before { content: ''; position: absolute; inset: 7px; border: 1px solid var(--gold-dim); pointer-events: none; }
-  .gal-frame > img, .gal-frame > video { display: block; width: 100%; height: 100%; object-fit: cover; background: var(--bg); box-shadow: inset 0 0 12px rgb(0 0 0 / .8); }
-  .gal-piece:hover .gal-frame, .gal-piece:focus-visible .gal-frame { transform: translateY(-4px) scale(1.02); box-shadow: 0 18px 34px rgb(0 0 0 / .6), 0 0 22px var(--gold-dim); }
+  .gal-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 44px 34px; padding: 26px 0 32px; align-items: start; }
+  .gal-piece { position: relative; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; color: inherit; font: inherit; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .gal-piece::before { /* the gallery spotlight on the wall */
+    content: ''; position: absolute; left: 50%; top: -30px; width: 130%; height: 75%; transform: translateX(-50%); pointer-events: none;
+    background: radial-gradient(ellipse at 50% 0, rgb(255 236 190 / .16), transparent 70%); }
+  .gal-wall, .gal-view { /* wood tones for the frames (only used on this page) */
+    --wood-dark: rgb(46 26 14); --wood: rgb(92 54 28); --wood-mid: rgb(120 74 38); --wood-light: rgb(158 104 58); }
+  .gal-frame { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; box-sizing: border-box; border-radius: 2px;
+    /* carved walnut moulding: wood grain, light from the top left, a thin gold bead only around the painting */
+    background:
+      repeating-linear-gradient(92deg, rgb(0 0 0 / .14) 0 1px, transparent 1px 7px, rgb(255 220 170 / .05) 7px 8px, transparent 8px 13px),
+      repeating-linear-gradient(88deg, transparent 0 21px, rgb(0 0 0 / .10) 21px 23px, transparent 23px 37px),
+      linear-gradient(135deg, var(--wood-light), var(--wood-mid) 18%, var(--wood) 45%, var(--wood-dark) 75%, var(--wood) 100%);
+    border: 2px solid var(--wood-dark);
+    box-shadow:
+      inset 0 0 0 3px var(--wood-mid), inset 0 0 0 5px var(--wood-dark),             /* outer edge */
+      inset 0 0 0 13px transparent, inset 0 0 0 14px rgb(0 0 0 / .45),                /* carved step */
+      inset 4px 4px 7px rgb(255 225 180 / .25), inset -4px -4px 9px rgb(0 0 0 / .55), /* light from the top left */
+      0 0 0 1px var(--bg), 0 14px 26px rgb(0 0 0 / .65), 0 4px 8px rgb(0 0 0 / .5);
+    transition: transform .25s ease, box-shadow .25s ease; }
+  .gal-frame::before { /* thin gilded slip and a dark lip around the canvas */
+    content: ''; position: absolute; inset: 24px; z-index: 1; pointer-events: none;
+    box-shadow: 0 0 0 1px var(--wood-dark), 0 0 0 3px var(--gold-dim), 0 0 0 4px var(--gold), 0 0 0 6px var(--wood-dark), inset 0 0 0 1px var(--bg); }
+  .gal-frame::after { /* varnish: old-painting vignette and a soft sheen */
+    content: ''; position: absolute; inset: 24px; z-index: 1; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgb(20 10 0 / .45) 100%), linear-gradient(160deg, rgb(255 244 214 / .10), transparent 40%); }
+  .gal-frame > img, .gal-frame > video { position: absolute; inset: 24px; width: calc(100% - 48px); height: calc(100% - 48px); object-fit: cover; display: block; background: var(--bg); }
+  .gal-piece:hover .gal-frame, .gal-piece:focus-visible .gal-frame { transform: translateY(-5px) scale(1.025);
+    box-shadow:
+      inset 0 0 0 3px var(--wood-mid), inset 0 0 0 5px var(--wood-dark), inset 0 0 0 13px transparent, inset 0 0 0 14px rgb(0 0 0 / .45),
+      inset 4px 4px 7px rgb(255 225 180 / .25), inset -4px -4px 9px rgb(0 0 0 / .55),
+      0 0 0 1px var(--bg), 0 22px 40px rgb(0 0 0 / .7), 0 0 22px rgb(255 220 160 / .18); }
   .gal-piece:focus-visible { outline: none; }
-  .gal-play { position: absolute; inset: 0; display: grid; place-items: center; font-size: 42px; color: var(--text); text-shadow: 0 2px 10px rgb(0 0 0 / .9); pointer-events: none; }
-  .gal-plaque { background: var(--panel-2); border: 1px solid var(--border-strong); border-top-color: var(--gold-dim); border-radius: 2px; padding: 5px 12px; font-size: 13px; line-height: 1.35; max-width: 92%; }
-  .gal-plaque b { font-family: var(--font-display); color: var(--gold-bright); font-weight: 600; }
-  .gal-plaque .muted { font-size: 12px; }
+  .gal-play { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; font-size: 42px; color: var(--text); text-shadow: 0 2px 10px rgb(0 0 0 / .9); pointer-events: none; }
+  .gal-plaque { /* engraved brass plate */
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold) 45%, var(--gold-dim)); color: var(--bg);
+    border: 1px solid var(--gold-dim); border-radius: 2px; padding: 5px 16px; font-size: 13px; line-height: 1.35; max-width: 92%;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / .45), 0 3px 6px rgb(0 0 0 / .5); text-shadow: 0 1px 0 rgb(255 255 255 / .35); }
+  .gal-plaque b { font-family: var(--font-display); font-weight: 700; letter-spacing: .04em; }
+  .gal-plaque .muted { font-size: 12px; color: var(--bg); opacity: .8; }
   .gal-count { font-size: 12px; color: var(--muted); }
 
   /* Lightbox */
   .gal-view { position: fixed; inset: 0; z-index: 100; background: rgb(0 0 0 / .9); display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
   .gal-view[hidden] { display: none; }
   .gal-stage { position: relative; display: flex; align-items: center; justify-content: center; padding: 24px 56px; min-height: 0; }
-  .gal-stage img, .gal-stage video { max-width: 100%; max-height: calc(100vh - 48px); box-shadow: 0 0 0 6px var(--gold-dim), 0 20px 60px rgb(0 0 0 / .8); background: var(--bg); }
+  .gal-stage img, .gal-stage video { display: block; max-width: calc(100vw - 340px - 160px); max-height: calc(100vh - 120px); background: var(--bg);
+    border: 26px solid var(--wood); border-image: linear-gradient(135deg, var(--wood-light), var(--wood-mid) 20%, var(--wood) 50%, var(--wood-dark) 80%, var(--wood)) 1;
+    box-shadow: 0 0 0 2px var(--wood-dark), 0 24px 70px rgb(0 0 0 / .85); outline: 2px solid var(--gold); outline-offset: -4px; }
   .gal-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px; font-size: 28px; padding: 0; }
   .gal-nav.prev { left: 6px; } .gal-nav.next { right: 6px; }
   .gal-side { background: var(--panel); border-left: 1px solid var(--border-strong); padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
@@ -49,10 +79,13 @@
   .gal-comment button { align-self: flex-start; font-size: 12px; padding: 2px 8px; min-height: 0; }
   #gal-form { display: flex; flex-direction: column; gap: 8px; }
   #gal-form textarea { min-height: 70px; resize: vertical; }
+  .gal-emotes { display: flex; flex-wrap: wrap; gap: 4px; }
+  .gal-emotes button { font-size: 20px; line-height: 1; padding: 4px 6px; min-height: 0; background: var(--field); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+  .gal-emotes button:hover, .gal-emotes button:focus-visible { border-color: var(--gold); transform: scale(1.15); }
   @media (max-width: 800px) {
     .gal-view { grid-template-columns: 1fr; grid-template-rows: minmax(0, 55vh) 1fr; }
     .gal-stage { padding: 12px 44px; }
-    .gal-stage img, .gal-stage video { max-height: calc(55vh - 24px); }
+    .gal-stage img, .gal-stage video { max-width: calc(100vw - 110px); max-height: calc(55vh - 50px); border-width: 12px; }
     .gal-side { border-left: 0; border-top: 1px solid var(--border-strong); }
   }
   @media (prefers-reduced-motion: reduce) { .gal-frame { transition: none; } .gal-piece:hover .gal-frame { transform: none; } }
@@ -81,6 +114,7 @@
     <div class="gal-comments" id="gal-comments"></div>
     <form id="gal-form">
       <label>Add a comment<textarea name="body" maxlength="1000" required placeholder="Say something about this one…"></textarea></label>
+      <div class="gal-emotes" id="gal-emotes" role="group" aria-label="Add an emote"></div>
       <button class="btn btn-primary" type="submit">Post comment</button>
     </form>
   </aside>
@@ -205,14 +239,25 @@ if (!user || !supabase) {
       if (e2) alert(`Could not delete: ${e2.message}`);
       loadComments(shown[current]);
     });
+    // Emotes: click one to put it in the comment where the cursor is.
+    const EMOTES = ['😂', '🤣', '😎', '😍', '😮', '😱', '🤔', '😭', '💀', '🔥', '👍', '👏', '💪', '🙌', '❤️', '🍺', '🍗', '⚔️', '🛡️', '🏆', '👑', '💰', '🐉', '🧌', '🐔', '🎉'];
+    const ta = document.querySelector('#gal-form textarea');
+    document.getElementById('gal-emotes').innerHTML = EMOTES.map((m) => `<button type="button" title="Add ${m}">${m}</button>`).join('');
+    document.getElementById('gal-emotes').addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      const at = ta.selectionStart ?? ta.value.length;
+      ta.setRangeText(b.textContent, at, ta.selectionEnd ?? at, 'end');
+      ta.focus();
+    });
     document.getElementById('gal-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = e.target;
       const text = f.body.value.trim();
       if (!text) return;
-      f.querySelector('button').disabled = true;
+      f.querySelector('button[type="submit"]').disabled = true;
       const { error: e3 } = await supabase.from('gallery_comments').insert({ item_id: shown[current].id, body: text, player_name: user.player });
-      f.querySelector('button').disabled = false;
+      f.querySelector('button[type="submit"]').disabled = false;
       if (e3) { alert(`Could not post: ${e3.message}`); return; }
       f.reset();
       loadComments(shown[current]);
