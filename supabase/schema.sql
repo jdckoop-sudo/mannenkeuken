@@ -1775,3 +1775,64 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Player Rawas is now Rawaz$q$, $q$Players$q$, 'check',
   $q$After this SQL and the deploy: the name is Rawaz on Members, the player page, the login list ("Choose your player") and the rankings, in the same pink as before. His characters, reservations and listings are still his. Rawaz can still log in.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Player Rawas is now Rawaz$q$);
+
+-- 2026-11-23: Gallery (gallery.html, Guild > Gallery). Screenshots and clips from Discord, chosen by Jelle, in the private
+-- storage bucket "gallery". Only members (guild code) can see them and comment; only the developers add or remove items.
+-- Safe to run again.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('gallery', 'gallery', false, 52428800)
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit;
+
+drop policy if exists "gallery read members" on storage.objects;
+create policy "gallery read members" on storage.objects for select
+  using (bucket_id = 'gallery' and public.is_member());
+drop policy if exists "gallery add devs" on storage.objects;
+create policy "gallery add devs" on storage.objects for insert
+  with check (bucket_id = 'gallery' and public.is_dev());
+drop policy if exists "gallery change devs" on storage.objects;
+create policy "gallery change devs" on storage.objects for update
+  using (bucket_id = 'gallery' and public.is_dev());
+drop policy if exists "gallery delete devs" on storage.objects;
+create policy "gallery delete devs" on storage.objects for delete
+  using (bucket_id = 'gallery' and public.is_dev());
+
+create table if not exists public.gallery_items (
+  id uuid primary key default gen_random_uuid(),
+  path text not null unique,                                   -- file in the storage bucket "gallery"
+  kind text not null check (kind in ('image', 'video')),
+  poster text check (char_length(poster) <= 80),               -- name on Discord of who posted it
+  player_name text references public.players(player_name) on update cascade on delete set null,
+  posted_at timestamptz not null,                              -- when it was posted on Discord
+  caption text check (char_length(caption) <= 500),            -- the text of the Discord message, if any
+  bytes bigint,
+  source text not null default 'discord',
+  source_id text,                                              -- Discord message id
+  created_by text default public.current_player(),
+  created_at timestamptz not null default now()
+);
+alter table public.gallery_items enable row level security;
+drop policy if exists "gallery items read" on public.gallery_items;
+create policy "gallery items read" on public.gallery_items for select using (public.is_member());
+drop policy if exists "gallery items devs" on public.gallery_items;
+create policy "gallery items devs" on public.gallery_items for all using (public.is_dev()) with check (public.is_dev());
+
+create table if not exists public.gallery_comments (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references public.gallery_items(id) on delete cascade,
+  user_id uuid not null default auth.uid(),
+  player_name text not null references public.players(player_name) on update cascade,
+  body text not null check (char_length(btrim(body)) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+create index if not exists gallery_comments_item on public.gallery_comments (item_id, created_at);
+alter table public.gallery_comments enable row level security;
+drop policy if exists "gallery comments read" on public.gallery_comments;
+create policy "gallery comments read" on public.gallery_comments for select using (public.is_member());
+drop policy if exists "gallery comments add" on public.gallery_comments;
+create policy "gallery comments add" on public.gallery_comments for insert
+  with check (public.is_member() and user_id = auth.uid() and player_name = public.current_player());
+drop policy if exists "gallery comments delete" on public.gallery_comments;
+create policy "gallery comments delete" on public.gallery_comments for delete
+  using (public.same_player(user_id) or public.is_dev());
+grant select, insert, update, delete on public.gallery_items to anon, authenticated;
+grant select, insert, delete on public.gallery_comments to anon, authenticated;
