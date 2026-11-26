@@ -241,10 +241,11 @@ assert.match(text, /📜 \*\*Quests\*\* — 🥇 Pim 36 · 🥈 Henk 24/);
 assert.match(text, /⬆️ \*\*Levels\*\* — 🥇 Pim \+5 · 🥈 Henk \+2/);
 assert.match(text, /💀 \*\*Deaths\*\* — 🥇 Henk 5 · 🥈 Pim 2/);
 assert.match(text, /🏰 \*\*Dungeons completed\*\* — 🥇 Pim 2 · 🥈 Henk 1/);
-assert.match(text, /☠️ \*\*Dungeon deaths\*\* — 🥇 Henk 3 · 🥈 Pim 1/);
+assert.match(text, /☠️ \*\*Deaths in dungeons\*\* — 🥇 Henk 3 · 🥈 Pim 1/);
+assert.match(text, /💀 7 deaths \(4 in dungeons\)/, 'the dungeon deaths are part of the deaths in the guild total');
 assert.match(text, /🏰 3 dungeons completed \(Deadmines ×2 · Wailing Caverns\)/, 'the guild total names the dungeons');
 // one short line per player; all characters of a player are added up (alts included); under each other, alphabetical
-assert.match(r.messages[1].embed.description, /### 👥 Everyone\n\*✨ XP[^\n]*\n\*\*Henk\*\* · ✨ 105,310 · ⬆️ \+2 · 📜 24 · ⚔️ 355 · 🏰 1 · 💀 5 · ☠️ 3 · 🔥 1\n\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+5 · 📜 36 · ⚔️ 470 · 🏰 2 · 💀 2 · ☠️ 1 · 🔥 3 · 🔨 \+5$/);
+assert.match(r.messages[1].embed.description, /### 👥 Everyone\n\*✨ XP[^\n]*\n\*\*Henk\*\* · ✨ 105,310 · ⬆️ \+2 · 📜 24 · ⚔️ 355 · 🏰 1 · 💀 5 \(☠️ 3\) · 🔥 1\n\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+5 · 📜 36 · ⚔️ 470 · 🏰 2 · 💀 2 \(☠️ 1\) · 🔥 3 · 🔨 \+5$/);
 assert.ok(!/🏆/.test(r.messages[1].embed.description), 'no achievements per player');
 assert.ok(!/↳|Mining/.test(text), 'no lines per character in the message');
 assert.ok(/### 🧮 Guild total\n/.test(text) && /📜 60 quests/.test(text));
@@ -263,7 +264,7 @@ assert.equal(r.newBase.chars.size, 4);
 // a counter the starting point did not have (dungeons before this version of the bot): no difference yet
 const oldBase = pbase(); for (const v of oldBase.chars.values()) { delete v.boss; delete v.bosses; delete v.dd; }
 r = periodRun('day', pnow(), oldBase);
-assert.ok(!/Dungeons completed|Dungeon deaths|\*\*Pim\*\* · [^\n]*(🏰|☠️)/.test(all(r)));
+assert.ok(!/Dungeons completed|Deaths in dungeons|\*\*Pim\*\* · [^\n]*(🏰|☠️)/.test(all(r)));
 // nobody did a dungeon: no dungeon lines at all (26 Nov 2026, Jelle)
 const noDungeons = pbase(); for (const v of noDungeons.chars.values()) { v.bosses = { [VC]: 9 }; v.dd = 99; }
 r = periodRun('day', pnow().map((c) => (c.stats ? { ...c, stats: { ...c.stats, bosses: { [VC]: 9 }, dungeonDeaths: 99 } } : c)), noDungeons);
@@ -413,7 +414,7 @@ console.log('Ding Dinky tests: all passed');
   const msg = q.messages.find((x) => x.player === 'Mike');
   assert.equal(msg.content, '<@42> played Willem Drie:');
   assert.equal(msg.embed.title, '🎉 Willem Drie reached level 13!');
-  assert.match(msg.embed.description, /^\*\*Willem Drie\*\* · Troll Hunter\n⬆️ Level 11 → \*\*13\*\*\n▰▰▰▰▱▱▱▱▱▱ 42% to level 14\n✨ \+[\d,]+ XP · 📜 \+8 quests · ⚔️ \+60 kills · 💀 \+2 deaths · ☠️ \+2 dungeon deaths\n🏰 3 dungeons completed: Deadmines ×2 · Wailing Caverns\n🔨 Skinning 29 → \*\*41\*\*(\n\n### 🏆 Achievements|$)/);
+  assert.match(msg.embed.description, /^\*\*Willem Drie\*\* · Troll Hunter\n⬆️ Level 11 → \*\*13\*\*\n▰▰▰▰▱▱▱▱▱▱ 42% to level 14\n✨ \+[\d,]+ XP · 📜 \+8 quests · ⚔️ \+60 kills · 💀 \+2 deaths \(2 in dungeons\)\n🏰 3 dungeons completed: Deadmines ×2 · Wailing Caverns\n🔨 Skinning 29 → \*\*41\*\*(\n\n### 🏆 Achievements|$)/);
   assert.match(msg.embed.footer.text, /^Mike · player level 67 \(all characters\) · \+[\d,]+ XP this session$/);
   assert.equal(msg.commit.snaps.find((x) => x.key === 'willem drie').dd, 2);
   // no dungeon: no dungeon line and no dungeon deaths

@@ -111,6 +111,8 @@ export function levelBar(level, xp) {
   const need = XP_TO_NEXT[level - 1]; const pct = Math.max(0, Math.min(99, Math.floor((xp / need) * 100))); const full = Math.round(pct / 10);
   return `${'▰'.repeat(full)}${'▱'.repeat(10 - full)} ${pct}% to level ${level + 1}`;
 }
+// dungeon deaths are part of all deaths (27 Nov 2026, Jelle: "+1 death · +1 dungeon death" read as two deaths): shown inside the deaths, e.g. "💀 +3 deaths (1 in a dungeon)"
+const inDungeons = (n) => (n ? ` (${fmt(n)} in ${n === 1 ? 'a dungeon' : 'dungeons'})` : '');
 const andList = (names) => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
 export function plan({ core, chars, states, prev, discord }) {
   const { BY_ID, BRANCHES, METERS } = core;
@@ -190,7 +192,7 @@ export function plan({ core, chars, states, prev, discord }) {
         `**${c.name}**${who ? ` · ${who}` : ''}`,
         g ? `⬆️ Level ${g.from} → **${g.to}**` : `Level **${c.level}**`,
         levelBar(c.level, c.xp),
-        row(ses?.xp && `✨ +${fmt(ses.xp)} XP`, ses?.quests && `📜 +${plural(ses.quests, 'quest')}`, ses?.kills && `⚔️ +${plural(ses.kills, 'kill')}`, ses?.deaths && `💀 +${plural(ses.deaths, 'death')}`, ses?.dungeonDeaths && `☠️ +${plural(ses.dungeonDeaths, 'dungeon death')}`, ses?.camps && `🔥 +${plural(ses.camps, 'campfire')}`),
+        row(ses?.xp && `✨ +${fmt(ses.xp)} XP`, ses?.quests && `📜 +${plural(ses.quests, 'quest')}`, ses?.kills && `⚔️ +${plural(ses.kills, 'kill')}`, ses?.deaths && `💀 +${plural(ses.deaths, 'death')}${inDungeons(ses.dungeonDeaths)}`, ses?.camps && `🔥 +${plural(ses.camps, 'campfire')}`),
         runs.length ? `🏰 ${plural(runsCount(runs), 'dungeon')} completed: ${runsText(runs)}` : '',
         ses?.skills?.length ? `🔨 ${ses.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ')}` : '',
       ].filter(Boolean).join('\n'));
@@ -273,7 +275,7 @@ const PERIOD_STATS = [
   { key: 'camps', icon: '🔥', label: 'Campfires', show: (v) => fmt(v) },
   { key: 'skillpts', icon: '🔨', label: 'Profession skill', show: (v) => `+${fmt(v)}` },
   { key: 'deaths', icon: '💀', label: 'Deaths', show: (v) => fmt(v) },
-  { key: 'dungeonDeaths', icon: '☠️', label: 'Dungeon deaths', show: (v) => fmt(v) },
+  { key: 'dungeonDeaths', icon: '☠️', label: 'Deaths in dungeons', show: (v) => fmt(v) },
 ];
 const MEDALS = ['🥇', '🥈', '🥉'];
 // Discord says 4096 characters, but the first Week Dinky (9 nov) was cut off after 2,687 characters / 52 lines (the rest of that message, with the block of Mike, never showed in Discord), so a message stays well below that
@@ -339,14 +341,14 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
   // message 1: the top 3 and the guild total; message 2 (and on): one short line per player (9 nov, Jelle: two separate messages; no achievements per player)
   const head = [];
   if (top.length) head.push(`### 🏅 Top 3 of the ${word}\n${top.join('\n')}`);
-  const legend = '*✨ XP · ⬆️ levels · 📜 quests · ⚔️ kills · 🏰 dungeons completed · 💀 deaths · ☠️ dungeon deaths · 🔥 campfires · 🔨 profession skill*';
-  const lineOf = (r) => { const t = r.totals; const stats = row(t.xp && `✨ ${fmt(t.xp)}`, t.levels && `⬆️ +${fmt(t.levels)}`, t.quests && `📜 ${fmt(t.quests)}`, t.kills && `⚔️ ${fmt(t.kills)}`, t.dungeons && `🏰 ${fmt(t.dungeons)}`, t.deaths && `💀 ${fmt(t.deaths)}`, t.dungeonDeaths && `☠️ ${fmt(t.dungeonDeaths)}`, t.camps && `🔥 ${fmt(t.camps)}`, t.skillpts && `🔨 +${fmt(t.skillpts)}`); return stats ? `**${r.name}** · ${stats}` : null; };
+  const legend = '*✨ XP · ⬆️ levels · 📜 quests · ⚔️ kills · 🏰 dungeons completed · 💀 deaths (☠️ of which in dungeons) · 🔥 campfires · 🔨 profession skill*';
+  const lineOf = (r) => { const t = r.totals; const stats = row(t.xp && `✨ ${fmt(t.xp)}`, t.levels && `⬆️ +${fmt(t.levels)}`, t.quests && `📜 ${fmt(t.quests)}`, t.kills && `⚔️ ${fmt(t.kills)}`, t.dungeons && `🏰 ${fmt(t.dungeons)}`, t.deaths && `💀 ${fmt(t.deaths)}${t.dungeonDeaths ? ` (☠️ ${fmt(t.dungeonDeaths)})` : ''}`, t.camps && `🔥 ${fmt(t.camps)}`, t.skillpts && `🔨 +${fmt(t.skillpts)}`); return stats ? `**${r.name}** · ${stats}` : null; };
   const playerLines = busy.map(lineOf).filter(Boolean); // alphabetical, one line each (all his characters added up)
   const g = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, dungeonDeaths: 0, camps: 0, dungeons: 0, skillpts: 0 }; let achN = 0;
   for (const r of busy) { for (const k of Object.keys(g)) g[k] += r.totals[k]; achN += r.ach.length; }
   const guildRuns = mergeRuns(busy.map((r) => r.totals.runs));
   const trend = kind !== 'day' && prevXp > 0 && g.xp > 0 ? ` (${g.xp >= prevXp ? '▲' : '▼'} ${Math.abs(Math.round(((g.xp - prevXp) / prevXp) * 100))}% vs last ${kind})` : '';
-  head.push(`### 🧮 Guild total\n${row(g.xp && `✨ ${fmt(g.xp)} XP${trend}`, g.levels && `⬆️ +${plural(g.levels, 'level')}`, g.quests && `📜 ${plural(g.quests, 'quest')}`, g.kills && `⚔️ ${plural(g.kills, 'kill')}`, g.dungeons && `🏰 ${plural(g.dungeons, 'dungeon')} completed (${runsText(guildRuns)})`, g.deaths && `💀 ${plural(g.deaths, 'death')}`, g.dungeonDeaths && `☠️ ${plural(g.dungeonDeaths, 'dungeon death')}`, g.camps && `🔥 ${plural(g.camps, 'campfire')}`, g.skillpts && `🔨 +${fmt(g.skillpts)} profession skill`, achN && `🏆 ${plural(achN, 'new achievement')}`)}`);
+  head.push(`### 🧮 Guild total\n${row(g.xp && `✨ ${fmt(g.xp)} XP${trend}`, g.levels && `⬆️ +${plural(g.levels, 'level')}`, g.quests && `📜 ${plural(g.quests, 'quest')}`, g.kills && `⚔️ ${plural(g.kills, 'kill')}`, g.dungeons && `🏰 ${plural(g.dungeons, 'dungeon')} completed (${runsText(guildRuns)})`, g.deaths && `💀 ${plural(g.deaths, 'death')}${inDungeons(g.dungeonDeaths)}`, g.camps && `🔥 ${plural(g.camps, 'campfire')}`, g.skillpts && `🔨 +${fmt(g.skillpts)} profession skill`, achN && `🏆 ${plural(achN, 'new achievement')}`)}`);
 
   // the player lines are packed into as few messages as fit (normally one)
   const pages = [[]]; let size = 0;
