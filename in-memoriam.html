@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>In Memoriam – Mannenkeuken</title>
+<link rel="icon" href="img/icon-128.png?v=__V__" type="image/png" sizes="128x128">
+<link rel="icon" href="img/favicon-32.png?v=__V__" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=__V__">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap">
+<link rel="stylesheet" href="css/style.css?v=__V__">
+<style>
+  /* The graveyard: one plot per player, a gravestone per character (our own CSS drawing, no game art) */
+  .yard { display: flex; flex-direction: column; gap: 28px; }
+  .plot { scroll-margin-top: 90px; padding: 18px 18px 0; border: 1px solid var(--border); border-radius: 10px;
+    background: linear-gradient(to bottom, var(--panel) 0%, var(--panel) 78%, color-mix(in srgb, var(--panel) 70%, var(--success, var(--gold)) 8%) 100%); }
+  .plot:target { outline: 2px solid var(--gold); outline-offset: 4px; }
+  .plot-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 14px; }
+  .plot-head h2 { margin: 0; font-size: 22px; }
+  .stones { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-end; padding-bottom: 0; }
+  .stone { position: relative; width: 170px; min-height: 240px; padding: 22px 12px 16px; text-align: center;
+    border-radius: 85px 85px 6px 6px; border: 2px solid color-mix(in srgb, var(--muted) 60%, var(--border));
+    background: linear-gradient(160deg, color-mix(in srgb, var(--muted) 38%, var(--panel)) 0%, color-mix(in srgb, var(--muted) 18%, var(--panel)) 70%, color-mix(in srgb, var(--muted) 10%, var(--panel)) 100%);
+    box-shadow: inset 0 -10px 18px rgba(0, 0, 0, .35), 0 6px 0 -2px color-mix(in srgb, var(--muted) 25%, var(--panel));
+    display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .stone::after { content: ''; position: absolute; left: -14px; right: -14px; bottom: -10px; height: 12px; border-radius: 50%;
+    background: color-mix(in srgb, var(--muted) 15%, var(--panel)); z-index: -1; }
+  /* the head of the character from the game (media.avatar), faded like an old portrait on a grave; the class icon when the game has none */
+  .stone .face { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; border: 2px solid color-mix(in srgb, var(--muted) 70%, var(--border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 25%, var(--panel)); display: flex; align-items: center; justify-content: center; background: var(--panel); }
+  .stone .face img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(.25) brightness(.85) contrast(1.05); }
+  .stone .face svg { opacity: .6; filter: grayscale(1); }
+  .stone .rip { font-family: 'Cinzel', serif; font-weight: 700; letter-spacing: 3px; font-size: 18px; color: var(--text); opacity: .8; }
+  .stone .cross { font-size: 22px; line-height: 1; opacity: .7; }
+  .stone .who { font-family: 'Cinzel', serif; font-weight: 700; font-size: 15px; line-height: 1.25; word-break: break-word; }
+  .stone .what { font-size: 13px; }
+  .stone .when { font-size: 12px; margin-top: auto; }
+  .stone.quit { border-style: dashed; }
+  .stone.quit .rip { letter-spacing: 1px; font-size: 14px; }
+  .candle { display: inline-block; animation: flicker 2.4s ease-in-out infinite; }
+  @keyframes flicker { 0%, 100% { opacity: 1; transform: translateY(0); } 50% { opacity: .7; transform: translateY(-1px); } }
+  @media (prefers-reduced-motion: reduce) { .candle { animation: none; } }
+  .risen { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .risen li { padding: 10px 14px; border: 1px solid var(--border); border-left: 3px solid var(--gold); border-radius: 6px; background: var(--panel); }
+  .empty { text-align: center; padding: 30px 14px; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>In Memoriam</h1>
+    <p class="muted">Here rest the heroes of Mannenkeuken whose player has not logged in for 14 days. Every character of that player gets a gravestone; an alt stays alive while its main is played. A player whose characters are all Quit rests here too. Log in again with any character and the gravestones are gone (a Quit character comes back as an alt). Opie Gedenk announces every death and every return in #kletsen.</p>
+  </div>
+  <section aria-labelledby="yard-title" style="display:flex;flex-direction:column;gap:14px">
+    <h2 id="yard-title" style="margin:0">The graveyard <span class="candle" aria-hidden="true">🕯️</span></h2>
+    <div id="yard" class="yard"><p class="muted">Loading…</p></div>
+  </section>
+  <section id="risen" aria-labelledby="risen-title" style="display:flex;flex-direction:column;gap:10px;scroll-margin-top:90px">
+    <h2 id="risen-title" style="margin:0">Risen from the dead 🧟</h2>
+    <ul id="risen-list" class="risen"><li class="muted">Loading…</li></ul>
+  </section>
+  <section aria-labelledby="quit-title" style="display:flex;flex-direction:column;gap:14px">
+    <h2 id="quit-title" style="margin:0">Quit</h2>
+    <p class="muted" style="margin:0">Quit characters of players who still play. Log in with one again and it comes back as an alt.</p>
+    <div id="quit" class="stones"><p class="muted">Loading…</p></div>
+  </section>
+</main>
+<script type="module">
+import { renderHeader } from './js/layout.js?v=__V__';
+import { supabase } from './js/supabase.js?v=__V__';
+import { esc, loadBlizzard } from './js/sheet.js?v=__V__';
+import { loadCharacters, playerUrl, characterUrl, baseRace } from './js/players.js?v=__V__';
+import { classColor, classIcon } from './js/classicons.js?v=__V__';
+import { avatarOf, pictureStamp } from './js/charpicture.js?v=__V__';
+renderHeader();
+
+const norm = (s) => String(s ?? '').trim().toLowerCase();
+const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-GB', { timeZone: 'Europe/Amsterdam', day: 'numeric', month: 'short', year: 'numeric' }) : '–');
+const daysSince = (iso) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86400e3));
+const anchor = (player) => `p-${String(player).replace(/\s+/g, '-')}`;
+
+let api = {};
+function face(c) {
+  const entry = api[norm(c.name)];
+  const url = avatarOf(entry);
+  return `<span class="face">${url ? `<img src="${esc(url)}?v=${esc(pictureStamp(entry))}" alt="" loading="lazy" onerror="this.hidden = true; this.nextElementSibling.hidden = false"><span hidden>${classIcon(c.class, 34)}</span>` : classIcon(c.class, 34)}</span>`;
+}
+function stone(c, { quit = false, lastLogin = null } = {}) {
+  const cls = c.class ? `<span style="color:${classColor(c.class) || 'inherit'}">${esc(c.class)}</span>` : '';
+  const what = [c.level ? `Level ${esc(c.level)}` : '', c.race ? esc(baseRace(c.race)) : '', cls].filter(Boolean).join(' ');
+  const seen = lastLogin ?? c.last_login;
+  return `<div class="stone${quit ? ' quit' : ''}">
+    ${face(c)}
+    <span class="rip">${quit ? 'QUIT' : 'R.I.P.'}</span>
+    <a class="who" href="${characterUrl(c.name)}">${esc(c.name)}</a>
+    ${what ? `<span class="what muted">${what}</span>` : ''}
+    <span class="when muted">${seen ? `Last seen ${esc(day(seen))}${quit ? '' : `<br>Gone for ${daysSince(seen)} days`}` : 'Never seen in the game data'}</span>
+  </div>`;
+}
+
+async function load() {
+  const [{ data: rows, error }, { characters }, blizzard] = await Promise.all([
+    supabase.from('memorial').select('*').order('died_at', { ascending: true }),
+    loadCharacters(),
+    loadBlizzard(),
+  ]);
+  if (error) throw error;
+  api = blizzard?.characters ?? {};
+
+  // the dead: rows without risen_at (one per player)
+  const dead = (rows ?? []).filter((r) => !r.risen_at);
+  document.getElementById('yard').innerHTML = dead.length ? dead.map((r) => `
+    <article class="plot" id="${esc(anchor(r.player_name))}">
+      <div class="plot-head">
+        <h2><a href="${playerUrl(r.player_name)}">${esc(r.player_name)}</a></h2>
+        <span class="muted">Last login ${esc(day(r.last_login))} · in memoriam since ${esc(day(r.died_at))}</span>
+      </div>
+      <div class="stones">${(r.characters ?? []).map((c) => stone(c, { quit: !!c.quit })).join('')}</div>
+    </article>`).join('')
+    : '<p class="muted empty">Nobody rests here. Everyone is still playing! 🍲</p>';
+
+  // risen: the last 10 returns
+  const risen = (rows ?? []).filter((r) => r.risen_at).sort((a, b) => Date.parse(b.risen_at) - Date.parse(a.risen_at)).slice(0, 10);
+  document.getElementById('risen-list').innerHTML = risen.length ? risen.map((r) => `
+    <li><strong><a href="${playerUrl(r.player_name)}">${esc(r.player_name)}</a></strong> rose on ${esc(day(r.risen_at))} after ${Math.max(1, Math.floor((Date.parse(r.risen_at) - Date.parse(r.last_login)) / 86400e3))} days.
+      <span class="muted">Alive again: ${(r.risen_characters ?? []).map((c) => `<a href="${characterUrl(c.name)}">${esc(c.name)}</a>`).join(', ') || '–'}</span></li>`).join('')
+    : '<li class="muted">Nobody has come back from the dead yet.</li>';
+
+  // Quit characters of players who still play (the others are in their plot above); playing such a character again brings it back
+  const resting = new Set(dead.map((r) => r.player_name));
+  const quit = characters.filter((c) => c.status === 'Gestopt' && c.hasName && !resting.has(c.player));
+  document.getElementById('quit').innerHTML = quit.length
+    ? quit.map((c) => stone({ name: c.name, level: c.level, race: c.race, class: c.class }, { quit: true, lastLogin: api[norm(c.name)]?.lastLogin ?? null })).join('')
+    : '<p class="muted">No quit characters.</p>';
+
+  // a link from Discord (#p-Name / #risen): scroll to it once it exists
+  if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+}
+
+load().catch(() => {
+  document.getElementById('yard').innerHTML = '<p class="muted">Could not read the graveyard. Try again later.</p>';
+  document.getElementById('risen-list').innerHTML = '';
+  document.getElementById('quit').innerHTML = '';
+});
+</script>
+</body>
+</html>

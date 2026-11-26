@@ -2042,3 +2042,172 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Ding Dinky: character level first, dungeons, Maand Dinky$q$, $q$Discord$q$, 'check',
   $q$After this SQL + deploying ding-bot: the first run only stores dungeon deaths and boss kills. Next recap: "<player> played <character>:", character level + bar first, player level in the footer, dungeons/dungeon deaths only when there were any. Maand Dinky on the 1st at 00:07. Preview: POST {"dryRun": true, "force": "month"}.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: character level first, dungeons, Maand Dinky$q$);
+
+-- 2026-11-27: In Memoriam (Guild tab, in-memoriam.html) and the Discord webhook Opie Gedenk in #kletsen (Jelle).
+-- A player "dies" when (a) the newest last login (Blizzard API, blizzard_characters.data.lastLogin) of all his characters that are not Quit is older than 14 days,
+-- or (b) all his characters are Quit ("Quit is in memoriam", Jelle). Then ALL his characters get a gravestone. Alts do not die while the main is played (it is per player).
+-- Characters without a last login (under level 10) do not count for the 14 days.
+-- He rises when one of his characters is played again: a newer last login, or a Quit character that logs in after it was set to Quit. Such a Quit character
+-- is set back to Alt (Main when the player has no main) by memorial_check() itself. A Quit alt of a player who still plays also rests on the page (Quit section);
+-- when it is played again it comes back the same way, with its own "is back" post.
+-- Opie Gedenk posts once per death and once per rising (with an @mention of the player). Webhook URL only in the Vault as gedenk_webhook_url (never in the repo or a chat).
+-- No Edge Function: pg_cron starts memorial_check(), which posts with pg_net (like Odin and Opie Market).
+-- Test without writing or posting:  select public.memorial_check(true);   Discord's answer:  select * from net._http_response order by created desc limit 5;
+
+-- when a character was set to Quit (a login after this moment = played again)
+alter table public.characters add column if not exists quit_at timestamptz;
+update public.characters set quit_at = coalesce(updated_at, now()) where status = 'Gestopt' and quit_at is null;
+create or replace function public.characters_quit_at() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if new.status = 'Gestopt' and (tg_op = 'INSERT' or old.status is distinct from 'Gestopt') then new.quit_at := now();
+  elsif new.status is distinct from 'Gestopt' then new.quit_at := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists characters_quit_at on public.characters;
+create trigger characters_quit_at before insert or update of status on public.characters for each row execute function public.characters_quit_at();
+
+create table if not exists public.memorial (
+  id bigserial primary key,
+  player_name text not null,
+  reason text not null default 'inactive' check (reason in ('inactive', 'quit')),
+  last_login timestamptz not null,           -- the newest last login of his characters when he died
+  died_at timestamptz not null,              -- inactive: last_login + 14 days; quit: when the last character was set to Quit
+  characters jsonb not null default '[]',    -- [{ name, level, race, class, last_login, quit }] at the moment he died
+  risen_at timestamptz,                      -- null = still in memoriam
+  risen_characters jsonb,                    -- the characters that were played again
+  posted_death boolean not null default false,
+  posted_risen boolean not null default false,
+  created_at timestamptz not null default now()
+);
+alter table public.memorial add column if not exists reason text not null default 'inactive';
+create unique index if not exists memorial_one_open on public.memorial (player_name) where risen_at is null;
+alter table public.memorial enable row level security;
+drop policy if exists "read all" on public.memorial;
+create policy "read all" on public.memorial for select using (true);
+-- no write policies: only memorial_check() (security definer) writes
+
+create or replace function public.memorial_post(p_url text, p_body jsonb) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  perform net.http_post(url := p_url, headers := jsonb_build_object('Content-Type', 'application/json'), body := p_body);
+end $$;
+revoke all on function public.memorial_post(text, jsonb) from public, anon, authenticated;
+
+create or replace function public.memorial_check(p_dry boolean default false)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_days constant int := 14;
+  v_site constant text := 'https://jdckoop-sudo.github.io/mannenkeuken/in-memoriam.html';
+  v_url text; v_id text; r record; m record; q record; v_out jsonb := '[]'::jsonb; v_body jsonb; v_names text; v_alive jsonb;
+  v_dead boolean; v_ref timestamptz; v_who text;
+begin
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'gedenk_webhook_url' limit 1;
+  if v_url is not null and v_url !~ '^https://([a-z]+\.)?discord(app)?\.com/api/webhooks/' then v_url := null; end if;
+
+  -- 1. a Quit character that logged in after it was set to Quit plays again: back to Alt (Main when the player has no main)
+  for q in
+    select c.id, c.player_name, btrim(c.name) as name, (b.data->>'lastLogin')::timestamptz as ll,
+      exists (select 1 from public.memorial x where x.player_name = c.player_name and x.risen_at is null) as in_memoriam
+    from public.characters c join public.blizzard_characters b on b.key = lower(btrim(c.name))
+    where c.status = 'Gestopt' and b.data->>'lastLogin' ~ '^\d{4}-' and (b.data->>'lastLogin')::timestamptz > coalesce(c.quit_at, now())
+  loop
+    v_out := v_out || jsonb_build_array(jsonb_build_object('player', q.player_name, 'event', 'unquit', 'character', q.name));
+    if p_dry then continue; end if;
+    update public.characters set status = case when exists (select 1 from public.characters x where x.player_name = q.player_name and x.status = 'Main') then 'Alt' else 'Main' end
+      where id = q.id;
+    -- a player who is in memoriam rises below (with the normal post); a player who still plays gets a short post of his own
+    if not q.in_memoriam and v_url is not null then
+      select discord_id into v_id from public.players where player_name = q.player_name;
+      perform public.memorial_post(v_url, jsonb_build_object('username', 'Opie Gedenk',
+        'content', '🧟 ' || case when v_id is null then '**' || q.player_name || '**' else '<@' || v_id || '>' end || ' is back: **' || q.name || '** is no longer quit!',
+        'embeds', jsonb_build_array(jsonb_build_object('color', 5763719, 'title', 'Back among the living: ' || q.name, 'url', v_site || '#risen',
+          'description', 'The gravestone of **' || q.name || '** has been removed. 🌱', 'footer', jsonb_build_object('text', 'Mannenkeuken · Opie Gedenk'))),
+        'allowed_mentions', case when v_id is null then jsonb_build_object('parse', '[]'::jsonb) else jsonb_build_object('users', jsonb_build_array(v_id)) end));
+    end if;
+  end loop;
+
+  -- 2. the state now, per player
+  for r in
+    with c as (
+      select c.player_name, btrim(c.name) as name, c.status = 'Gestopt' as quit, c.quit_at,
+        case when b.data->>'level' ~ '^\d+$' then (b.data->>'level')::int else c.level end as level,
+        coalesce(nullif(b.data->>'race', ''), c.race) as race, coalesce(nullif(b.data->>'class', ''), c.class) as class,
+        case when b.data->>'lastLogin' ~ '^\d{4}-' then (b.data->>'lastLogin')::timestamptz end as ll
+      from public.characters c
+      left join public.blizzard_characters b on b.key = lower(btrim(c.name))
+      where coalesce(btrim(c.player_name), '') <> '' and coalesce(btrim(c.name), '') <> ''
+    )
+    select player_name,
+      max(ll) filter (where not quit) as last_active, max(ll) as last_any, bool_and(quit) as all_quit, max(quit_at) as quit_at,
+      jsonb_agg(jsonb_build_object('name', name, 'level', level, 'race', race, 'class', class, 'last_login', ll, 'quit', quit) order by quit, ll desc nulls last, name) as chars
+    from c group by player_name
+  loop
+    -- (when a Quit character was set back in step 1 of a dry run, the table did not change: the dry run shows the state before)
+    v_dead := r.all_quit or (r.last_active is not null and r.last_active < now() - make_interval(days => v_days));
+    select * into m from public.memorial where player_name = r.player_name and risen_at is null;
+    if found then
+      if not v_dead and r.last_active is not null then
+        -- back among the living: the characters (not Quit) with a login after his death
+        select coalesce(jsonb_agg(x), '[]'::jsonb) into v_alive from jsonb_array_elements(r.chars) x
+          where not (x->>'quit')::boolean and (x->>'last_login') is not null and (x->>'last_login')::timestamptz > m.last_login;
+        v_out := v_out || jsonb_build_array(jsonb_build_object('player', r.player_name, 'event', 'risen', 'characters', v_alive));
+        if not p_dry then update public.memorial set risen_at = now(), risen_characters = v_alive where id = m.id; end if;
+      end if;
+    elsif v_dead then
+      v_ref := coalesce(r.last_active, r.last_any, r.quit_at, now());
+      v_out := v_out || jsonb_build_array(jsonb_build_object('player', r.player_name, 'event', 'died', 'reason', case when r.all_quit then 'quit' else 'inactive' end, 'last_login', v_ref, 'characters', r.chars));
+      if not p_dry then
+        insert into public.memorial (player_name, reason, last_login, died_at, characters)
+        values (r.player_name, case when r.all_quit then 'quit' else 'inactive' end, v_ref,
+          case when r.all_quit then coalesce(r.quit_at, now()) else v_ref + make_interval(days => v_days) end, r.chars);
+      end if;
+    end if;
+  end loop;
+  if p_dry then return jsonb_build_object('result', 'dry run', 'changes', v_out); end if;
+
+  -- 3. post what is not posted yet (without a webhook the rows wait)
+  if v_url is null then return jsonb_build_object('result', 'no webhook', 'changes', v_out); end if;
+  for m in select * from public.memorial where not posted_death or (risen_at is not null and not posted_risen) order by id loop
+    select discord_id into v_id from public.players where player_name = m.player_name;
+    v_who := case when v_id is null then '**' || m.player_name || '**' else '<@' || v_id || '>' end;
+    if not m.posted_death and m.risen_at is null then
+      select string_agg('**' || (x->>'name') || '**' || coalesce(' (level ' || (x->>'level') || coalesce(' ' || (x->>'class'), '') || ')', ''), ', ' order by ord)
+        into v_names from jsonb_array_elements(m.characters) with ordinality as t(x, ord);
+      perform public.memorial_post(v_url, jsonb_build_object('username', 'Opie Gedenk',
+        'content', '🪦 ' || v_who || case when m.reason = 'quit' then ' has quit WoW: Forever.' else ' has not logged in for 14 days.' end,
+        'embeds', jsonb_build_array(jsonb_build_object('color', 9737364, 'title', 'In memoriam: ' || m.player_name,
+          'url', v_site || '#p-' || replace(m.player_name, ' ', '-'),
+          'description', 'Here lies ' || coalesce(v_names, 'a forgotten hero') || '.' || E'\n' || 'Last seen ' || to_char(m.last_login at time zone 'Europe/Amsterdam', 'FMDD FMMonth YYYY') || '. Rest in peace. 🕯️'
+            || E'\n\n' || '[Visit the grave](' || v_site || '#p-' || replace(m.player_name, ' ', '-') || ')',
+          'footer', jsonb_build_object('text', 'Mannenkeuken · Opie Gedenk'))),
+        'allowed_mentions', case when v_id is null then jsonb_build_object('parse', '[]'::jsonb) else jsonb_build_object('users', jsonb_build_array(v_id)) end));
+      update public.memorial set posted_death = true where id = m.id;
+    elsif m.risen_at is not null and not m.posted_risen then
+      if m.posted_death then -- risen before the death was ever posted: say nothing
+        select string_agg('**' || (x->>'name') || '**', ', ') into v_names from jsonb_array_elements(coalesce(m.risen_characters, '[]'::jsonb)) x;
+        perform public.memorial_post(v_url, jsonb_build_object('username', 'Opie Gedenk',
+          'content', '🧟 ' || v_who || ' has risen from the dead!',
+          'embeds', jsonb_build_array(jsonb_build_object('color', 5763719, 'title', 'Back among the living: ' || m.player_name,
+            'url', v_site || '#risen',
+            'description', 'Alive again: ' || coalesce(v_names, 'one of his characters') || '.' || E'\n' || 'Gone for ' || greatest(1, floor(extract(epoch from (m.risen_at - m.last_login)) / 86400))::int || ' days (last seen ' || to_char(m.last_login at time zone 'Europe/Amsterdam', 'FMDD FMMonth') || '). The gravestone has been removed. 🌱',
+            'footer', jsonb_build_object('text', 'Mannenkeuken · Opie Gedenk'))),
+          'allowed_mentions', case when v_id is null then jsonb_build_object('parse', '[]'::jsonb) else jsonb_build_object('users', jsonb_build_array(v_id)) end));
+      end if;
+      update public.memorial set posted_death = true, posted_risen = true where id = m.id;
+    end if;
+  end loop;
+  return jsonb_build_object('result', 'ok', 'changes', v_out);
+end $$;
+-- only the timer (and the SQL Editor) may start it: not the site, not a logged-in player
+revoke all on function public.memorial_check(boolean) from public, anon, authenticated;
+
+-- every 15 minutes (a few minutes after update-characters, which refreshes the last logins)
+select cron.unschedule(jobid) from cron.job where jobname = 'memorial';
+select cron.schedule('memorial', '13,28,43,58 * * * *', $job$ select public.memorial_check(); $job$);
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$In Memoriam + Opie Gedenk$q$, $q$Discord$q$, 'check',
+  $q$After the SQL and the Opie Gedenk webhook in the Vault as gedenk_webhook_url: select public.memorial_check(true); shows who would die or rise. Over 14 days without a login (not Quit) or all characters Quit: gravestones on Guild > In Memoriam + a post in #kletsen. Playing again removes them ("risen"); a Quit character goes back to Alt.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$In Memoriam + Opie Gedenk$q$);
