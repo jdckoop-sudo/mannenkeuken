@@ -42,8 +42,6 @@
   .candle { display: inline-block; animation: flicker 2.4s ease-in-out infinite; }
   @keyframes flicker { 0%, 100% { opacity: 1; transform: translateY(0); } 50% { opacity: .7; transform: translateY(-1px); } }
   @media (prefers-reduced-motion: reduce) { .candle { animation: none; } }
-  .risen { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-  .risen li { padding: 10px 14px; border: 1px solid var(--border); border-left: 3px solid var(--gold); border-radius: 6px; background: var(--panel); }
   .empty { text-align: center; padding: 30px 14px; }
 </style>
 </head>
@@ -51,20 +49,11 @@
 <main>
   <div>
     <h1>In Memoriam</h1>
-    <p class="muted">Here rest the heroes of Mannenkeuken whose player has not logged in for 14 days. Every character of that player gets a gravestone; an alt stays alive while its main is played. A player whose characters are all Quit rests here too. Log in again with any character and the gravestones are gone (a Quit character comes back as an alt). Opie Gedenk announces every death and every return in #kletsen.</p>
+    <p class="muted">Here rest the heroes of Mannenkeuken whose player has not logged in for 14 days. Every character of that player gets a gravestone; an alt stays alive while its main is played. Quit characters rest here too. Log in again and the gravestones are gone (a Quit character comes back as an alt). Opie Gedenk announces every death and every return in #kletsen.</p>
   </div>
   <section aria-labelledby="yard-title" style="display:flex;flex-direction:column;gap:14px">
     <h2 id="yard-title" style="margin:0">The graveyard <span class="candle" aria-hidden="true">🕯️</span></h2>
     <div id="yard" class="yard"><p class="muted">Loading…</p></div>
-  </section>
-  <section id="risen" aria-labelledby="risen-title" style="display:flex;flex-direction:column;gap:10px;scroll-margin-top:90px">
-    <h2 id="risen-title" style="margin:0">Risen from the dead 🧟</h2>
-    <ul id="risen-list" class="risen"><li class="muted">Loading…</li></ul>
-  </section>
-  <section aria-labelledby="quit-title" style="display:flex;flex-direction:column;gap:14px">
-    <h2 id="quit-title" style="margin:0">Quit</h2>
-    <p class="muted" style="margin:0">Quit characters of players who still play. Log in with one again and it comes back as an alt.</p>
-    <div id="quit" class="stones"><p class="muted">Loading…</p></div>
   </section>
 </main>
 <script type="module">
@@ -109,40 +98,35 @@ async function load() {
   if (error) throw error;
   api = blizzard?.characters ?? {};
 
-  // the dead: rows without risen_at (one per player)
+  // the dead: rows without risen_at (one per player), plus the Quit characters of players who still play (27 Nov 2026, Jelle: only the graveyard on this page)
   const dead = (rows ?? []).filter((r) => !r.risen_at);
-  document.getElementById('yard').innerHTML = dead.length ? dead.map((r) => `
-    <article class="plot" id="${esc(anchor(r.player_name))}">
-      <div class="plot-head">
-        <h2><a href="${playerUrl(r.player_name)}">${esc(r.player_name)}</a></h2>
-        <span class="muted">Last login ${esc(day(r.last_login))} · in memoriam since ${esc(day(r.died_at))}</span>
-      </div>
-      <div class="stones">${(r.characters ?? []).map((c) => stone(c, { quit: !!c.quit })).join('')}</div>
-    </article>`).join('')
-    : '<p class="muted empty">Nobody rests here. Everyone is still playing! 🍲</p>';
-
-  // risen: the last 10 returns
-  const risen = (rows ?? []).filter((r) => r.risen_at).sort((a, b) => Date.parse(b.risen_at) - Date.parse(a.risen_at)).slice(0, 10);
-  document.getElementById('risen-list').innerHTML = risen.length ? risen.map((r) => `
-    <li><strong><a href="${playerUrl(r.player_name)}">${esc(r.player_name)}</a></strong> rose on ${esc(day(r.risen_at))} after ${Math.max(1, Math.floor((Date.parse(r.risen_at) - Date.parse(r.last_login)) / 86400e3))} days.
-      <span class="muted">Alive again: ${(r.risen_characters ?? []).map((c) => `<a href="${characterUrl(c.name)}">${esc(c.name)}</a>`).join(', ') || '–'}</span></li>`).join('')
-    : '<li class="muted">Nobody has come back from the dead yet.</li>';
-
-  // Quit characters of players who still play (the others are in their plot above); playing such a character again brings it back
   const resting = new Set(dead.map((r) => r.player_name));
-  const quit = characters.filter((c) => c.status === 'Gestopt' && c.hasName && !resting.has(c.player));
-  document.getElementById('quit').innerHTML = quit.length
-    ? quit.map((c) => stone({ name: c.name, level: c.level, race: c.race, class: c.class }, { quit: true, lastLogin: api[norm(c.name)]?.lastLogin ?? null })).join('')
-    : '<p class="muted">No quit characters.</p>';
+  const quitOf = new Map();
+  for (const c of characters.filter((x) => x.status === 'Gestopt' && x.hasName && !resting.has(x.player))) {
+    if (!quitOf.has(c.player)) quitOf.set(c.player, []);
+    quitOf.get(c.player).push(c);
+  }
+  const plot = (player, info, stones) => `
+    <article class="plot" id="${esc(anchor(player))}">
+      <div class="plot-head">
+        <h2><a href="${playerUrl(player)}">${esc(player)}</a></h2>
+        <span class="muted">${info}</span>
+      </div>
+      <div class="stones">${stones}</div>
+    </article>`;
+  const plots = [
+    ...dead.map((r) => plot(r.player_name, `Last login ${esc(day(r.last_login))} · in memoriam since ${esc(day(r.died_at))}`, (r.characters ?? []).map((c) => stone(c, { quit: !!c.quit })).join(''))),
+    ...[...quitOf].sort(([a], [b]) => a.localeCompare(b)).map(([player, cs]) => plot(player, 'Quit characters',
+      cs.map((c) => stone({ name: c.name, level: c.level, race: c.race, class: c.class }, { quit: true, lastLogin: api[norm(c.name)]?.lastLogin ?? null })).join(''))),
+  ];
+  document.getElementById('yard').innerHTML = plots.join('') || '<p class="muted empty">Nobody rests here. Everyone is still playing! 🍲</p>';
 
-  // a link from Discord (#p-Name / #risen): scroll to it once it exists
+  // a link from Discord (#p-Name): scroll to it once it exists
   if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
 }
 
 load().catch(() => {
   document.getElementById('yard').innerHTML = '<p class="muted">Could not read the graveyard. Try again later.</p>';
-  document.getElementById('risen-list').innerHTML = '';
-  document.getElementById('quit').innerHTML = '';
 });
 </script>
 </body>
