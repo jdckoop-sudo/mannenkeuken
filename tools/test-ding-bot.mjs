@@ -13,7 +13,7 @@ assert.equal(readFileSync(new URL('../supabase/functions/ding-bot/achievements-c
   'supabase/functions/ding-bot/achievements-core.js is not the same as js/achievements-core.js: copy it again (cp js/achievements-core.js supabase/functions/ding-bot/)');
 writeFileSync(join(dir, 'ding.mjs'), readFileSync(new URL('../supabase/functions/ding-bot/index.ts', import.meta.url), 'utf8'));
 writeFileSync(join(dir, 'achievements-core.js'), rules);
-const { plan, planPeriod, launchBase, LAUNCH_DAY, periodDue, localParts, addDays, isoWeek, characterFrom, gameTotalsFrom, totalXp, XP_TO_NEXT } = await import(join(dir, 'ding.mjs'));
+const { plan, planPeriod, launchBase, LAUNCH_DAY, periodDue, localParts, addDays, isoWeek, characterFrom, gameTotalsFrom, totalXp, XP_TO_NEXT, dungeonRuns, levelBar } = await import(join(dir, 'ding.mjs'));
 const core = await import(new URL('../js/achievements-core.js', import.meta.url));
 
 const ch = (name, player, level, status = 'Main', profs = []) => ({ name, player, level, status, profs });
@@ -50,10 +50,12 @@ assert.equal(run([ch('Aa', 'Jelle', 12), ch('Bb', 'Tinus', 30)], [{ player_name:
 r = run([ch('Aa', 'Jelle', 15), ch('Cc', 'Jelle', 8, 'Alt'), ch('Bb', 'Tinus', 30)], [{ player_name: 'Jelle', copper: 50 * GOLD }], prev(), new Map([['Jelle', '123456789012345678']]));
 let m = r.messages.filter((x) => x.kind === 'player');
 assert.equal(m.length, 1, 'one message for Jelle');
-assert.match(m[0].content, /^<@123456789012345678> achieved this session:$/);
-assert.equal(m[0].embed.title, 'Session recap');
+assert.match(m[0].content, /^<@123456789012345678> played Aa:$/, 'the head line names the characters that were played');
+assert.equal(m[0].embed.title, '🎉 Aa reached level 15!');
+assert.equal(m[0].embed.footer.text, 'Jelle · player level 23 (all characters)', 'the player level (Aa 15 + Cc 8) is only in the footer');
 assert.deepEqual(m[0].allowed, { users: ['123456789012345678'] });
-assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ \+3 levels \(12 → \*\*15\*\*\)/);
+assert.match(m[0].embed.description, /^\*\*Aa\*\*\n⬆️ Level 12 → \*\*15\*\*/, 'the character level is the head line');
+assert.ok(!/Total level|This session/.test(m[0].embed.description), 'no total level in the recap itself');
 assert.ok(!/Cc/.test(m[0].embed.description), 'a new character is only a baseline');
 assert.ok(r.baseline.levels.some((l) => l.key === 'cc'));
 
@@ -72,7 +74,7 @@ assert.match(jelle.embed.url, /achievements\.html\?a=.*j2.*&p=Jelle/);
 assert.match(jelle.content, /^\*\*Jelle\*\*/, 'no discord id: bold name, no mention');
 assert.deepEqual(jelle.allowed, { parse: [] });
 const tinus = m.find((x) => x.player === 'Tinus');
-assert.match(tinus.embed.description, /⬆️ \+1 level \(30 → \*\*31\*\*\)/);
+assert.match(tinus.embed.description, /⬆️ Level 30 → \*\*31\*\*/);
 
 // 6. quit characters count for nothing; a level that goes down posts nothing
 r = run([ch('Aa', 'Jelle', 10), ch('Bb', 'Tinus', 31, 'Gestopt')], [], prev());
@@ -108,15 +110,16 @@ const snapPrev = () => ({ ...prev(), snaps: new Map([['aa', { quests: 100, kills
 r = run([withStats('Aa', 'Jelle', 14, { quests: 112, kills: 885, deaths: 4 }, { Mining: 80, Herbalism: 40 }), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], snapPrev());
 m = r.messages.filter((x) => x.kind === 'player');
 assert.equal(m.length, 1, 'only Jelle has a level up');
-assert.match(m[0].embed.description, /\*\*Aa\*\*\n📜 \+12 quests · ⚔️ \+85 kills · 💀 \+1 death\n🔨 Mining 75 → \*\*80\*\*/);
+assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ Level 12 → \*\*14\*\*\n📜 \+12 quests · ⚔️ \+85 kills · 💀 \+1 death\n🔨 Mining 75 → \*\*80\*\*/);
 assert.ok(!/Herbalism/.test(m[0].embed.description), 'a skill that did not change is not shown');
 // the numbers of the player with the message are remembered after posting; those without news right away
-assert.deepEqual(m[0].commit.snaps.find((x) => x.key === 'aa'), { key: 'aa', level: 14, quests: 112, kills: 885, deaths: 4, camps: null, xp: null, skills: { Mining: 80, Herbalism: 40 }, gear: null });
+assert.deepEqual(m[0].commit.snaps.find((x) => x.key === 'aa'), { key: 'aa', level: 14, quests: 112, kills: 885, deaths: 4, camps: null, xp: null, skills: { Mining: 80, Herbalism: 40 }, gear: null, dd: null, bosses: null });
 assert.deepEqual(r.quietSnaps.map((x) => x.key), ['bb']);
 // a character with only an alt that played (no level up): other characters of the player show up in the same recap
 r = run([withStats('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3 }, { Mining: 75, Herbalism: 40 }), withStats('Cc', 'Jelle', 8, { quests: 30, kills: 90, deaths: 2 }, {}, 'Alt'), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], { ...snapPrev(), levels: new Map([['aa', 12], ['bb', 30], ['cc', 8]]), snaps: new Map([...snapPrev().snaps, ['cc', { quests: 20, kills: 60, deaths: 2, skills: {} }]]) });
 m = r.messages.filter((x) => x.kind === 'player');
-assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ \+2 levels \(12 → \*\*14\*\*\)\n\n\*\*Cc\*\*\n📜 \+10 quests · ⚔️ \+30 kills/);
+assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ Level 12 → \*\*14\*\*\n\n\*\*Cc\*\*\nLevel \*\*8\*\*\n📜 \+10 quests · ⚔️ \+30 kills/);
+assert.equal(m[0].content, '**Jelle** played Aa and Cc:');
 // no earlier numbers (first run after the update): no numbers in the recap, but they are remembered
 r = run([withStats('Aa', 'Jelle', 14, { quests: 112, kills: 885, deaths: 4 }, { Mining: 80 })], [], prev());
 m = r.messages.filter((x) => x.kind === 'player');
@@ -160,15 +163,16 @@ const xpPrev = () => ({ ...prev(), snaps: new Map([['aa', { quests: 100, kills: 
 // level up from 12 to 14 and 2 more campfires: XP left in level 12, all of level 13 + the 700 into level 14, that is (10100 - 5000) + 11400 + 700
 r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 6 }, 700), withStats('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0 }, {})], [], xpPrev());
 m = r.messages.filter((x) => x.kind === 'player');
-assert.match(m[0].embed.description, /### 📊 This session\n✨ \+17,200 XP · ⬆️ \+2 levels \(12 → \*\*14\*\*\) · \*\*Total level 14\*\*\n\n\*\*Aa\*\*\n🔥 \+2 campfires/);
+assert.match(m[0].embed.description, /^\*\*Aa\*\*\n⬆️ Level 12 → \*\*14\*\*\n▰▱▱▱▱▱▱▱▱▱ 5% to level 15\n✨ \+17,200 XP · 🔥 \+2 campfires/);
+assert.equal(m[0].embed.footer.text, 'Jelle · player level 14 (all characters) · +17,200 XP this session');
 assert.equal(m[0].commit.snaps.find((x) => x.key === 'aa').camps, 6);
 assert.equal(m[0].commit.snaps.find((x) => x.key === 'aa').xp, totalXp(14, 700));
 // two characters with XP: a total line; one campfire is singular
 r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 5 }, 700), lvXp('Cc', 'Jelle', 8, { quests: 20, kills: 60, deaths: 2, camps: 0 }, 1100, 'Alt')], [], xpPrev());
 m = r.messages.filter((x) => x.kind === 'player');
 assert.match(m[0].embed.description, /🔥 \+1 campfire\n/);
-assert.match(m[0].embed.description, /\*\*Cc\*\*\n✨ \+1,000 XP/);
-assert.match(m[0].embed.description, /### 📊 This session\n✨ \+18,200 XP · ⬆️ \+2 levels \(20 → \*\*22\*\*\) · \*\*Total level 22\*\*/);
+assert.match(m[0].embed.description, /\*\*Cc\*\*\nLevel \*\*8\*\*\n▰▰▱▱▱▱▱▱▱▱ 20% to level 9\n✨ \+1,000 XP/);
+assert.equal(m[0].embed.footer.text, 'Jelle · player level 22 (all characters) · +18,200 XP this session');
 // no campfire / XP numbers in the earlier snapshot (first run with this feature): nothing shown, but remembered
 r = run([lvXp('Aa', 'Jelle', 14, { quests: 112, kills: 800, deaths: 3, camps: 9 }, 700)], [], snapPrev());
 m = r.messages.filter((x) => x.kind === 'player');
@@ -184,18 +188,20 @@ assert.equal(characterFrom({ name: 'Aa', player_name: 'Jelle', level: 10, profes
 // 13. the totals line: levels gained, XP gained and the total level (all characters of the player added up); no totals of XP
 r = run([lvXp('Aa', 'Jelle', 14, { quests: 100, kills: 800, deaths: 3, camps: 4 }, 700), lvXp('Cc', 'Jelle', 9, { quests: 20, kills: 60, deaths: 2, camps: 0 }, 150, 'Alt')], [], { ...xpPrev(), levels: new Map([['aa', 12], ['bb', 30], ['cc', 8]]) });
 m = r.messages.filter((x) => x.kind === 'player');
-assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ \+2 levels \(12 → \*\*14\*\*\) · ✨ \+17,200 XP/);
-assert.match(m[0].embed.description, /\*\*Cc\*\*\n⬆️ \+1 level \(8 → \*\*9\*\*\) · ✨ \+5,450 XP/);
-assert.match(m[0].embed.description, /### 📊 This session\n✨ \+22,650 XP · ⬆️ \+3 levels \(20 → \*\*23\*\*\) · \*\*Total level 23\*\*/);
+assert.match(m[0].embed.description, /\*\*Aa\*\*\n⬆️ Level 12 → \*\*14\*\*\n[▰▱]+ \d+% to level 15\n✨ \+17,200 XP/);
+assert.match(m[0].embed.description, /\*\*Cc\*\*\n⬆️ Level 8 → \*\*9\*\*\n[▰▱]+ \d+% to level 10\n✨ \+5,450 XP/);
+assert.equal(m[0].embed.title, '🎉 Aa reached level 14! 🎉 Cc reached level 9!');
+assert.equal(m[0].embed.footer.text, 'Jelle · player level 23 (all characters) · +22,650 XP this session');
 assert.ok(!/total xp/i.test(m[0].embed.description), 'the XP of the whole character is never shown');
 // only an achievement (no level up): the line has just the total level
 const achOnly = run([ch('Aa', 'Jelle', 12), ch('Bb', 'Tinus', 30)], [], { ...prev(), levels: new Map([['aa', 12], ['bb', 30]]), known: new Set(), players: new Set(['Jelle', 'Tinus', '']) });
 const achMsg = achOnly.messages.find((x) => x.kind === 'player' && x.player === 'Jelle');
-if (achMsg) assert.match(achMsg.embed.description, /### 📊 This session\n\*\*Total level 12\*\*/);
+if (achMsg) { assert.equal(achMsg.embed.footer.text, 'Jelle · player level 12 (all characters)'); assert.equal(achMsg.embed.title, 'Session recap'); }
 
 // 13. Dag Dinky and Week Dinky: one message for the whole guild, players alphabetical, top 3 per stat, nobody without activity
 const pc = (name, player, level, xp, stats, skills = {}, status = 'Main') => ({ ...withStats(name, player, level, stats, skills, status), xp });
-const baseSnap = (level, xp, quests, kills, deaths, camps, boss, skills = {}) => ({ level, xp: totalXp(level, xp), quests, kills, deaths, camps, boss, skills });
+const baseSnap = (level, xp, quests, kills, deaths, camps, boss, skills = {}, extra = {}) => ({ level, xp: totalXp(level, xp), quests, kills, deaths, camps, boss, skills, ...extra });
+const VC = 'Edwin VanCleef (Deadmines)'; const WC = 'Mutanus the Devourer (Wailing Caverns)';
 const periodRun = (kind, chars, base, extra = {}) => {
   const data = { characters: chars, blizzard, donations: [], overrides: [], gameTotals: gameTotalsFrom(blizzard) };
   const players = [...new Set(chars.filter((c) => c.status !== 'Gestopt').map((c) => c.player))];
@@ -205,13 +211,13 @@ const periodRun = (kind, chars, base, extra = {}) => {
 };
 const noAch = (chars) => ({ chars: new Map(chars), ach: new Map() });
 const pbase = () => {
-  const b = noAch([['pa', baseSnap(25, 0, 100, 1000, 2, 1, 0, { Mining: 75 })], ['pb', baseSnap(10, 0, 20, 100, 0, 0, 0)], ['ha', baseSnap(31, 0, 300, 4000, 5, 2, 1)], ['ja', baseSnap(20, 100, 50, 500, 1, 0, 0)]]);
+  const b = noAch([['pa', baseSnap(25, 0, 100, 1000, 2, 1, 0, { Mining: 75 }, { dd: 0, bosses: { [VC]: 1 } })], ['pb', baseSnap(10, 0, 20, 100, 0, 0, 0)], ['ha', baseSnap(31, 0, 300, 4000, 5, 2, 1, {}, { dd: 1, bosses: { [VC]: 2 } })], ['ja', baseSnap(20, 100, 50, 500, 1, 0, 0)]]);
   return b;
 };
 const pnow = () => [
-  pc('Pa', 'Pim', 28, 500, { quests: 131, kills: 1410, deaths: 4, camps: 4, bossKills: 2 }, { Mining: 80 }),
+  pc('Pa', 'Pim', 28, 500, { quests: 131, kills: 1410, deaths: 4, camps: 4, bossKills: 2, dungeonDeaths: 1, bosses: { [VC]: 2, [WC]: 1 } }, { Mining: 80 }),
   pc('Pb', 'Pim', 12, 50, { quests: 25, kills: 160, deaths: 0, camps: 0, bossKills: 0 }, {}, 'Alt'),
-  pc('Ha', 'Henk', 33, 10, { quests: 324, kills: 4355, deaths: 10, camps: 3, bossKills: 2 }),
+  pc('Ha', 'Henk', 33, 10, { quests: 324, kills: 4355, deaths: 10, camps: 3, bossKills: 2, dungeonDeaths: 4, bosses: { [VC]: 3 } }),
   pc('Ja', 'Justin', 20, 100, { quests: 50, kills: 500, deaths: 1, camps: 0, bossKills: 0 }), // did nothing
   pc('Ka', 'Jacco', 5, 0, undefined), // the game does not know him
 ];
@@ -234,9 +240,12 @@ assert.match(text, /### 🏅 Top 3 of the day\n/);
 assert.match(text, /📜 \*\*Quests\*\* — 🥇 Pim 36 · 🥈 Henk 24/);
 assert.match(text, /⬆️ \*\*Levels\*\* — 🥇 Pim \+5 · 🥈 Henk \+2/);
 assert.match(text, /💀 \*\*Deaths\*\* — 🥇 Henk 5 · 🥈 Pim 2/);
-assert.match(text, /🏰 \*\*Boss kills\*\* — 🥇 Pim 2 · 🥈 Henk 1/);
+assert.match(text, /🏰 \*\*Dungeons completed\*\* — 🥇 Pim 2 · 🥈 Henk 1/);
+assert.match(text, /☠️ \*\*Deaths in dungeons\*\* — 🥇 Henk 3 · 🥈 Pim 1/);
+assert.match(text, /💀 7 deaths \(4 in dungeons\)/, 'the dungeon deaths are part of the deaths in the guild total');
+assert.match(text, /🏰 3 dungeons completed \(Deadmines ×2 · Wailing Caverns\)/, 'the guild total names the dungeons');
 // one short line per player; all characters of a player are added up (alts included); under each other, alphabetical
-assert.match(r.messages[1].embed.description, /### 👥 Everyone\n\*✨ XP[^\n]*\n\*\*Henk\*\* · ✨ 105,310 · ⬆️ \+2 · 📜 24 · ⚔️ 355 · 🏰 1 · 💀 5 · 🔥 1\n\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+5 · 📜 36 · ⚔️ 470 · 🏰 2 · 💀 2 · 🔥 3 · 🔨 \+5$/);
+assert.match(r.messages[1].embed.description, /### 👥 Everyone\n\*✨ XP[^\n]*\n\*\*Henk\*\* · ✨ 105,310 · ⬆️ \+2 · 📜 24 · ⚔️ 355 · 🏰 1 · 💀 5 \(☠️ 3\) · 🔥 1\n\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+5 · 📜 36 · ⚔️ 470 · 🏰 2 · 💀 2 \(☠️ 1\) · 🔥 3 · 🔨 \+5$/);
 assert.ok(!/🏆/.test(r.messages[1].embed.description), 'no achievements per player');
 assert.ok(!/↳|Mining/.test(text), 'no lines per character in the message');
 assert.ok(/### 🧮 Guild total\n/.test(text) && /📜 60 quests/.test(text));
@@ -252,10 +261,31 @@ assert.equal(r.newBase.chars.size, 1);
 r = periodRun('day', pnow(), noAch([]));
 assert.equal(r.messages.length, 0);
 assert.equal(r.newBase.chars.size, 4);
-// a counter the starting point did not have (boss kills before the Edge Function was redeployed): no difference yet
-const oldBase = pbase(); for (const v of oldBase.chars.values()) { delete v.boss; }
+// a counter the starting point did not have (dungeons before this version of the bot): no difference yet
+const oldBase = pbase(); for (const v of oldBase.chars.values()) { delete v.boss; delete v.bosses; delete v.dd; }
 r = periodRun('day', pnow(), oldBase);
-assert.ok(!/Boss kills|\*\*Pim\*\* · [^\n]*🏰/.test(all(r)));
+assert.ok(!/Dungeons completed|Deaths in dungeons|\*\*Pim\*\* · [^\n]*(🏰|☠️)/.test(all(r)));
+// nobody did a dungeon: no dungeon lines at all (26 Nov 2026, Jelle)
+const noDungeons = pbase(); for (const v of noDungeons.chars.values()) { v.bosses = { [VC]: 9 }; v.dd = 99; }
+r = periodRun('day', pnow().map((c) => (c.stats ? { ...c, stats: { ...c.stats, bosses: { [VC]: 9 }, dungeonDeaths: 99 } } : c)), noDungeons);
+assert.ok(!/🏰|☠️ \*\*|☠️ \d/.test(r.messages[0].embed.description), 'no dungeon lines in the top 3 and guild total');
+// dungeonRuns: completed runs per dungeon; two counted bosses in one dungeon (Scarlet Monastery) count once; a boss new in the data = 0 before
+assert.deepEqual(dungeonRuns({ [VC]: 3, 'Mograine (Scarlet Monastery)': 2, 'Whitemane (Scarlet Monastery)': 2 }, { [VC]: 1, 'Mograine (Scarlet Monastery)': 1, 'Whitemane (Scarlet Monastery)': 1 }), [{ name: 'Deadmines', n: 2 }, { name: 'Scarlet Monastery', n: 1 }]);
+assert.deepEqual(dungeonRuns({ [VC]: 3 }, null), [], 'no earlier counters: no difference');
+// the level bar
+assert.equal(levelBar(14, 700), '▰▱▱▱▱▱▱▱▱▱ 5% to level 15');
+assert.equal(levelBar(60, 0), '👑 Max level');
+assert.equal(levelBar(30, null), '');
+// Maand Dinky: posted on the 1st of the month (= the end of the month before)
+assert.equal(periodDue('month', { date: '2026-11-26' }, { date: '2026-12-01', minutes: 8, weekday: 'Tue' }), 'post');
+assert.equal(periodDue('month', { date: '2026-11-26' }, { date: '2026-11-30', minutes: 8, weekday: 'Mon' }), null);
+assert.equal(periodDue('month', { date: '2026-12-01' }, { date: '2026-12-01', minutes: 30, weekday: 'Tue' }), null, 'once');
+assert.equal(periodDue('month', { date: '2026-11-26' }, { date: '2026-12-01', minutes: 3, weekday: 'Tue' }), null, 'not before 00:07');
+r = periodRun('month', pnow(), pbase(), { today: '2026-12-01', prevXp: 100000 });
+assert.equal(r.messages[0].embed.title, 'Maand Dinky · November 2026');
+assert.equal(r.messages[0].content, '@everyone The month in review 🗓️');
+assert.match(r.messages[0].embed.description, /### 🏅 Top 3 of the month/);
+assert.match(r.messages[0].embed.description, /% vs last month\)/);
 // achievements since the previous post: only in the guild total (9 nov, Jelle: not per player)
 const achBase = pbase(); achBase.ach.set('Pim', new Set());
 r = periodRun('day', pnow(), achBase);
@@ -287,7 +317,7 @@ assert.match(r.messages[0].embed.description, /### 🧮 Guild total/);
 // the first Week Dinky: everything since the launch (level 1, skills at 1, all achievements)
 const lb = launchBase(pnow());
 assert.deepEqual([...lb.chars.keys()].sort(), ['ha', 'ja', 'pa', 'pb']);
-assert.deepEqual(lb.chars.get('pa'), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skills: { Mining: 1 } });
+assert.deepEqual(lb.chars.get('pa'), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, dd: 0, bosses: {}, skills: { Mining: 1 } });
 r = periodRun('week', pnow(), lb, { since: LAUNCH_DAY });
 assert.equal(r.messages[0].embed.title, 'Week Dinky · week 45 (5 November – 8 November)');
 assert.match(all(r), /\*\*Pim\*\* · ✨ [\d,]+ · ⬆️ \+38 /, 'levels since the launch: 2 characters from level 1 to 28 and 12');
@@ -333,7 +363,7 @@ assert.equal(isoWeek('2027-01-03'), 53);
   const mine = out.messages.filter((m) => m.kind === 'player' && m.player === 'Jelle');
   assert.equal(mine.length, 1, 'after the log out: one recap');
   const text = mine[0].embed.description;
-  assert.match(text, /\+1 level \(30 → \*\*31\*\*\)/);
+  assert.match(text, /⬆️ Level 30 → \*\*31\*\*/);
   assert.match(text, new RegExp(`\\+${(XP_TO_NEXT[29] - 500 + 1200).toLocaleString('en-GB')} XP`), 'the XP of the whole session, over the level up');
   assert.match(text, /\+12 quests · ⚔️ \+85 kills/);
 }
@@ -345,7 +375,9 @@ assert.equal(isoWeek('2027-01-03'), 53);
   let q = run([st('Aa', 'Jelle', 12, { quests: 103, kills: 840, deaths: 3, camps: 4 }, 6500), st('Bb', 'Tinus', 30, { quests: 10, kills: 50, deaths: 0, camps: 0 }, 10)], [], before(), new Map([['Jelle', '123456789012345678']]));
   assert.equal(q.messages.length, 1, 'Jelle played, Tinus did not');
   assert.equal(q.messages[0].player, 'Jelle');
-  assert.match(q.messages[0].embed.description, /### 📊 This session\n✨ \+1,500 XP · \*\*Total level 12\*\*\n\n\*\*Aa\*\*\n📜 \+3 quests · ⚔️ \+40 kills/);
+  assert.match(q.messages[0].embed.description, /^\*\*Aa\*\*\nLevel \*\*12\*\*\n▰▰▰▰▰▰▱▱▱▱ 64% to level 13\n✨ \+1,500 XP · 📜 \+3 quests · ⚔️ \+40 kills/);
+  assert.equal(q.messages[0].embed.title, 'Session recap · Aa');
+  assert.equal(q.messages[0].embed.footer.text, 'Jelle · player level 12 (all characters) · +1,500 XP this session');
   assert.match(q.messages[0].embed.url, /character\.html\?name=Aa$/, 'without an achievement the link goes to the character');
   assert.deepEqual(q.messages[0].commit.levels, []);
   assert.equal(q.messages[0].commit.snaps.find((x) => x.key === 'aa').kills, 840);
@@ -370,3 +402,23 @@ assert.equal(isoWeek('2027-01-03'), 53);
 }
 
 console.log('Ding Dinky tests: all passed');
+
+// The recap with race and class, dungeons and dungeon deaths (26 Nov 2026, Jelle): the character level first, dungeons only when one was completed
+{
+  const VC2 = 'Edwin VanCleef (Deadmines)'; const WC2 = 'Mutanus the Devourer (Wailing Caverns)';
+  const wd = (level, xp, stats) => ({ ...ch('Willem Drie', 'Mike', level, 'Alt'), race: 'Troll', class: 'Hunter', stats, skills: { Skinning: 41 }, xp });
+  const before = { levels: new Map([['willem drie', 11], ['willem één', 54]]), known: new Set(), players: new Set(['Mike', '']),
+    snaps: new Map([['willem drie', { quests: 46, kills: 242, deaths: 0, camps: 0, xp: totalXp(11, 2000), skills: { Skinning: 29 }, gear: null, dd: 0, bosses: {} }]]) };
+  const main = { ...ch('Willem Één', 'Mike', 54), race: 'Orc', class: 'Warrior', stats: null };
+  let q = run([main, wd(13, 4800, { quests: 54, kills: 302, deaths: 2, camps: 0, dungeonDeaths: 2, bosses: { [VC2]: 2, [WC2]: 1 } })], [], before, new Map([['Mike', '42']]));
+  const msg = q.messages.find((x) => x.player === 'Mike');
+  assert.equal(msg.content, '<@42> played Willem Drie:');
+  assert.equal(msg.embed.title, '🎉 Willem Drie reached level 13!');
+  assert.match(msg.embed.description, /^\*\*Willem Drie\*\* · Troll Hunter\n⬆️ Level 11 → \*\*13\*\*\n▰▰▰▰▱▱▱▱▱▱ 42% to level 14\n✨ \+[\d,]+ XP · 📜 \+8 quests · ⚔️ \+60 kills · 💀 \+2 deaths \(2 in dungeons\)\n🏰 3 dungeons completed: Deadmines ×2 · Wailing Caverns\n🔨 Skinning 29 → \*\*41\*\*(\n\n### 🏆 Achievements|$)/);
+  assert.match(msg.embed.footer.text, /^Mike · player level 67 \(all characters\) · \+[\d,]+ XP this session$/);
+  assert.equal(msg.commit.snaps.find((x) => x.key === 'willem drie').dd, 2);
+  // no dungeon: no dungeon line and no dungeon deaths
+  q = run([main, wd(11, 2500, { quests: 47, kills: 250, deaths: 0, camps: 0, dungeonDeaths: 0, bosses: {} })], [], before);
+  assert.ok(!/🏰|☠️/.test(q.messages[0].embed.description));
+}
+console.log('Recap with dungeons: passed');

@@ -2032,3 +2032,13 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Opie Market: new listings in #loot-showcase$q$, $q$Discord$q$, 'check',
   $q$After the SQL and after the webhook URL of Opie Market is in the Vault as market_webhook_url: put a new offer or request on the Trade Market. Opie Market posts it once in #loot-showcase, tagged players get an @mention. Editing or finishing a listing posts nothing; the listings from before are never posted. Look without posting: select public.market_post('<id>', true);$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Opie Market: new listings in #loot-showcase$q$);
+
+-- 2026-11-26: Ding Dinky recap with the character level first, dungeons completed and dungeon deaths; Maand Dinky (Jelle)
+-- the counters of the previous run per character: deaths in dungeons and raids (stats.dungeonDeaths) and the boss kills per dungeon (stats.bosses)
+alter table public.ding_levels add column if not exists dungeon_deaths integer;
+alter table public.ding_levels add column if not exists bosses jsonb;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: character level first, dungeons, Maand Dinky$q$, $q$Discord$q$, 'check',
+  $q$After this SQL + deploying ding-bot: the first run only stores dungeon deaths and boss kills. Next recap: "<player> played <character>:", character level + bar first, player level in the footer, dungeons/dungeon deaths only when there were any. Maand Dinky on the 1st at 00:07. Preview: POST {"dryRun": true, "force": "month"}.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: character level first, dungeons, Maand Dinky$q$);

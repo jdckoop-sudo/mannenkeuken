@@ -19,7 +19,8 @@
 //    the quests, kills, deaths, campfires, XP and skills are remembered per character in ding_levels (columns quests, kills, deaths, camps, xp, skills, gear) and are only compared when the game knows the character.
 //  - Not announced at all: achievements for donated gold and guild goals (they are remembered, so nothing piles up). An achievement that a developer unlocked by hand
 //    waits for the next session of that player.
-//  - Dag Dinky (every night from 00:07 Dutch time) and Week Dinky (Mondays, same run) summarise the stats of ALL players in one message with @everyone, see planPeriod().
+//  - Dag Dinky (every night from 00:07 Dutch time), Week Dinky (Mondays, same run) and Maand Dinky (the 1st of the month, same run; 26 Nov 2026) summarise the stats of ALL players in one message with @everyone, see planPeriod().
+//  - The recap puts the CHARACTER level first (with a bar to the next level); the player level (all characters) is only in the footer. Dungeons completed and dungeon deaths: see dungeonRuns().
 //  - Only what has been posted is remembered: when Discord refuses a message the same news comes back in the next run.
 //
 // The achievement rules are not written here: they are in achievements-core.js next to this file, an exact copy of js/achievements-core.js of the site
@@ -86,6 +87,33 @@ export function gameTotalsFrom(blizzard) {
 // prev = { levels: Map(key -> level), snaps: Map(key -> { quests, kills, deaths, camps, xp (total XP), skills, gear: [item ids] }), known: Set("player|id"), players: Set(player) }, discord = Map(player -> id)
 // Achievements that are not something of a game session (gold given to the guild bank): never announced
 const SILENT_METERS = new Set(['donated', 'guildDonated', 'donors']);
+
+// ---- dungeons (26 Nov 2026, Jelle). The game counts per dungeon the kills of one fixed boss, mostly the end boss ("Edwin VanCleef (Deadmines)", stats.bosses of update-characters).
+// A completed run = that boss counter went up. A dungeon with more than one counted boss (Scarlet Monastery: Mograine and Whitemane in the same wing) counts the highest
+// increase, so one run is not counted twice. A run that stops before the boss does not count. Wipes are not in the game data at all: dungeon deaths are what there is.
+const dungeonOf = (key) => key.match(/\(([^)]+)\)\s*$/)?.[1] ?? key;
+// now / before = { "<boss> (<dungeon>)": kills }; before null (an older snapshot without bosses) = no difference yet. A boss missing in before = 0 (the game leaves out what never happened).
+export function dungeonRuns(now, before) {
+  if (!now || !before) return [];
+  const per = new Map();
+  for (const [k, v] of Object.entries(now)) { const d = (num(v) ?? 0) - (num(before[k]) ?? 0); if (d > 0) per.set(dungeonOf(k), Math.max(per.get(dungeonOf(k)) ?? 0, d)); }
+  return [...per].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+}
+const runsText = (runs) => runs.map((r) => (r.n > 1 ? `${r.name} ×${r.n}` : r.name)).join(' · ');
+const runsCount = (runs) => runs.reduce((n, r) => n + r.n, 0);
+// merges lists of runs (all characters of a player, all players of the guild)
+const mergeRuns = (lists) => { const m = new Map(); for (const l of lists) for (const r of l) m.set(r.name, (m.get(r.name) ?? 0) + r.n); return [...m].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)); };
+// the bar to the next level: the API gives the XP inside the current level (`experience`), XP_TO_NEXT how much that level takes
+export function levelBar(level, xp) {
+  if (!(level > 0)) return '';
+  if (level > XP_TO_NEXT.length) return '👑 Max level';
+  if (xp == null) return '';
+  const need = XP_TO_NEXT[level - 1]; const pct = Math.max(0, Math.min(99, Math.floor((xp / need) * 100))); const full = Math.round(pct / 10);
+  return `${'▰'.repeat(full)}${'▱'.repeat(10 - full)} ${pct}% to level ${level + 1}`;
+}
+// dungeon deaths are part of all deaths (27 Nov 2026, Jelle: "+1 death · +1 dungeon death" read as two deaths): shown inside the deaths, e.g. "💀 +3 deaths (1 in a dungeon)"
+const inDungeons = (n) => (n ? ` (${fmt(n)} in ${n === 1 ? 'a dungeon' : 'dungeons'})` : '');
+const andList = (names) => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
 export function plan({ core, chars, states, prev, discord }) {
   const { BY_ID, BRANCHES, METERS } = core;
   const branchName = (k) => BRANCHES.find((b) => b.key === k)?.name ?? 'Legend';
@@ -96,7 +124,8 @@ export function plan({ core, chars, states, prev, discord }) {
   const snaps = prev.snaps ?? new Map();
   // what the game says now about one character (null when the game does not know it: then nothing is compared or remembered)
   // skills and gear that the game did not give this time (a failed call) keep the earlier values, so one bad run does not wipe the starting point
-  const snapOf = (c) => { const old = snaps.get(norm(c.name)); return c.stats ? { quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0, camps: num(c.stats.camps) ?? old?.camps ?? null, xp: totalXp(c.level, c.xp) ?? old?.xp ?? null, skills: c.skills ?? old?.skills ?? null, gear: c.gear ? c.gear.map((g) => g.id) : (old?.gear ?? null) } : null; };
+  const snapOf = (c) => { const old = snaps.get(norm(c.name)); return c.stats ? { quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0, camps: num(c.stats.camps) ?? old?.camps ?? null, xp: totalXp(c.level, c.xp) ?? old?.xp ?? null, skills: c.skills ?? old?.skills ?? null, gear: c.gear ? c.gear.map((g) => g.id) : (old?.gear ?? null),
+    dd: num(c.stats.dungeonDeaths) ?? old?.dd ?? null, bosses: c.stats.bosses && typeof c.stats.bosses === 'object' ? c.stats.bosses : (old?.bosses ?? null) } : null; };
   // what a character did since the previous run (only when both runs have numbers)
   const sessionOf = (c) => {
     const now = snapOf(c); const before = snaps.get(norm(c.name));
@@ -104,7 +133,8 @@ export function plan({ core, chars, states, prev, discord }) {
     const up = (a, b) => Math.max(0, a - (b ?? a));
     const upN = (a, b) => (a == null || b == null ? 0 : Math.max(0, a - b)); // counters that an older snapshot did not have: no difference yet
     const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => before.skills && before.skills[n] != null && v > before.skills[n]).map(([n, v]) => ({ name: n, from: before.skills[n], to: v }));
-    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), camps: upN(now.camps, before.camps), xp: upN(now.xp, before.xp), skills };
+    return { quests: up(now.quests, before.quests), kills: up(now.kills, before.kills), deaths: up(now.deaths, before.deaths), camps: upN(now.camps, before.camps), xp: upN(now.xp, before.xp), skills,
+      dungeonDeaths: upN(now.dd, before.dd), dungeons: dungeonRuns(now.bosses, before.bosses) };
   };
 
   // levels
@@ -138,31 +168,38 @@ export function plan({ core, chars, states, prev, discord }) {
 
   // one message per player that had a session: a character went up a level or did something (the game only shows that after the log out). An achievement of the game
   // (not one a developer unlocked by hand, not one that only follows from other achievements) also means the profile was refreshed. Without a session the achievements wait.
-  const did = (ses) => !!ses && !!(ses.xp || ses.quests || ses.kills || ses.deaths || ses.camps || ses.skills.length);
+  const did = (ses) => !!ses && !!(ses.xp || ses.quests || ses.kills || ses.deaths || ses.camps || ses.skills.length || ses.dungeonDeaths || ses.dungeons.length);
   for (const p of players) {
     const lv = gains.get(p) ?? []; const ach = earned.get(p) ?? []; const id = discord.get(p);
     const played = active.filter((x) => x.player === p && did(sessionOf(x)));
     const fromGame = ach.some(({ a, s }) => s.forced !== 'unlocked' && a.meter !== 'requiredDone');
     if (!lv.length && !played.length && !fromGame) continue;
-    // the recap: a small block per character that did something (name, then progress / activity / skills on their own lines), then the totals, then the new achievements
+    // the recap (26 Nov 2026, Jelle: guildies mixed up the level of a character and the total level): one block per character that was played, with the CHARACTER level
+    // as its head line, a bar to the next level, then activity, dungeons and skills. The player level (all characters added up) is only a small line in the footer.
     const blocks = []; const plural = (n, w) => `${fmt(n)} ${w}${n === 1 ? '' : 's'}`; let xpTotal = 0;
     const row = (...bits) => bits.filter(Boolean).join(' · ');
     const mine = active.filter((x) => x.player === p);
+    const shown = []; const ups = [];
     for (const c of mine) {
       const g = lv.find((x) => x.key === norm(c.name)); const ses = sessionOf(c);
+      if (!g && !did(ses)) continue; // only the characters that were played
       if (ses?.xp) xpTotal += ses.xp;
-      const rows = [
-        // with one character the progress is already the summary on top
-        mine.length > 1 ? row(g && `⬆️ +${plural(g.to - g.from, 'level')} (${g.from} → **${g.to}**)`, ses?.xp && `✨ +${fmt(ses.xp)} XP`) : '',
-        row(ses?.quests && `📜 +${plural(ses.quests, 'quest')}`, ses?.kills && `⚔️ +${plural(ses.kills, 'kill')}`, ses?.deaths && `💀 +${plural(ses.deaths, 'death')}`, ses?.camps && `🔥 +${plural(ses.camps, 'campfire')}`),
+      if (g) ups.push(g);
+      shown.push(c.name);
+      const who = [c.race, c.class].filter(Boolean).join(' ');
+      const runs = ses?.dungeons ?? [];
+      blocks.push([
+        `**${c.name}**${who ? ` · ${who}` : ''}`,
+        g ? `⬆️ Level ${g.from} → **${g.to}**` : `Level **${c.level}**`,
+        levelBar(c.level, c.xp),
+        row(ses?.xp && `✨ +${fmt(ses.xp)} XP`, ses?.quests && `📜 +${plural(ses.quests, 'quest')}`, ses?.kills && `⚔️ +${plural(ses.kills, 'kill')}`, ses?.deaths && `💀 +${plural(ses.deaths, 'death')}${inDungeons(ses.dungeonDeaths)}`, ses?.camps && `🔥 +${plural(ses.camps, 'campfire')}`),
+        runs.length ? `🏰 ${plural(runsCount(runs), 'dungeon')} completed: ${runsText(runs)}` : '',
         ses?.skills?.length ? `🔨 ${ses.skills.map((k) => `${k.name} ${k.from} → **${k.to}**`).join(' · ')}` : '',
-      ].filter(Boolean);
-      if (rows.length) blocks.push([`**${c.name}**`, ...rows].join('\n'));
+      ].filter(Boolean).join('\n'));
     }
-    // the summary of the player, on top: XP and levels gained this session and the total level (the levels of all his characters added up, like the dashboard)
-    const levelsGained = lv.reduce((n, g) => n + (g.to - g.from), 0);
     const totalLevel = mine.filter((x) => x.level > 0).reduce((n, x) => n + x.level, 0);
-    blocks.unshift(`### 📊 This session\n${row(xpTotal && `✨ +${fmt(xpTotal)} XP`, levelsGained && `⬆️ +${plural(levelsGained, 'level')} (${fmt(totalLevel - levelsGained)} → **${fmt(totalLevel)}**)`, `**Total level ${fmt(totalLevel)}**`)}`);
+    const footer = `${p} · player level ${fmt(totalLevel)} (all characters)${xpTotal ? ` · +${fmt(xpTotal)} XP this session` : ''}`;
+    const title = ups.length ? ups.map((g) => `🎉 ${g.name} reached level ${g.to}!`).join(' ') : `Session recap${shown.length ? ` · ${andList(shown)}` : ''}`;
     if (ach.length) blocks.push(`### 🏆 Achievements\n${ach.map(({ a, s }) => {
       const now = a.meter === 'requiredDone' ? '' : ` · now: ${fmt(s.value)} ${METERS[a.meter] ?? ''}`.trimEnd();
       return `**${a.title}** (${branchName(a.branch)})\n↳ ${a.desc}${now}`;
@@ -173,8 +210,8 @@ export function plan({ core, chars, states, prev, discord }) {
     const points = ach.reduce((n, { a }) => n + a.points, 0);
     messages.push({
       kind: 'player', player: p, discordId: id ?? null,
-      content: `${id ? `<@${id}>` : `**${p}**`} achieved this session:`,
-      embed: { color: COLOR, title: 'Session recap', url: link, description: lines.join('\n\n'),
+      content: `${id ? `<@${id}>` : `**${p}**`} ${shown.length ? `played ${andList(shown)}:` : 'achieved this session:'}`,
+      embed: { color: COLOR, title: title.slice(0, 250), url: link, description: lines.join('\n\n'), footer: { text: footer },
         fields: [{ name: '​', value: `[View it on the dashboard](${link})${points ? ` · +${points} points` : ''}` }] },
       allowed: id ? { users: [id] } : { parse: [] },
       commit: { levels: lv.map((g) => ({ key: g.key, level: g.to })), snaps: active.filter((x) => x.player === p && prev.levels.has(norm(x.name)) && snapOf(x)).map((x) => ({ key: norm(x.name), level: Math.max(prev.levels.get(norm(x.name)), x.level), ...snapOf(x) })), known: ach.map(({ a }) => ({ player: p, id: a.id })), summary: lines.join(' | ').replace(/\n/g, ' · ') },
@@ -201,6 +238,7 @@ export function localParts(d = new Date()) {
 }
 export const addDays = (date, n) => { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const dayName = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+const monthName = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' });
 const dayMonth = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long' });
 export function isoWeek(date) {
   const d = new Date(`${date}T12:00:00Z`); const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
@@ -213,6 +251,7 @@ export function periodDue(kind, last, now) {
   if (!last) return 'init';
   if (now.minutes < MIN_MINUTES) return null;
   if (kind === 'day') return last.date < now.date ? 'post' : null;
+  if (kind === 'month') return now.date.endsWith('-01') && last.date < now.date ? 'post' : null; // Maand Dinky: the 1st of the month = the end of the month before
   return now.weekday === 'Mon' && last.date < now.date ? 'post' : null;
 }
 
@@ -222,7 +261,7 @@ export const LAUNCH_DAY = '2026-11-05'; // the launch in Dutch time (LAUNCH in j
 export function launchBase(chars) {
   const active = chars.filter((c) => c.player && c.status !== 'Gestopt' && c.level > 0);
   return {
-    chars: new Map(active.filter((c) => c.stats).map((c) => [norm(c.name), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skills: Object.fromEntries(Object.keys(c.skills ?? {}).map((n) => [n, 1])) }])),
+    chars: new Map(active.filter((c) => c.stats).map((c) => [norm(c.name), { level: 1, xp: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, dd: 0, bosses: {}, skills: Object.fromEntries(Object.keys(c.skills ?? {}).map((n) => [n, 1])) }])),
     ach: new Map([...new Set(active.map((c) => c.player))].map((p) => [p, new Set()])),
   };
 }
@@ -232,10 +271,11 @@ const PERIOD_STATS = [
   { key: 'levels', icon: '⬆️', label: 'Levels', show: (v) => `+${fmt(v)}` },
   { key: 'quests', icon: '📜', label: 'Quests', show: (v) => fmt(v) },
   { key: 'kills', icon: '⚔️', label: 'Kills', show: (v) => fmt(v) },
-  { key: 'boss', icon: '🏰', label: 'Boss kills', show: (v) => fmt(v) },
+  { key: 'dungeons', icon: '🏰', label: 'Dungeons completed', show: (v) => fmt(v) },
   { key: 'camps', icon: '🔥', label: 'Campfires', show: (v) => fmt(v) },
   { key: 'skillpts', icon: '🔨', label: 'Profession skill', show: (v) => `+${fmt(v)}` },
   { key: 'deaths', icon: '💀', label: 'Deaths', show: (v) => fmt(v) },
+  { key: 'dungeonDeaths', icon: '☠️', label: 'Deaths in dungeons', show: (v) => fmt(v) },
 ];
 const MEDALS = ['🥇', '🥈', '🥉'];
 // Discord says 4096 characters, but the first Week Dinky (9 nov) was cut off after 2,687 characters / 52 lines (the rest of that message, with the block of Mike, never showed in Discord), so a message stays well below that
@@ -262,13 +302,16 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
       if (!c.stats) continue; // the game does not know this character (yet): nothing to compare
       const key = norm(c.name); const old = base.chars.get(key);
       const now = { level: c.level, xp: totalXp(c.level, c.xp) ?? old?.xp ?? null, quests: num(c.stats.quests) ?? 0, kills: num(c.stats.kills) ?? 0, deaths: num(c.stats.deaths) ?? 0,
-        camps: num(c.stats.camps) ?? old?.camps ?? null, boss: num(c.stats.bossKills) ?? old?.boss ?? null, skills: c.skills ?? old?.skills ?? null };
+        camps: num(c.stats.camps) ?? old?.camps ?? null, boss: num(c.stats.bossKills) ?? old?.boss ?? null, skills: c.skills ?? old?.skills ?? null,
+        dd: num(c.stats.dungeonDeaths) ?? old?.dd ?? null, bosses: c.stats.bosses && typeof c.stats.bosses === 'object' ? c.stats.bosses : (old?.bosses ?? null) };
       newBase.chars.set(key, now);
       if (!old) continue; // new in the data: starting point only
       const skills = Object.entries(now.skills ?? {}).filter(([n, v]) => old.skills && old.skills[n] != null && v > old.skills[n]).map(([n, v]) => ({ name: n, from: old.skills[n], to: v }));
       const d = { name: c.name, level: now.level, from: Math.min(old.level, now.level), levels: Math.max(0, now.level - old.level), xp: up(now.xp, old.xp), quests: up(now.quests, old.quests), kills: up(now.kills, old.kills),
-        deaths: up(now.deaths, old.deaths), camps: up(now.camps, old.camps), boss: up(now.boss, old.boss), skills, skillpts: skills.reduce((n, k) => n + (k.to - k.from), 0) };
-      d.any = !!(d.levels || d.xp || d.quests || d.kills || d.deaths || d.camps || d.boss || skills.length);
+        deaths: up(now.deaths, old.deaths), camps: up(now.camps, old.camps), boss: up(now.boss, old.boss), skills, skillpts: skills.reduce((n, k) => n + (k.to - k.from), 0),
+        dungeonDeaths: up(now.dd, old.dd), runs: dungeonRuns(now.bosses, old.bosses) };
+      d.dungeons = runsCount(d.runs);
+      d.any = !!(d.levels || d.xp || d.quests || d.kills || d.deaths || d.camps || d.dungeons || d.dungeonDeaths || skills.length);
       cs.push(d);
     }
     // achievements of the player since the previous post
@@ -277,15 +320,16 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
     const before = base.ach.get(p);
     newBase.ach.set(p, new Set(done));
     const ach = before ? done.filter((id) => !before.has(id)).map((id) => BY_ID.get(id)) : [];
-    const t = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skillpts: 0 };
+    const t = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, dungeonDeaths: 0, camps: 0, dungeons: 0, skillpts: 0 };
     for (const c of cs) for (const k of Object.keys(t)) t[k] += c[k];
+    t.runs = mergeRuns(cs.map((c) => c.runs));
     const totalLevel = mine.reduce((n, c) => n + c.level, 0);
     results.push({ name: p, chars: cs.filter((c) => c.any), totals: t, totalLevel, ach, any: cs.some((c) => c.any) || ach.length > 0, discordId: discord?.get(p) ?? null });
   }
   const busy = results.filter((r) => r.any); // somebody who did nothing is left out
   if (!busy.length) return { messages: [], newBase, players: results };
 
-  const word = kind === 'week' ? 'week' : 'day';
+  const word = kind;
   // top 3 per stat (ties share the medal, at most three names), over the totals of all characters of a player
   const top = PERIOD_STATS.map((s) => {
     const list = busy.filter((r) => r.totals[s.key] > 0).sort((a, b) => b.totals[s.key] - a.totals[s.key] || byName(a.name, b.name));
@@ -297,13 +341,14 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
   // message 1: the top 3 and the guild total; message 2 (and on): one short line per player (9 nov, Jelle: two separate messages; no achievements per player)
   const head = [];
   if (top.length) head.push(`### 🏅 Top 3 of the ${word}\n${top.join('\n')}`);
-  const legend = '*✨ XP · ⬆️ levels · 📜 quests · ⚔️ kills · 🏰 boss kills · 💀 deaths · 🔥 campfires · 🔨 profession skill*';
-  const lineOf = (r) => { const t = r.totals; const stats = row(t.xp && `✨ ${fmt(t.xp)}`, t.levels && `⬆️ +${fmt(t.levels)}`, t.quests && `📜 ${fmt(t.quests)}`, t.kills && `⚔️ ${fmt(t.kills)}`, t.boss && `🏰 ${fmt(t.boss)}`, t.deaths && `💀 ${fmt(t.deaths)}`, t.camps && `🔥 ${fmt(t.camps)}`, t.skillpts && `🔨 +${fmt(t.skillpts)}`); return stats ? `**${r.name}** · ${stats}` : null; };
+  const legend = '*✨ XP · ⬆️ levels · 📜 quests · ⚔️ kills · 🏰 dungeons completed · 💀 deaths (☠️ of which in dungeons) · 🔥 campfires · 🔨 profession skill*';
+  const lineOf = (r) => { const t = r.totals; const stats = row(t.xp && `✨ ${fmt(t.xp)}`, t.levels && `⬆️ +${fmt(t.levels)}`, t.quests && `📜 ${fmt(t.quests)}`, t.kills && `⚔️ ${fmt(t.kills)}`, t.dungeons && `🏰 ${fmt(t.dungeons)}`, t.deaths && `💀 ${fmt(t.deaths)}${t.dungeonDeaths ? ` (☠️ ${fmt(t.dungeonDeaths)})` : ''}`, t.camps && `🔥 ${fmt(t.camps)}`, t.skillpts && `🔨 +${fmt(t.skillpts)}`); return stats ? `**${r.name}** · ${stats}` : null; };
   const playerLines = busy.map(lineOf).filter(Boolean); // alphabetical, one line each (all his characters added up)
-  const g = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, camps: 0, boss: 0, skillpts: 0 }; let achN = 0;
+  const g = { xp: 0, levels: 0, quests: 0, kills: 0, deaths: 0, dungeonDeaths: 0, camps: 0, dungeons: 0, skillpts: 0 }; let achN = 0;
   for (const r of busy) { for (const k of Object.keys(g)) g[k] += r.totals[k]; achN += r.ach.length; }
-  const trend = kind === 'week' && prevXp > 0 && g.xp > 0 ? ` (${g.xp >= prevXp ? '▲' : '▼'} ${Math.abs(Math.round(((g.xp - prevXp) / prevXp) * 100))}% vs last week)` : '';
-  head.push(`### 🧮 Guild total\n${row(g.xp && `✨ ${fmt(g.xp)} XP${trend}`, g.levels && `⬆️ +${plural(g.levels, 'level')}`, g.quests && `📜 ${plural(g.quests, 'quest')}`, g.kills && `⚔️ ${plural(g.kills, 'kill')}`, g.boss && `🏰 ${plural(g.boss, 'boss kill')}`, g.deaths && `💀 ${plural(g.deaths, 'death')}`, g.camps && `🔥 ${plural(g.camps, 'campfire')}`, g.skillpts && `🔨 +${fmt(g.skillpts)} profession skill`, achN && `🏆 ${plural(achN, 'new achievement')}`)}`);
+  const guildRuns = mergeRuns(busy.map((r) => r.totals.runs));
+  const trend = kind !== 'day' && prevXp > 0 && g.xp > 0 ? ` (${g.xp >= prevXp ? '▲' : '▼'} ${Math.abs(Math.round(((g.xp - prevXp) / prevXp) * 100))}% vs last ${kind})` : '';
+  head.push(`### 🧮 Guild total\n${row(g.xp && `✨ ${fmt(g.xp)} XP${trend}`, g.levels && `⬆️ +${plural(g.levels, 'level')}`, g.quests && `📜 ${plural(g.quests, 'quest')}`, g.kills && `⚔️ ${plural(g.kills, 'kill')}`, g.dungeons && `🏰 ${plural(g.dungeons, 'dungeon')} completed (${runsText(guildRuns)})`, g.deaths && `💀 ${plural(g.deaths, 'death')}${inDungeons(g.dungeonDeaths)}`, g.camps && `🔥 ${plural(g.camps, 'campfire')}`, g.skillpts && `🔨 +${fmt(g.skillpts)} profession skill`, achN && `🏆 ${plural(achN, 'new achievement')}`)}`);
 
   // the player lines are packed into as few messages as fit (normally one)
   const pages = [[]]; let size = 0;
@@ -311,11 +356,11 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
     if ((size + l.length > EMBED_LIMIT || pages[pages.length - 1].length >= EMBED_LINES) && pages[pages.length - 1].length) { pages.push([]); size = 0; }
     pages[pages.length - 1].push(l); size += l.length + 1;
   }
-  const title = kind === 'week' ? `Week Dinky · week ${isoWeek(addDays(today, -1))} (${since >= addDays(today, -1) ? dayMonth(addDays(today, -1)) : `${dayMonth(since)} – ${dayMonth(addDays(today, -1))}`})` : `Dag Dinky · ${dayName(addDays(today, -1))}`;
+  const title = kind === 'month' ? `Maand Dinky · ${monthName(addDays(today, -1))}` : kind === 'week' ? `Week Dinky · week ${isoWeek(addDays(today, -1))} (${since >= addDays(today, -1) ? dayMonth(addDays(today, -1)) : `${dayMonth(since)} – ${dayMonth(addDays(today, -1))}`})` : `Dag Dinky · ${dayName(addDays(today, -1))}`;
   const summary = `${title}: ${busy.map((r) => r.name).join(', ')}`;
   const messages = [{
     kind, player: '', discordId: null,
-    content: `@everyone ${kind === 'week' ? 'The week in review 📅' : 'The day in review 🌙'}`,
+    content: `@everyone ${kind === 'month' ? 'The month in review 🗓️' : kind === 'week' ? 'The week in review 📅' : 'The day in review 🌙'}`,
     embed: { color: COLOR, title, url: `${SITE}/overview.html`, description: head.join('\n\n') },
     allowed: { parse: ['everyone'] },
     commit: { levels: [], known: [], summary },
@@ -331,7 +376,7 @@ export function planPeriod({ kind, core, chars, states, base, today, since, prev
 
 // ---- Discord
 async function post(webhook, m) {
-  const body = { username: 'Ding Dinky', content: m.content, embeds: [{ ...m.embed, footer: { text: 'Mannenkeuken · Ding Dinky' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
+  const body = { username: 'Ding Dinky', content: m.content, embeds: [{ ...m.embed, footer: m.embed.footer ?? { text: 'Mannenkeuken · Ding Dinky' }, timestamp: new Date().toISOString() }], allowed_mentions: m.allowed };
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(`${webhook}${webhook.includes('?') ? '&' : '?'}wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.status === 429) { const wait = Number((await res.json().catch(() => ({}))).retry_after ?? 1); await sleep(Math.min(5, wait) * 1000 + 100); continue; }
@@ -348,10 +393,10 @@ async function runPeriods(data, chars, states, discord, dryRun, force) {
   const all = await db('ding_period?select=kind,key,snap');
   const webhook = env('DING_WEBHOOK_URL');
   const out = []; let error = null;
-  for (const kind of ['day', 'week']) {
+  for (const kind of ['day', 'week', 'month']) {
     const rows = all.filter((r) => r.kind === kind);
     // no earlier post: the first Dag Dinky starts from now, the first Week Dinky is the whole time since the launch (posted on the first Monday)
-    const seeded = kind === 'week' && !rows.some((r) => r.key === '_run');
+    const seeded = kind !== 'day' && !rows.some((r) => r.key === '_run'); // week and month: the first one covers the whole time since the launch
     const last = rows.find((r) => r.key === '_run')?.snap ?? (seeded ? { date: '1970-01-01', since: LAUNCH_DAY, xp: 0 } : null);
     const due = force === kind ? 'post' : periodDue(kind, last, now);
     if (!due) continue;
@@ -371,7 +416,7 @@ async function runPeriods(data, chars, states, discord, dryRun, force) {
     const stamp = new Date().toISOString();
     const snaps = [...result.newBase.chars].map(([k, v]) => ({ kind, key: `c:${k}`, snap: v, updated_at: stamp }));
     const achs = [...result.newBase.ach].map(([p, ids]) => ({ kind, key: `p:${p}`, snap: { done: [...ids] }, updated_at: stamp }));
-    await upsert('ding_period', [...snaps, ...achs, { kind, key: '_run', snap: { date: due === 'init' && now.minutes >= 22 * 60 ? addDays(now.date, 1) : now.date, since: now.date, xp: kind === 'week' ? (result.totalXp ?? 0) : null }, updated_at: stamp }], 'kind,key');
+    await upsert('ding_period', [...snaps, ...achs, { kind, key: '_run', snap: { date: due === 'init' && now.minutes >= 22 * 60 ? addDays(now.date, 1) : now.date, since: now.date, xp: kind !== 'day' ? (result.totalXp ?? 0) : null }, updated_at: stamp }], 'kind,key');
   }
   return { out, error };
 }
@@ -384,7 +429,7 @@ export async function run(dryRun, force) {
     db('gold_donations?select=player_name,copper'),
     db('achievement_overrides?select=*'),
     db('players?select=player_name,discord_id'),
-    db('ding_levels?select=character_key,level,quests,kills,deaths,camps,xp,skills,gear'),
+    db('ding_levels?select=character_key,level,quests,kills,deaths,camps,xp,skills,gear,dungeon_deaths,bosses'),
     db('ding_known?select=player_name,achievement_id'),
     db('ding_players?select=player_name'),
   ]);
@@ -394,7 +439,7 @@ export async function run(dryRun, force) {
   const players = [...new Set(chars.filter((c) => c.player && c.status !== 'Gestopt').map((c) => c.player))];
   const guild = core.guildMeters(data, players);
   const states = new Map(players.map((p) => [p, core.evaluate(data, p, guild)]));
-  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), snaps: new Map(levelRows.filter((r) => r.quests !== null && r.quests !== undefined).map((r) => [r.character_key, { quests: r.quests, kills: r.kills, deaths: r.deaths, camps: r.camps, xp: r.xp, skills: r.skills, gear: r.gear }])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
+  const prev = { levels: new Map(levelRows.map((r) => [r.character_key, r.level])), snaps: new Map(levelRows.filter((r) => r.quests !== null && r.quests !== undefined).map((r) => [r.character_key, { quests: r.quests, kills: r.kills, deaths: r.deaths, camps: r.camps, xp: r.xp, skills: r.skills, gear: r.gear, dd: r.dungeon_deaths ?? null, bosses: r.bosses ?? null }])), known: new Set(knownRows.map((r) => `${r.player_name}|${r.achievement_id}`)), players: new Set(doneRows.map((r) => r.player_name)) };
   const discord = new Map(playerRows.filter((p) => p.discord_id).map((p) => [p.player_name, p.discord_id]));
   const result = plan({ core, chars, states, prev, discord });
   const first = prev.players.size === 0 && prev.levels.size === 0;
@@ -403,7 +448,7 @@ export async function run(dryRun, force) {
 
   const now = new Date().toISOString();
   // remembered without posting: the starting point and everybody that is new
-  const snapRow = (l) => ({ character_key: l.key, level: l.level, quests: l.snap?.quests ?? null, kills: l.snap?.kills ?? null, deaths: l.snap?.deaths ?? null, camps: l.snap?.camps ?? null, xp: l.snap?.xp ?? null, skills: l.snap?.skills ?? null, gear: l.snap?.gear ?? null, updated_at: now });
+  const snapRow = (l) => ({ character_key: l.key, level: l.level, quests: l.snap?.quests ?? null, kills: l.snap?.kills ?? null, deaths: l.snap?.deaths ?? null, camps: l.snap?.camps ?? null, xp: l.snap?.xp ?? null, skills: l.snap?.skills ?? null, gear: l.snap?.gear ?? null, dungeon_deaths: l.snap?.dd ?? null, bosses: l.snap?.bosses ?? null, updated_at: now });
   await upsert('ding_levels', result.baseline.levels.map((l) => ({ ...snapRow(l), character_name: l.name, player_name: l.player })), 'character_key');
   // the numbers of players without news (nothing to post, so nothing can be lost)
   await upsert('ding_levels', result.quietSnaps.map((l) => snapRow({ key: l.key, level: l.level, snap: l })), 'character_key');
@@ -438,7 +483,7 @@ Deno.serve(async (req) => {
   const secret = env('UPDATE_CHARACTERS_SECRET');
   if (!secret || req.headers.get('x-update-secret') !== secret) return json({ error: 'forbidden' }, 403);
   let dryRun = false; let test = false; let force = null;
-  try { const body = await req.json(); dryRun = !!body.dryRun; test = !!body.test; force = dryRun && ['day', 'week'].includes(body.force) ? body.force : null; } catch { /* no body */ }
+  try { const body = await req.json(); dryRun = !!body.dryRun; test = !!body.test; force = dryRun && ['day', 'week', 'month'].includes(body.force) ? body.force : null; } catch { /* no body */ }
   // {"test": true}: posts one hello message in the channel to check the webhook, and nothing else (no state is read or written)
   if (test) {
     try {
