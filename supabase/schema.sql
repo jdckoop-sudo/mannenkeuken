@@ -2211,3 +2211,58 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$In Memoriam + Opie Gedenk$q$, $q$Discord$q$, 'check',
   $q$After the SQL and the Opie Gedenk webhook in the Vault as gedenk_webhook_url: select public.memorial_check(true); shows who would die or rise. Over 14 days without a login (not Quit) or all characters Quit: gravestones on Guild > In Memoriam + a post in #kletsen. Playing again removes them ("risen"); a Quit character goes back to Alt.$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$In Memoriam + Opie Gedenk$q$);
+
+-- 2026-11-27: In Memoriam, condolences and emotes per gravestone (Jelle). Keyed by the character (lower-case name, like blizzard_characters.key),
+-- so they stay with the character (also when he dies again later). Only members (guild code) read and write, like the gallery.
+create table if not exists public.memorial_comments (
+  id uuid primary key default gen_random_uuid(),
+  character_key text not null,
+  user_id uuid not null default auth.uid(),
+  player_name text not null references public.players(player_name) on update cascade,
+  body text not null check (char_length(btrim(body)) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+create index if not exists memorial_comments_character on public.memorial_comments (character_key, created_at);
+alter table public.memorial_comments enable row level security;
+drop policy if exists "memorial comments read" on public.memorial_comments;
+create policy "memorial comments read" on public.memorial_comments for select using (public.is_member());
+drop policy if exists "memorial comments add" on public.memorial_comments;
+create policy "memorial comments add" on public.memorial_comments for insert
+  with check (public.is_member() and user_id = auth.uid() and player_name = public.current_player() and character_key = lower(btrim(character_key)));
+drop policy if exists "memorial comments delete" on public.memorial_comments;
+create policy "memorial comments delete" on public.memorial_comments for delete
+  using (public.same_player(user_id) or public.is_dev());
+grant select, insert, delete on public.memorial_comments to anon, authenticated;
+
+-- one emote per player per gravestone; set_memorial_reaction(character, null) takes it back
+create table if not exists public.memorial_reactions (
+  character_key text not null,
+  player_name text not null references public.players(player_name) on update cascade,
+  emoji text not null check (char_length(emoji) between 1 and 16),
+  created_at timestamptz not null default now(),
+  primary key (character_key, player_name)
+);
+alter table public.memorial_reactions enable row level security;
+drop policy if exists "memorial reactions read" on public.memorial_reactions;
+create policy "memorial reactions read" on public.memorial_reactions for select using (public.is_member());
+grant select on public.memorial_reactions to anon, authenticated;
+create or replace function public.set_memorial_reaction(p_character text, p_emoji text) returns void
+language plpgsql security definer set search_path = public as $$
+declare me text := public.current_player(); k text := lower(btrim(coalesce(p_character, '')));
+begin
+  if not public.is_member() or me is null then raise exception 'Only members can react'; end if;
+  if k = '' then raise exception 'No character'; end if;
+  if p_emoji is null or btrim(p_emoji) = '' then
+    delete from public.memorial_reactions where character_key = k and player_name = me;
+  else
+    insert into public.memorial_reactions (character_key, player_name, emoji) values (k, me, btrim(p_emoji))
+    on conflict (character_key, player_name) do update set emoji = excluded.emoji, created_at = now();
+  end if;
+end $$;
+revoke all on function public.set_memorial_reaction(text, text) from public;
+grant execute on function public.set_memorial_reaction(text, text) to anon, authenticated;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$In Memoriam: condolences and emotes$q$, $q$Guild$q$, 'check',
+  $q$Logged in: under a gravestone click "Pay respects": the window shows the emotes (one per player, click again = take back) and the condolences; post one, delete your own. Not logged in: "Choose your player". All gravestones are equally high.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$In Memoriam: condolences and emotes$q$);
