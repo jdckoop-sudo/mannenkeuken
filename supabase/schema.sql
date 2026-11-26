@@ -2032,3 +2032,13 @@ insert into public.dev_checks (title, area, status, note, updated_by)
 select $q$Opie Market: new listings in #loot-showcase$q$, $q$Discord$q$, 'check',
   $q$After the SQL and after the webhook URL of Opie Market is in the Vault as market_webhook_url: put a new offer or request on the Trade Market. Opie Market posts it once in #loot-showcase, tagged players get an @mention. Editing or finishing a listing posts nothing; the listings from before are never posted. Look without posting: select public.market_post('<id>', true);$q$, 'Claude'
 where not exists (select 1 from public.dev_checks where title = $q$Opie Market: new listings in #loot-showcase$q$);
+
+-- 2026-11-26: Ding Dinky recap with the character level first, dungeons completed and dungeon deaths; Maand Dinky (Jelle)
+-- the counters of the previous run per character: deaths in dungeons and raids (stats.dungeonDeaths) and the boss kills per dungeon (stats.bosses)
+alter table public.ding_levels add column if not exists dungeon_deaths integer;
+alter table public.ding_levels add column if not exists bosses jsonb;
+
+insert into public.dev_checks (title, area, status, note, updated_by)
+select $q$Ding Dinky: character level first, dungeons, Maand Dinky$q$, $q$Discord$q$, 'check',
+  $q$After running this SQL and deploying ding-bot: the first run only remembers dungeon deaths and boss kills (select character_key, dungeon_deaths, bosses from ding_levels;). Then log out after a session: the recap starts with "<player> played <character>:", the title is "🎉 <character> reached level N!" (or "Session recap · <character>"), per character "Name · Race Class", "⬆️ Level a → b", a bar "x% to level n", activity, "☠️ +N dungeon deaths" and "🏰 N dungeons completed: <dungeons>" only when there were any; the footer has "player level N (all characters)". Dag/Week Dinky: "Dungeons completed" and "Dungeon deaths" in the top 3, guild total and Everyone. Maand Dinky on the 1st at 00:07 (the first one covers everything since the launch). Preview: POST {"dryRun": true, "force": "month"}.$q$, 'Claude'
+where not exists (select 1 from public.dev_checks where title = $q$Ding Dinky: character level first, dungeons, Maand Dinky$q$);
