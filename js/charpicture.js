@@ -17,6 +17,13 @@ export const pictureOf = (entry) => {
   return /^https:\/\//.test(url ?? '') ? url : null;
 };
 
+// Only the head of the character (the game's own 84 x 84 crop, media.avatar), e.g. on the gravestones of In Memoriam. Null when the game has none.
+export const avatarOf = (entry) => {
+  if (WRONG_PICTURE_CHARACTERS.includes(String(entry?.name ?? '').toLowerCase())) return null;
+  const url = entry?.status === 'ok' ? entry.media?.avatar : null;
+  return /^https:\/\//.test(url ?? '') ? url : null;
+};
+
 // The picture keeps the same address when the game draws it again, and the render server says nothing about how long a copy may be kept, so a browser
 // keeps its old copy for hours. This stamp changes when the character logged in again, levelled or changed gear (the moments it may look different),
 // and goes behind the address so a changed character is fetched anew. When the game itself has not drawn it again, the old picture stays.

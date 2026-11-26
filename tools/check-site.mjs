@@ -18,7 +18,7 @@ import { join } from 'node:path';
 
 const BASE = (process.env.SITE_URL || 'https://jdckoop-sudo.github.io/mannenkeuken/').replace(/\/?$/, '/');
 const CHROME = process.env.CHROME_PATH || 'google-chrome';
-const PAGES = (process.env.PAGES || 'index.html,roster.html,overview.html,professions.html,achievements.html,market.html,events.html,bank.html,setup.html,profile.html,gallery.html').split(',').map((p) => p.trim()).filter(Boolean);
+const PAGES = (process.env.PAGES || 'index.html,roster.html,overview.html,professions.html,achievements.html,market.html,events.html,bank.html,setup.html,profile.html,gallery.html,in-memoriam.html').split(',').map((p) => p.trim()).filter(Boolean);
 const DATA = [
   ['data/items.json', (d) => d.items?.length > 1000, 'item list'],
   ['data/tradeable-items.json', (d) => d.items?.length > 500, 'tradeable item list'],
